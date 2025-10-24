@@ -12,7 +12,7 @@
     <div class="collapse navbar-collapse  w-auto " id="sidenav-collapse-main">
         <ul class="navbar-nav">
 
-            <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Plantilla" />
+            <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Mi plantilla" />
 
             <x-button.button-modal-menu idModal="#modal_logout" icon="fa fa-power-off fa-lg" tittle="Salir" />
 

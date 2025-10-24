@@ -16,10 +16,10 @@
         </div>
         <div class="paginador d-flex">
             <!-- Pagination buttons with Font Awesome icons for navigation -->
-            <button class="page-link hover-icon-black" id="less_one_iterator"><i class="ti ti-chevron-left fs-3"></i></button>
-            <button class="page-link hover-icon-black" id="less_five_iterator"><i class="ti ti-chevron-left-pipe fs-3"></i></button>
-            <button class="page-link hover-icon-black" id="plus_five_iterator"><i class="ti ti-chevron-right-pipe fs-3"></i></button>
-            <button class="page-link hover-icon-black" id="plus_one_iterator"><i class="ti ti-chevron-right fs-3"></i></button>
+            <button class="paginador-btn" id="less_one_iterator"><i class="fa fa-angle-left"></i></button>
+            <button class="paginador-btn" id="less_five_iterator"><i class="fa fa-angle-double-left"></i></button>
+            <button class="paginador-btn" id="plus_five_iterator"><i class="fa fa-angle-double-right"></i></button>
+            <button class="paginador-btn" id="plus_one_iterator"><i class="fa fa-angle-right"></i></button>
         </div>
     </div>
 </template>

@@ -2,11 +2,12 @@
 import { createApp } from 'vue'
 
 import vue_form_login from './app/auth/login.vue'
-
+import vue_table_pac from './app/pac/table.vue'
 
 const components = [
     // Student
     { selector: '#blade_form_login', component: vue_form_login },
+    { selector: '#blade_table_pac', component: vue_table_pac },
 
 ]
 

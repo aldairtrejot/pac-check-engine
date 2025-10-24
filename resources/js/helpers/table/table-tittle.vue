@@ -1,5 +1,6 @@
 <template>
     <!-- Card header container with responsive flex layout and spacing -->
+    <br>
     <div class="row align-items-center mb-3">
         <div class="col-md-6 col-12">
             <h5 class="card-title mb-0">{{ value }}</h5>
