@@ -1,0 +1,9 @@
+/* Bordes redondeados en la “burbuja” */
+.notyf__toast {
+    border-radius: 12px !important;
+}
+
+/* Texto en negrita */
+.notyf__message {
+    font-weight: bold !important;
+}
