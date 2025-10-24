@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Auth\Login;
+namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Auth\Login\UserEntityModel;
+use App\Models\Auth\UserEntityModel;
 use HTMLPurifier;
 use HTMLPurifier_Config;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +37,7 @@ class AuthLoginController extends Controller
             // the IP is optimized for registration
             $key = 'login-attempts:'.$request->ip();
 
-            if (RateLimiter::tooManyAttempts($key, 100)) {
+            if (RateLimiter::tooManyAttempts($key, 10)) {
                 return response()->json([
                     'status' => false,
                     'message' => __('default.rate_limiter_message'),

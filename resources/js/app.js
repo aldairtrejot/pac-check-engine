@@ -1,7 +1,7 @@
 // resources/js/app.js
 import { createApp } from 'vue'
 
-import vue_form_login from './app/auth/login/login.vue'
+import vue_form_login from './app/auth/login.vue'
 
 
 const components = [

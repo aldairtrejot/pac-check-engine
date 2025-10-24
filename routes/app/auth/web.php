@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\Auth\Login\AuthLoginController;
-use App\Http\Controllers\Auth\Login\ViewLoginController;
+use App\Http\Controllers\Auth\AuthLoginController;
+use App\Http\Controllers\Auth\ViewLoginController;
 
 /*
 |--------------------------------------------------------------------------
-| routes for student module design
+| routes for pac-check-engine module design
 |--------------------------------------------------------------------------
 | Protected by: *
 */

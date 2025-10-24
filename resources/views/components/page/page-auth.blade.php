@@ -11,7 +11,6 @@
     <link rel="stylesheet" href="{{ asset('assets/icons/fontawesome/css/all.min.css') }}">
 </head>
 
-{{-- -@include('components.Helpers.spinner')  --}}
 @include('components.message.error-messages')
 @vite(['resources/js/app.js'])
 

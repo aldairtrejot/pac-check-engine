@@ -3,7 +3,7 @@
     <div class="sidenav-header">
         <i class="fas fa-times p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
             aria-hidden="true" id="iconSidenav"></i>
-        <a class="navbar-brand m-0" href="{{ route('app.dashboard') }}">
+        <a class="navbar-brand m-0" href="{{ route('pac') }}">
             <img src="{{ asset('assets/images/bienestar/logo_imss_blanco.png') }}" alt="main_logo"
                 style="height: 54px !important; width: auto !important;">
         </a>
@@ -12,15 +12,7 @@
     <div class="collapse navbar-collapse  w-auto " id="sidenav-collapse-main">
         <ul class="navbar-nav">
 
-            <x-button.button-nav-menu active="dashboard" route="app.dashboard" icon="fas fa-home fa-lg"
-                title="Dashboard" />
-
-            <x-button.button-nav-menu active="user" route="app.user" icon="fa fa-user fa-lg" title="Usuarios" />
-
-            <x-button.button-nav-menu active="record" route="app.record" icon="fa fa-id-badge fa-lg"
-                title="Registros" />
-
-            <x-button.button-nav-menu active="about" route="app.about" icon="fa fa-circle fa-lg" title="Acerca de" />
+            <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Plantilla" />
 
             <x-button.button-modal-menu idModal="#modal_logout" icon="fa fa-power-off fa-lg" tittle="Salir" />
 

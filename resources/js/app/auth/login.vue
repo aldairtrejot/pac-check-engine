@@ -104,7 +104,7 @@ async function sendData() {
         }
 
         if (response.data.status) {
-            window.location.href = `${BASE_URL}/login`;
+            window.location.href = `${BASE_URL}/pac`;
         }
 
     } catch (error) {
