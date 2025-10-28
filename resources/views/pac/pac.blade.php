@@ -6,7 +6,7 @@
 
     <x-template.app-card>
         <div id="blade_table_pac"></div>
-        <div id="blade_modal_report_user"></div>
+        <div id="balde_modal_data"></div>
     </x-template.app-card>
 
 </x-template.app-page>

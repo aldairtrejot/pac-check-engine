@@ -16,23 +16,24 @@
 
         <div id="collapseFilters" class="accordion-collapse collapse" aria-labelledby="headingFilters"
           data-bs-parent="#accordionFilters">
-          <div class="accordion-body bg-light rounded-bottom">
+          <div class="accordion-body bg-light rounded-bottom p-2">
 
-            <div class="row g-2 mb-0">
+            <div class="row g-1 mb-0">
               <inputField :grid="gridx3" label="Nombre" id="curp" v-model="name" :uppercase="true" />
               <inputField :grid="gridx3" label="CURP" id="curp" v-model="curp" :uppercase="true" />
-              <div class="col-12 col-md-4 mb-3">
+              <!--
+              <div class="col-12 col-md-4 mb-0">
                 <inputCheckbox v-model="is_complete" :label="'¿Es atendido?'" :id="'estatus'" />
               </div>
+              -->
             </div>
 
-            <div class="row mt-0">
+            <div class="row" style="margin-top: -70px !important;">
               <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_accion" label="Curso"
                 :multiple="false" grid="col-md-12 col-sm-12" :required="true" />
             </div>
-            <br>
 
-            <div class="d-flex justify-content-end flex-wrap gap-2">
+            <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
               <tableButtonDefault color="white" icon="fas fa-brush" label="Limpiar" @click="clear_search"
                 color_icon="#777777" :clickEventPayload="null" />
               <button type="button" class="btn btn-sm btn-secondary" @click="search_function">
@@ -72,8 +73,8 @@
             <td class="text-center">
               <div class="button-container">
 
-                <tableButtonDefault color="#081F5E" icon="fa fa-external-link" label="Atender" @click="clear_search"
-                  :clickEventPayload="null" />
+                <tableButtonDefault color="#081F5E" icon="fa fa-external-link" label="Atender" @click="setOption"
+                  :clickEventPayload="row.id" modalToggle="modal" modalTarget="#modal_password_user" />
 
                 <tableButtonDefault color="#0E5E08" icon="fa fa-history" label="Check" @click="clear_search"
                   :clickEventPayload="null" />
@@ -129,7 +130,7 @@ import inputCheckbox from '@helpers/form/input-checkbox.vue';
 
 // Import axios instance for HTTP requests
 import axios from '@axios'
-const gridx3 = ref('col-12 col-md-4 mb-3')
+const gridx3 = ref('col-12 col-md-6 mb-6')
 const name = ref('')
 const curp = ref('')
 const is_complete = ref(false)
@@ -164,7 +165,6 @@ const fetchTableData = async () => {
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? ''
     });
-    console.log(data)
 
     item.value = data.list; // Set items to display
     rowsAll.value = data.allRow; // Set total row count
@@ -224,4 +224,7 @@ async function main() {
   }
 }
 
+function setOption(id) {
+  window._selectkybyemployee = id
+}
 </script>
