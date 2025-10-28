@@ -197,6 +197,7 @@ onMounted(() => {
 
 // LA función limpia los filtros y actualiza la información
 function clear_search() {
+  currentPage.value = 1;
   name.value = ''
   curp.value = ''
   is_complete.value = false
@@ -206,6 +207,7 @@ function clear_search() {
 
 // La función realiza la bsuqueda
 function search_function() {
+  currentPage.value = 1;
   fetchTableData();
 }
 
