@@ -3,13 +3,11 @@ import { createApp } from 'vue'
 
 import vue_form_login from './app/auth/login.vue'
 import vue_table_pac from './app/pac/table.vue'
-import vue_modal_data from './app/pac/data.vue'
 
 const components = [
     // Student
     { selector: '#blade_form_login', component: vue_form_login },
     { selector: '#blade_table_pac', component: vue_table_pac },
-    { selector: '#balde_modal_data', component: vue_modal_data },
 
 ]
 

@@ -3,25 +3,25 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
-use App\Models\Pac\CollectionPacModel;
+use App\Models\Pac\DataPacModel;
+use Illuminate\Http\Request;
 
-class MainPacController extends Controller
+class DataPacController extends Controller
 {
-    public function mainPac()
+    public function dataPac(Request $request)
     {
         try {
             // Obtener los catalogos de cursos
-            $collectionPacModel = new CollectionPacModel;
-            $listOptionsAcction = $collectionPacModel->listCollection();
-            $listSelectAcction = [];
+            $dataPacModel = new DataPacModel;
+            $data = $dataPacModel->dataPac($request->id);
 
             return response()->json([
                 'status' => true, // Return successful response
-                'listOptionsAcction' => $listOptionsAcction, // Send packaged data
-                'listSelectAcction' => $listSelectAcction, // Send packaged data
+                'data' => $data, // Send packaged data
+
             ], 200); // Respond with HTTP status 200
         } catch (\Throwable $th) {
-            // \Log::info('erros: '.$th);
+            \Log::info('erros: '.$th);
 
             return response()->json([
                 'status' => false, // return a JSON response with status false on error

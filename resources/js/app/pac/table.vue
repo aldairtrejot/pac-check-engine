@@ -29,7 +29,7 @@
             </div>
 
             <div class="row" style="margin-top: -70px !important;">
-              <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_accion" label="Curso"
+              <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_accion" label="Acción"
                 :multiple="false" grid="col-md-12 col-sm-12" :required="true" />
             </div>
 
@@ -61,7 +61,7 @@
             <tableRow value="¿Es atentido?" />
             <tableRow value="Nombre" />
             <tableRow value="CURP" />
-            <tableRow value="Curso" />
+            <tableRow value="Acción" />
           </tr>
         </thead>
         <tbody>
@@ -76,8 +76,10 @@
                 <tableButtonDefault color="#081F5E" icon="fa fa-external-link" label="Atender" @click="setOption"
                   :clickEventPayload="row.id" modalToggle="modal" modalTarget="#modal_password_user" />
 
+                <!-- 
                 <tableButtonDefault color="#0E5E08" icon="fa fa-history" label="Check" @click="clear_search"
                   :clickEventPayload="null" />
+-->
 
               </div>
             </td>
@@ -103,6 +105,75 @@
     <!-- Table footer with pagination -->
     <tableFooter :row="row" :rowsAll="rowsAll" />
   </div>
+
+
+  <modalTemplate modalId="modal_password_user" title="Datos de empleado" :onConfirm="button_confirm" size="lg">
+    <form role="form" id="data_form" enctype="multipart/form-data">
+      <div class="row">
+
+
+        <li class="list-group-item border-0 d-flex p-4 mb-2 bg-gray-100 border-radius-lg">
+          <div class="d-flex flex-column w-100">
+            <h6 class="mb-3 text-sm">{{ m_nombre }}</h6>
+            <div class="row">
+
+              <div class="col-md-6">
+                <span class="mb-2 text-xs d-block">CURP: <span class="text-dark font-weight-bold ms-sm-2">{{ m_curp
+                    }}</span></span>
+                <span class="mb-2 text-xs d-block">RFC: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_rfc
+                }}</span></span>
+                <span class="mb-2 text-xs d-block">Cod. Puesto: <span class="text-dark font-weight-bold ms-sm-2">{{
+                  m_codigo_puesto }}</span></span>
+                <span class="mb-2 text-xs d-block">Puesto: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_puesto
+                }}</span></span>
+              </div>
+
+              <div class="col-md-6">
+                <span class="mb-2 text-xs d-block">Contratación: <span class="text-dark ms-sm-2 font-weight-bold">{{
+                  m_contratacion }}</span></span>
+                <span class="mb-2 text-xs d-block">Nivel salarial: <span class="text-dark ms-sm-2 font-weight-bold">{{
+                  m_nivel_salarial }}</span></span>
+                <span class="mb-2 text-xs d-block">CLUES: <span class="text-dark font-weight-bold ms-sm-2">{{
+                  m_clave_clues }}</span></span>
+                <span class="mb-2 text-xs d-block">Entidad: <span class="text-dark ms-sm-2 font-weight-bold">{{
+                  m_entidad }}</span></span>
+              </div>
+            </div>
+            <div class="row">
+              <span class="mb-2 text-xs d-block">Acción: <span class="text-dark ms-sm-2 font-weight-bold">{{
+                m_accion }}</span></span>
+            </div>
+          </div>
+        </li>
+
+        <form role="form" id="data_form" enctype="multipart/form-data">
+          <div class="row">
+            <inputField :grid="gridx3" type="date" label="Fecha Inicio" id="m_fecha_ini" v-model="m_fecha_ini" />
+            <inputField :grid="gridx3" type="date" label="Fecha Fin" id="m_fecha_fin" v-model="m_fecha_fin" />
+          </div>
+          <div class="row" style="margin-top: -70px !important;">
+            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_unidad" label="Estatus"
+              :multiple="false" grid="col-md-6 col-sm-12" />
+
+            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_coordinacion"
+              :multiple="false" label="Instancia" grid="col-md-6 col-sm-12" />
+          </div>
+          <div class="row">
+            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_unidad" label="Temática"
+              :multiple="false" grid="col-12" />
+          </div>
+          <div class="row">
+            <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones" :uppercase="true" />
+          </div>
+        </form>
+
+      </div>
+    </form>
+  </modalTemplate>
+
+
+
+
 </template>
 
 <script setup>
@@ -116,7 +187,8 @@ import { setupTableEvents } from '@helpers/table/table-events.vue'
 import { handlePagination } from '@helpers/table/table-pagination.vue'
 import tableButtonEdit from '@helpers/table/table-button-edit.vue'
 import inputField from '@helpers/form/input-field.vue';
-
+import modalTemplate from '@helpers/modal/modal-template.vue'; // Custom modal component
+import { showSpinner, hideSpinner } from '@components/spinner.js'
 // Import custom table-related components
 import tableTittle from '@helpers/table/table-tittle.vue'
 import tableFooter from '@helpers/table/table-footer.vue'
@@ -144,6 +216,21 @@ const currentPage = ref(1) // Current page number
 const limit = ref(5) // Limit of rows per page
 const searchTerm = ref('') // Search input value
 const spinnerRef = ref(null) // Spinner reference
+
+// data modal
+const m_nivel_salarial = ref('')
+const m_rfc = ref('')
+const m_codigo_puesto = ref('')
+const m_puesto = ref('')
+const m_clave_clues = ref('')
+const m_nombre = ref('')
+const m_entidad = ref('')
+const m_contratacion = ref('')
+const m_curp = ref('')
+const m_accion = ref('')
+const m_fecha_ini = ref('')
+const m_fecha_fin = ref('')
+const m_observaciones = ref ('')
 
 // Function to fetch table data from backend
 const fetchTableData = async () => {
@@ -224,7 +311,40 @@ async function main() {
   }
 }
 
-function setOption(id) {
+
+async function button_confirm() {
+
+}
+
+async function setOption(id) {
+  console.log(id)
   window._selectkybyemployee = id
+  showSpinner()
+  try {
+    const request = await axios.post('/pac/data', { id: id })
+    console.log(request)
+    const data = request.data.data
+
+    m_nivel_salarial.value = data[0].nivel_salarial
+    m_rfc.value = data[0].rfc
+    m_codigo_puesto.value = data[0].codigo_puesto
+    m_clave_clues.value = data[0].clave_clues
+    m_puesto.value = data[0].puesto
+    m_entidad.value = data[0].entidad
+    m_contratacion.value = data[0].contratacion
+    m_curp.value = data[0].curp
+    m_nombre.value = data[0].nombre
+    m_accion.value = data[0].accion
+    m_fecha_ini.value = data[0].fecha_ini
+    m_fecha_fin.value = data[0].fecha_fin
+    m_observaciones.value = data[0].observaciones
+
+
+  } catch (error) {
+    //$('#modal_password_user').modal('hide');
+    notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
+  } finally {
+    hideSpinner();
+  }
 }
 </script>
