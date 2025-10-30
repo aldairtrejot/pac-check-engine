@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\Pac;
+namespace App\Http\Controllers\Action;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Helpers\TemplateTableController;
-use App\Models\Pac\TablePacModel;
+use App\Models\Action\TableActionModel;
 use Illuminate\Http\Request;
 
-class TablePacController extends Controller
+class TableActionController extends Controller
 {
     /**
      * The function cleans, sanitizes and validates the query information of the table to obtain
@@ -18,7 +18,7 @@ class TablePacController extends Controller
     public function table(Request $request)
     {
         $templateTableController = new TemplateTableController;   // Create instance of the Table controller/helper
-        $objectModel = new TablePacModel;     // Create instance of the User model
+        $objectModel = new TableActionModel;     // Create instance of the User model
         try {
             // Validate and sanitize pagination parameters from the request
             $data = $templateTableController->validateAndSanitizePagination($request);
@@ -29,7 +29,6 @@ class TablePacController extends Controller
                 $data['offset'],
                 $data['search'],
                 $data['select'],
-                $request
             );
 
             // Return the response with paginated data
@@ -41,7 +40,7 @@ class TablePacController extends Controller
             ], 200);
         } catch (\Exception $e) {
             // Catch all other exceptions and return a general error message
-            // \Log::info($e);
+            \Log::info($e);
 
             return response()->json([
                 'status' => false,
@@ -50,4 +49,3 @@ class TablePacController extends Controller
         }
     }
 }
-
