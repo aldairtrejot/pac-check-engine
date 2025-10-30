@@ -10,5 +10,6 @@
     <link id="pagestyle" href="{{ asset('assets/app/css/soft-ui-dashboard.css') }}" rel="stylesheet" />
     <link rel="stylesheet" href="{{ asset('assets/icons/fontawesome/css/all.min.css') }}">
     <link id="pagestyle" href="{{ asset('assets/app/css/spinner.css') }}" rel="stylesheet" />
+    <script src="{{ asset('assets/app/js/jquery.js') }}"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>

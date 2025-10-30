@@ -1,25 +1,24 @@
 <?php
 
 namespace App\Models\Pac\Collection;
-
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
 
-class CollectionStatusModel extends Model
+class CollectionTematicaModel extends Model
 {
-    /**
+           /**
      * The function returns the list of active roles for the combox
      *
      * @return \Illuminate\Support\Collection<int, \stdClass>
      */
     public function listCollection()
     {
-        return DB::table('public.cat_estatus')
+        return DB::table('public.cat_tematica')
             ->select(
-                'public.cat_estatus.id_cat_estatus as id',
-                'public.cat_estatus.descripcion as descripcion'
+                'public.cat_tematica.id_tematica as id',
+                'public.cat_tematica.tematica AS descripcion'
             )
-            ->orderBy('public.cat_estatus.descripcion', 'ASC')
+            ->orderBy('public.cat_tematica.tematica', 'ASC')
             ->get();
     }
 
@@ -30,12 +29,12 @@ class CollectionStatusModel extends Model
      */
     public function listConllectionSelect($id)
     {
-        return DB::table('public.cat_estatus')
+        return DB::table('public.cat_tematica')
             ->select(
-                'public.cat_estatus.id_cat_estatus as id',
-                'public.cat_estatus.descripcion as descripcion'
+                'public.cat_tematica.id_tematica as id',
+                'public.cat_tematica.tematica AS descripcion'
             )
-            ->where('public.cat_estatus.id_cat_estatus', $id)
+            ->where('public.cat_tematica.id_tematica', $id)
             ->get();
     }
 }

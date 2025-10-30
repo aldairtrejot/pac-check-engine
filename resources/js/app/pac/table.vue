@@ -146,24 +146,25 @@
           </div>
         </li>
 
-        <form role="form" id="data_form" enctype="multipart/form-data">
+        <form role="form" id="data_form_x" enctype="multipart/form-data">
           <div class="row">
             <inputField :grid="gridx3" type="date" label="Fecha Inicio" id="m_fecha_ini" v-model="m_fecha_ini" />
             <inputField :grid="gridx3" type="date" label="Fecha Fin" id="m_fecha_fin" v-model="m_fecha_fin" />
           </div>
           <div class="row" style="margin-top: -70px !important;">
-            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_unidad" label="Estatus"
+            <inputSelect v-model="listSelectStatus" :options="listOptionStatus" id="id_cat_estatus" label="Estatus"
               :multiple="false" grid="col-md-6 col-sm-12" />
 
-            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_coordinacion"
-              :multiple="false" label="Instancia" grid="col-md-6 col-sm-12" />
+            <inputSelect v-model="listSelectInstance" :options="listOptionInstance" id="id_instancia" :multiple="false"
+              label="Instancia" grid="col-md-6 col-sm-12" />
           </div>
           <div class="row">
-            <inputSelect v-model="listSelectAcction" :options="listOptionsAcction" id="id_cat_unidad" label="Temática"
-              :multiple="false" grid="col-12" />
+            <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica"
+              label="Temática" :multiple="false" grid="col-12" />
           </div>
           <div class="row">
-            <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones" :uppercase="true" />
+            <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones"
+              :uppercase="true" />
           </div>
         </form>
 
@@ -199,6 +200,8 @@ import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputSelect from '@helpers/form/input-select.vue';
 import inputCheckbox from '@helpers/form/input-checkbox.vue';
+import { clearErrors } from '@components/clearErrors.js'; // Importing function to clear previous errors
+import { handleErrors } from '@components/handleErrors.js';
 
 // Import axios instance for HTTP requests
 import axios from '@axios'
@@ -230,7 +233,13 @@ const m_curp = ref('')
 const m_accion = ref('')
 const m_fecha_ini = ref('')
 const m_fecha_fin = ref('')
-const m_observaciones = ref ('')
+const m_observaciones = ref('')
+const listSelectStatus = ref([])
+const listOptionStatus = ref([])
+const listSelectInstance = ref([])
+const listOptionInstance = ref([])
+const listSelectTematica = ref([])
+const listOptionTematica = ref([])
 
 // Function to fetch table data from backend
 const fetchTableData = async () => {
@@ -313,17 +322,57 @@ async function main() {
 
 
 async function button_confirm() {
+  try {
+    const form = document.querySelector('#data_form_x'); // Select the login form
+    const formData = new FormData(form); // Create a FormData object with the form data
+    const key = window._selectkybyemployee
 
+    formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '');
+    formData.append('id_instancia', listSelectInstance.value?.id ?? '');
+    formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '');
+
+    showSpinner(); // Start the loader to indicate processing
+    clearErrors(); // Clear any previous errors
+
+    // Send a POST request to the backend with the form data
+    formData.append('id', key);
+
+    const response = await axios.post('/pac/save', formData);
+
+
+    if (!response.data.status) {
+      clearErrors(); // Clear errors if there is an issue
+      notyf.error(response.data.message); // Show the error message using the notification system
+    }
+
+    if (response.data.status) {
+      $('#modal_password_user').modal('hide');
+      notyf.success(response.data.message);
+      fetchTableData();
+    }
+
+  } catch (error) {
+    // Handle any errors that occur during the request
+    clearErrors(); // Clear previous errors
+    if (error.response && error.response.data.errors) {
+      handleErrors(error.response.data.errors); // Display validation errors using the handleErrors function
+    }
+
+  } finally {
+    hideSpinner(); // Stop the loader after the request is finished
+  }
 }
 
 async function setOption(id) {
   console.log(id)
+  
+  clearErrors(); 
   window._selectkybyemployee = id
   showSpinner()
   try {
     const request = await axios.post('/pac/data', { id: id })
-    console.log(request)
     const data = request.data.data
+    const selectx = request.data
 
     m_nivel_salarial.value = data.nivel_salarial
     m_rfc.value = data.rfc
@@ -339,6 +388,12 @@ async function setOption(id) {
     m_fecha_fin.value = data.fecha_fin
     m_observaciones.value = data.observaciones
 
+    listOptionStatus.value = selectx.listOptionStatus ?? []
+    listSelectStatus.value = (selectx.listSelectStatus ?? [])[0] ?? null
+    listOptionInstance.value = selectx.listOptionInstance ?? []
+    listSelectInstance.value = (selectx.listSelectInstance ?? [])[0] ?? null
+    listOptionTematica.value = selectx.listOptionTematica ?? []
+    listSelectTematica.value = (selectx.listSelectTematica ?? [])[0] ?? null
 
   } catch (error) {
     //$('#modal_password_user').modal('hide');

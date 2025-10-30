@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Pac\DataPacController;
 use App\Http\Controllers\Pac\MainPacController;
+use App\Http\Controllers\Pac\SavePacController;
 use App\Http\Controllers\Pac\TablePacController;
 use App\Http\Controllers\Pac\ViewPacController;
 
@@ -21,5 +22,5 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pac/main', [MainPacController::class, 'mainPac'])->name('pac.main');
     Route::post('/pac/table', [TablePacController::class, 'table'])->name('pac.table');
     Route::post('/pac/data', [DataPacController::class, 'dataPac'])->name('pac.data');
-
+    Route::post('/pac/save', [SavePacController::class, 'save'])->name('pac.save');
 });
