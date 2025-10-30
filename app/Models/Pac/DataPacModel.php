@@ -34,6 +34,7 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.id_cat_estatus AS id_cat_estatus',
                 'public.a2_acciones_empleados.id_instancia AS id_instancia',
                 'public.a2_acciones_empleados.id_cat_tematica AS id_cat_tematica',
+                'public.a2_acciones_empleados.eval_aprendizaje AS eval_aprendizaje',
             )
             ->join(
                 'public.a2_acciones_capacitacion',

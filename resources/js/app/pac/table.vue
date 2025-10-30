@@ -166,6 +166,10 @@
             <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones"
               :uppercase="true" />
           </div>
+          <div class="row">
+            <inputCheckbox v-model="m_eval_aprendizaje" :label="'¿Realizó la evaluación de aprendizaje?'"
+              :id="'m_eval_aprendizaje'" />
+          </div>
         </form>
 
       </div>
@@ -234,6 +238,7 @@ const m_accion = ref('')
 const m_fecha_ini = ref('')
 const m_fecha_fin = ref('')
 const m_observaciones = ref('')
+const m_eval_aprendizaje = ref(true)
 const listSelectStatus = ref([])
 const listOptionStatus = ref([])
 const listSelectInstance = ref([])
@@ -330,6 +335,7 @@ async function button_confirm() {
     formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '');
     formData.append('id_instancia', listSelectInstance.value?.id ?? '');
     formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '');
+    formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0');
 
     showSpinner(); // Start the loader to indicate processing
     clearErrors(); // Clear any previous errors
@@ -364,7 +370,7 @@ async function button_confirm() {
 }
 
 async function setOption(id) {
-  clearErrors(); 
+  clearErrors();
   window._selectkybyemployee = id
   showSpinner()
   try {
@@ -385,6 +391,7 @@ async function setOption(id) {
     m_fecha_ini.value = data.fecha_ini
     m_fecha_fin.value = data.fecha_fin
     m_observaciones.value = data.observaciones
+    m_eval_aprendizaje.value = data.eval_aprendizaje === true
 
     listOptionStatus.value = selectx.listOptionStatus ?? []
     listSelectStatus.value = (selectx.listSelectStatus ?? [])[0] ?? null

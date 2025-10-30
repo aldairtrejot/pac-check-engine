@@ -22,25 +22,31 @@ class TablePacModel extends Model
         // Primero crea la query base con todos los JOINs
         $query = DB::table('public.a2_acciones_empleados')
             ->selectRaw("
-            public.a2_acciones_empleados.id_empl_accion AS id,
-            public.a2_acciones_capacitacion.nombre AS nombre,
-            public.a2_acciones_capacitacion.apellido_paterno || ' ' || 
-            public.a2_acciones_capacitacion.apellido_materno AS apellido,
-            public.a2_acciones_empleados.curp AS curp,
-            public.a1_cat_acciones.nombre_accion AS accion,
-            CASE 
-                WHEN (
-                    public.a2_acciones_empleados.id_cat_estatus IS NOT NULL 
-                    AND public.a2_acciones_empleados.fecha_ini IS NOT NULL
-                    AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
-                    AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
-                    AND public.a2_acciones_empleados.id_instancia IS NOT NULL
-                    AND public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
-                ) 
-                THEN 'CONCLUIDO'
-                ELSE 'PENDIENTE'
-            END AS atendido
-        ")
+                public.a2_acciones_empleados.id_empl_accion AS id,
+                public.a2_acciones_capacitacion.nombre AS nombre,
+                public.a2_acciones_capacitacion.apellido_paterno || ' ' || 
+                public.a2_acciones_capacitacion.apellido_materno AS apellido,
+                public.a2_acciones_empleados.curp AS curp,
+                public.a1_cat_acciones.nombre_accion AS accion,
+                CASE 
+                    WHEN (
+                        public.a2_acciones_empleados.id_cat_estatus IS NOT NULL 
+                        AND public.a2_acciones_empleados.fecha_ini IS NOT NULL
+                        AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
+                        AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
+                        AND (
+                            public.a2_acciones_empleados.id_instancia IS NOT NULL 
+                            OR TRIM(public.a2_acciones_empleados.id_instancia) <> ''
+                        )
+                        AND (
+                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL 
+                            OR TRIM(public.a2_acciones_empleados.id_cat_tematica) <> ''
+                        )
+                    ) 
+                    THEN 'CONCLUIDO'
+                    ELSE 'PENDIENTE'
+                END AS atendido
+            ")
             ->join('public.a1_cat_acciones', 'public.a2_acciones_empleados.id_accion', '=', 'public.a1_cat_acciones.id_accion')
             ->join('public.a2_acciones_capacitacion', function ($join) {
                 $join->on(DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'), '=', 'public.a2_acciones_capacitacion.id_puesto');

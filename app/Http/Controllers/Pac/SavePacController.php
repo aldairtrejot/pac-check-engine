@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
+use App\Models\Log\LogDataModel;
 use App\Models\Pac\EntityPacModel;
 use App\Models\Pac\Helpers\GetTrimestreModel;
 use Carbon\Carbon;
 use HTMLPurifier;
 use HTMLPurifier_Config;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class SavePacController extends Controller
@@ -47,7 +49,7 @@ class SavePacController extends Controller
     private function storage($request)
     {
         try {
-            $getTrimestreModel = new GetTrimestreModel();
+            $getTrimestreModel = new GetTrimestreModel;
             $timestamp = Carbon::now(); // Get current timestamp
 
             $rules = [
@@ -58,7 +60,7 @@ class SavePacController extends Controller
                 ],
                 'm_fecha_fin' => [
                     'required',
-                    'after_or_equal:m_fecha_ini',     
+                    'after_or_equal:m_fecha_ini',
                     'before_or_equal:2025-12-31',
                 ],
                 'id_cat_estatus' => 'required',
@@ -66,7 +68,6 @@ class SavePacController extends Controller
                 'id_cat_tematica' => 'required',
                 'm_observaciones' => 'string|max:250',
             ];
-
 
             $request->validate($rules); // Run validation
 
@@ -77,10 +78,18 @@ class SavePacController extends Controller
                 'id_instancia' => $request->id_instancia,
                 'id_cat_tematica' => $request->id_cat_tematica,
                 'observaciones' => $request->m_observaciones,
-                'id_trimestre' => $getTrimestreModel->getTrimestre($request->m_fecha_fin)
+                'id_trimestre' => $getTrimestreModel->getTrimestre($request->m_fecha_fin),
+                'eval_aprendizaje' => $request->m_eval_aprendizaje,
             ];
 
             EntityPacModel::where('id_empl_accion', $request->id)->update($data); // Update user data
+
+            unset($data['id_trimestre']); // Remove
+            $data['creado_en'] = $timestamp; // Add updated timestamp
+            $data['id_usuario'] = Auth::user()->id; // Set modifier user
+            $data['id_empl_accion'] = $request->id; // Set modifier user
+
+            LogDataModel::create($data);
             $message = __('default.edit_success_message');
 
             return response()->json([
