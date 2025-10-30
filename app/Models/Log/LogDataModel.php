@@ -32,5 +32,6 @@ class LogDataModel extends Model
         'id_cat_tematica',
         'creado_en',
         'id_empl_accion',
+        'horas_real'
     ];
 }

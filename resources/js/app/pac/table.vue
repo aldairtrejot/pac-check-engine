@@ -148,6 +148,10 @@
 
         <form role="form" id="data_form_x" enctype="multipart/form-data">
           <div class="row">
+            <inputField label="Horas obligatorias" id="m_duracion_hrs" v-model="m_duracion_hrs" :disabled="true" />
+            <inputField label="Horas realizadas" id="m_horas_real" v-model="m_horas_real" />
+          </div>
+          <div class="row" style="margin-top: -20px !important;">
             <inputField :grid="gridx3" type="date" label="Fecha Inicio" id="m_fecha_ini" v-model="m_fecha_ini" />
             <inputField :grid="gridx3" type="date" label="Fecha Fin" id="m_fecha_fin" v-model="m_fecha_fin" />
           </div>
@@ -238,6 +242,8 @@ const m_accion = ref('')
 const m_fecha_ini = ref('')
 const m_fecha_fin = ref('')
 const m_observaciones = ref('')
+const m_duracion_hrs = ref('')
+const m_horas_real = ref('')
 const m_eval_aprendizaje = ref(true)
 const listSelectStatus = ref([])
 const listOptionStatus = ref([])
@@ -370,6 +376,7 @@ async function button_confirm() {
 }
 
 async function setOption(id) {
+  console.log(id)
   clearErrors();
   window._selectkybyemployee = id
   showSpinner()
@@ -391,6 +398,8 @@ async function setOption(id) {
     m_fecha_ini.value = data.fecha_ini
     m_fecha_fin.value = data.fecha_fin
     m_observaciones.value = data.observaciones
+    m_duracion_hrs.value = data.duracion_hrs?.toString() || ''
+    m_horas_real.value = data.horas_real?.toString() || ''
     m_eval_aprendizaje.value = data.eval_aprendizaje === true
 
     listOptionStatus.value = selectx.listOptionStatus ?? []

@@ -14,13 +14,18 @@ class DataPacController extends Controller
     public function dataPac(Request $request)
     {
         try {
-            //class
-            $collectionStatusModel = new CollectionStatusModel();
-            $collectionInstanceModel = new CollectionInstanceModel();
-            $collectionTematicaModel = new CollectionTematicaModel();
+            // class
+            $collectionStatusModel = new CollectionStatusModel;
+            $collectionInstanceModel = new CollectionInstanceModel;
+            $collectionTematicaModel = new CollectionTematicaModel;
             // Obtener los catalogos de cursos
             $dataPacModel = new DataPacModel;
             $data = $dataPacModel->dataPac($request->id);
+
+            // agrega las hr a la variable si esta vacia
+            if (empty($data->horas_real)) {
+                $data->horas_real = $data->duracion_hrs;
+            }
 
             // delcaracion de variables de selecion
             $listOptionStatus = $collectionStatusModel->listCollection();
@@ -29,7 +34,6 @@ class DataPacController extends Controller
             $listSelectInstance = isset($data->id_instancia) ? $collectionInstanceModel->listConllectionSelect($data->id_instancia) : [];
             $listOptionTematica = $collectionTematicaModel->listCollection();
             $listSelectTematica = isset($data->id_cat_tematica) ? $collectionTematicaModel->listConllectionSelect($data->id_cat_tematica) : [];
-
 
             return response()->json([
                 'status' => true, // Return successful response

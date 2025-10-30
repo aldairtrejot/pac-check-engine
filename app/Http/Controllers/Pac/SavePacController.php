@@ -67,6 +67,7 @@ class SavePacController extends Controller
                 'id_instancia' => 'required',
                 'id_cat_tematica' => 'required',
                 'm_observaciones' => 'string|max:250',
+                'm_horas_real' => 'required|integer|min:1|max:100'
             ];
 
             $request->validate($rules); // Run validation
@@ -80,6 +81,7 @@ class SavePacController extends Controller
                 'observaciones' => $request->m_observaciones,
                 'id_trimestre' => $getTrimestreModel->getTrimestre($request->m_fecha_fin),
                 'eval_aprendizaje' => $request->m_eval_aprendizaje,
+                'horas_real' => $request->m_horas_real
             ];
 
             EntityPacModel::where('id_empl_accion', $request->id)->update($data); // Update user data
