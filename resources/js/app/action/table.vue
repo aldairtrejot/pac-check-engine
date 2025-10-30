@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Component to display the table title -->
-    <tableTittle value="Tipos de Acción" />
+    <tableTittleSearch value="Tipos de Acción" />
 
     <!-- Spinner component shown while data is loading -->
     <tableSpinner ref="spinnerRef" />
@@ -65,7 +65,7 @@ import { handlePagination } from '@helpers/table/table-pagination.vue'
 import tableButtonEdit from '@helpers/table/table-button-edit.vue'
 
 // Import custom table-related components
-import tableTittle from '@helpers/table/table-tittle.vue'
+import tableTittleSearch from '@helpers/table/table-tittle-search.vue'
 import tableFooter from '@helpers/table/table-footer.vue'
 import tableSpinner from '@helpers/table/table-spinner.vue'
 import tableRow from '@helpers/table/table-row.vue'
@@ -99,8 +99,6 @@ const fetchTableData = async () => {
       search: searchTerm.value, // Search input value
       select: parseInt(document.getElementById('footer-filter')?.value || 5), // Footer filter value, default 5
     });
-
-    console.log(data)
 
     item.value = data.list; // Set items to display
     rowsAll.value = data.allRow; // Set total row count
