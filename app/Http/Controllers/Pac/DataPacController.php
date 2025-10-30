@@ -15,6 +15,8 @@ class DataPacController extends Controller
             $dataPacModel = new DataPacModel;
             $data = $dataPacModel->dataPac($request->id);
 
+            \Log::info($data->id_cat_estatus);
+
             return response()->json([
                 'status' => true, // Return successful response
                 'data' => $data, // Send packaged data

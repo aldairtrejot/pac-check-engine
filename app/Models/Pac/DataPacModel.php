@@ -31,6 +31,7 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.fecha_ini AS fecha_ini',
                 'public.a2_acciones_empleados.fecha_fin AS fecha_fin',
                 'public.a2_acciones_empleados.observaciones AS observaciones',
+                'public.a2_acciones_empleados.id_cat_estatus AS id_cat_estatus',
             )
             ->join(
                 'public.a2_acciones_capacitacion',
@@ -44,7 +45,7 @@ class DataPacModel extends Model
                 'public.a1_cat_acciones.id_accion'
             )
             ->where('public.a2_acciones_empleados.id_empl_accion', $id)
-            ->get();
+            ->first();
 
         return $query;
     }

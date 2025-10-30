@@ -325,19 +325,19 @@ async function setOption(id) {
     console.log(request)
     const data = request.data.data
 
-    m_nivel_salarial.value = data[0].nivel_salarial
-    m_rfc.value = data[0].rfc
-    m_codigo_puesto.value = data[0].codigo_puesto
-    m_clave_clues.value = data[0].clave_clues
-    m_puesto.value = data[0].puesto
-    m_entidad.value = data[0].entidad
-    m_contratacion.value = data[0].contratacion
-    m_curp.value = data[0].curp
-    m_nombre.value = data[0].nombre
-    m_accion.value = data[0].accion
-    m_fecha_ini.value = data[0].fecha_ini
-    m_fecha_fin.value = data[0].fecha_fin
-    m_observaciones.value = data[0].observaciones
+    m_nivel_salarial.value = data.nivel_salarial
+    m_rfc.value = data.rfc
+    m_codigo_puesto.value = data.codigo_puesto
+    m_clave_clues.value = data.clave_clues
+    m_puesto.value = data.puesto
+    m_entidad.value = data.entidad
+    m_contratacion.value = data.contratacion
+    m_curp.value = data.curp
+    m_nombre.value = data.nombre
+    m_accion.value = data.accion
+    m_fecha_ini.value = data.fecha_ini
+    m_fecha_fin.value = data.fecha_fin
+    m_observaciones.value = data.observaciones
 
 
   } catch (error) {
