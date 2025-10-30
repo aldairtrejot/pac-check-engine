@@ -31,11 +31,11 @@ class TablePacModel extends Model
             CASE 
                 WHEN (
                     public.a2_acciones_empleados.id_cat_estatus IS NOT NULL 
-                    OR public.a2_acciones_empleados.fecha_ini IS NOT NULL
-                    OR public.a2_acciones_empleados.fecha_fin IS NOT NULL
-                    OR public.a2_acciones_empleados.id_trimestre IS NOT NULL
-                    OR public.a2_acciones_empleados.id_instancia IS NOT NULL
-                    OR public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
+                    AND public.a2_acciones_empleados.fecha_ini IS NOT NULL
+                    AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
+                    AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
+                    AND public.a2_acciones_empleados.id_instancia IS NOT NULL
+                    AND public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
                 ) 
                 THEN 'CONCLUIDO'
                 ELSE 'PENDIENTE'

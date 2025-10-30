@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pac\EntityPacModel;
+use App\Models\Pac\Helpers\GetTrimestreModel;
 use Carbon\Carbon;
 use HTMLPurifier;
 use HTMLPurifier_Config;
@@ -46,7 +47,7 @@ class SavePacController extends Controller
     private function storage($request)
     {
         try {
-
+            $getTrimestreModel = new GetTrimestreModel();
             $timestamp = Carbon::now(); // Get current timestamp
 
             $rules = [
@@ -76,6 +77,7 @@ class SavePacController extends Controller
                 'id_instancia' => $request->id_instancia,
                 'id_cat_tematica' => $request->id_cat_tematica,
                 'observaciones' => $request->m_observaciones,
+                'id_trimestre' => $getTrimestreModel->getTrimestre($request->m_fecha_fin)
             ];
 
             EntityPacModel::where('id_empl_accion', $request->id)->update($data); // Update user data

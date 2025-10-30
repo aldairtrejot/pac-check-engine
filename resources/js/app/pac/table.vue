@@ -364,8 +364,6 @@ async function button_confirm() {
 }
 
 async function setOption(id) {
-  console.log(id)
-  
   clearErrors(); 
   window._selectkybyemployee = id
   showSpinner()
