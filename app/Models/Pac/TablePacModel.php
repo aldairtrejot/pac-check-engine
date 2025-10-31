@@ -104,7 +104,10 @@ class TablePacModel extends Model
 
             // Filtro adicional para CURP
             if (! empty($request->curp)) {
-                $query->where('public.a2_acciones_empleados.curp', 'LIKE', '%'.$request->curp.'%');
+                $query->whereRaw(
+                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) LIKE UPPER(TRIM(public.unaccent(?)))',
+                    ['%' . $request->curp . '%']
+                );
             }
 
             if (! empty($request->id_accion)) {

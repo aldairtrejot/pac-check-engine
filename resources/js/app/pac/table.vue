@@ -19,7 +19,7 @@
           <div class="accordion-body bg-light rounded-bottom p-2">
 
             <div class="row g-1 mb-0">
-              <inputField :grid="gridx3" label="Nombre" id="curp" v-model="name" :uppercase="true" />
+              <inputField :grid="gridx3" label="Nombre" id="name" v-model="name" :uppercase="true" />
               <inputField :grid="gridx3" label="CURP" id="curp" v-model="curp" :uppercase="true" />
               <!--
               <div class="col-12 col-md-4 mb-0">
