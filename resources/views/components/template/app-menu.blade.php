@@ -13,8 +13,9 @@
         <ul class="navbar-nav">
 
             <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Mi plantilla" />
+            {{-- -
             <x-button.button-nav-menu active="action" route="action" icon="fa fa-align-center fa-lg" title="Acción" />
-
+ --}}
             <x-button.button-nav-menu active="login" route="login" icon="fa fa-power-off fa-lg" title="Salir" />
 
             {{-- -

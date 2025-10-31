@@ -41,7 +41,7 @@ class TablePacController extends Controller
             ], 200);
         } catch (\Exception $e) {
             // Catch all other exceptions and return a general error message
-            // \Log::info($e);
+             \Log::info($e);
 
             return response()->json([
                 'status' => false,

@@ -1,7 +1,8 @@
 <x-template.app-page>
 
     <x-template.app-header tittle="Acción">
-        <x-button.button-header-action route="{{ route('action.create') }}" icon="fa fa-plus me-sm-1" tittle="Agregar" />
+        <x-button.button-header-action route="{{ route('action') }}" icon="fa fa-long-arrow-left me-sm-1"
+            tittle="Regresar" />
     </x-template.app-header>
 
     <x-template.app-card>
