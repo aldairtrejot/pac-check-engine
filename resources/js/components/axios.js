@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create an axios instance with custom configuration
 const url = axios.create({
     // Base URL for all HTTP requests, read from environment variables
-    baseURL: import.meta.env.VITE_BASE_URL,
+    baseURL: 'http://172.16.17.11/pac-check-engine/public', //import.meta.env.VITE_BASE_URL,
     // Request timeout set to 5
     timeout: 300000,
     // Default headers for all requests, specifying JSON content type
