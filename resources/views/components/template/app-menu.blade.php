@@ -13,14 +13,10 @@
         <ul class="navbar-nav">
 
             <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Mi plantilla" />
-            {{-- -
-            <x-button.button-nav-menu active="action" route="action" icon="fa fa-align-center fa-lg" title="Acción" />
- --}}
-            <x-button.button-nav-menu active="login" route="login" icon="fa fa-power-off fa-lg" title="Salir" />
 
-            {{-- -
-            <x-button.button-modal-menu idModal="#modal_logout" icon="fa fa-power-off fa-lg" tittle="Salir" />
- --}}
+            <x-button.button-nav-menu active="action" route="action" icon="fa fa-align-center fa-lg" title="Acción" />
+
+            <x-button.button-nav-menu active="login" route="login" icon="fa fa-power-off fa-lg" title="Salir" />
         </ul>
     </div>
 </aside>

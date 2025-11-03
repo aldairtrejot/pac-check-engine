@@ -10,20 +10,18 @@ use Illuminate\Http\Request;
 class TableActionController extends Controller
 {
     /**
-     * The function cleans, sanitizes and validates the query information of the table to obtain
-     * the SQL and send it to the client.
-     *
-     * @return mixed|\Illuminate\Http\JsonResponse
+     * Endpoint AJAX para la tabla de Tipos de Acción
      */
     public function table(Request $request)
     {
-        $templateTableController = new TemplateTableController;   // Create instance of the Table controller/helper
-        $objectModel = new TableActionModel;     // Create instance of the User model
+        $templateTableController = new TemplateTableController;   // Helper de paginación
+        $objectModel = new TableActionModel;                      // Modelo de tabla
+
         try {
-            // Validate and sanitize pagination parameters from the request
+            // Validar y sanear paginación
             $data = $templateTableController->validateAndSanitizePagination($request);
 
-            // Call the list method with validated pagination and search parameters
+            // Obtener datos
             $result = $objectModel->list(
                 $data['limit'],
                 $data['offset'],
@@ -31,21 +29,19 @@ class TableActionController extends Controller
                 $data['select'],
             );
 
-            // Return the response with paginated data
             return response()->json([
                 'status' => true,
-                'allRow' => $result['allRow'], // Total records
-                'list' => $result['list'],     // Paginated records
-                'row' => $result['row'],       // Current page row number
+                'allRow' => $result['allRow'],
+                'list'   => $result['list'],
+                'row'    => $result['row'],
             ], 200);
         } catch (\Exception $e) {
-            // Catch all other exceptions and return a general error message
             \Log::info($e);
 
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Error',
-            ], 200); // HTTP 200 with failure status
+            ], 200);
         }
     }
 }

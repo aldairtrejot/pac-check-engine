@@ -6,39 +6,24 @@ use Illuminate\Database\Eloquent\Model;
 
 class EntityActionModel extends Model
 {
-    // table
-    protected $table = 'public.a2_acciones_empleados';
+    protected $table = 'public.a1_cat_acciones';
+    protected $primaryKey = 'id_accion';
 
-    // primary field
-    protected $primaryKey = 'id_empl_accion';
-
-    // incremental status
-    public $incrementing = true;
-
-    // primary field type
+    public $incrementing = false;   // 👉 lo controlamos nosotros
     protected $keyType = 'int';
-
-    // create and update fields
     public $timestamps = false;
 
-    // fields
     protected $fillable = [
-        'id_empl_accion',
-        'id_puesto',
-        'curp',
-        'id_accion',
-        'id_finalidad',
-        'horas_real',
-        'id_instancia',
-        'costo_unitario',
-        'fecha_ini',
-        'fecha_fin',
-        'id_trimestre',
-        'id_num_curso',
-        'eval_aprendizaje',
-        'observaciones',
-        'id_cat_estatus',
-        'id_cat_tematica',
-        'horas_progamadas',
+        'id_accion',        // 👉 lo vamos a llenar a mano
+        'ramo',
+        'ur',
+        'institucion',
+        'nombre_accion',
+        'duracion_hrs',
+        'tipo_capacitacion',
+        'modalidad',
+        'estatus',
+        'tematica',
+        'finalidad',
     ];
 }
