@@ -10,51 +10,71 @@
         <form action="{{ route('tematica.save') }}" method="POST">
             @csrf
 
+            {{-- create / edit --}}
             <input type="hidden" name="mode" value="{{ isset($tematica) ? 'edit' : 'create' }}">
 
             <div class="row mb-3">
+                {{-- ID TEMÁTICA --}}
                 <div class="col-md-4">
                     <label class="form-label">ID temática</label>
-                    <input type="text"
-                           name="id_tematica"
-                           class="form-control @error('id_tematica') is-invalid @enderror"
-                           value="{{ old('id_tematica', $tematica->id_tematica ?? '') }}"
-                           @isset($tematica) readonly @endisset>
-                    @error('id_tematica')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+
+                    @isset($tematica)
+                        {{-- EDICIÓN: mostrar ID real (solo lectura) y enviarlo al backend --}}
+                        <input type="text"
+                               name="id_tematica"
+                               class="form-control @error('id_tematica') is-invalid @enderror"
+                               value="{{ old('id_tematica', $tematica->id_tematica) }}"
+                               readonly>
+                        @error('id_tematica')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    @else
+                        {{-- ALTA: solo informativo --}}
+                        <input type="text"
+                               class="form-control"
+                               value="Se generará automáticamente (consecutivo + ramo + ur)"
+                               disabled>
+                    @endisset
                 </div>
 
+                {{-- CONSECUTIVO (solo lectura en edición, automático en alta) --}}
                 <div class="col-md-4">
                     <label class="form-label">Consecutivo</label>
-                    <input type="number"
-                           name="consecutivo"
-                           class="form-control @error('consecutivo') is-invalid @enderror"
-                           value="{{ old('consecutivo', $tematica->consecutivo ?? '') }}">
-                    @error('consecutivo')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+
+                    @isset($tematica)
+                        <input type="number"
+                               class="form-control"
+                               value="{{ $tematica->consecutivo }}"
+                               readonly>
+                    @else
+                        <input type="text"
+                               class="form-control"
+                               value="Se asignará automáticamente"
+                               disabled>
+                    @endisset
                 </div>
 
+                {{-- RAMO --}}
                 <div class="col-md-4">
                     <label class="form-label">Ramo</label>
                     <input type="text"
                            name="ramo"
                            class="form-control @error('ramo') is-invalid @enderror"
-                           value="{{ old('ramo', $tematica->ramo ?? '') }}">
+                           value="{{ old('ramo', $tematica->ramo ?? '0') }}">
                     @error('ramo')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
             </div>
 
+            {{-- UR / TEMÁTICA --}}
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">UR</label>
                     <input type="text"
                            name="ur"
                            class="form-control @error('ur') is-invalid @enderror"
-                           value="{{ old('ur', $tematica->ur ?? '') }}">
+                           value="{{ old('ur', $tematica->ur ?? '0') }}">
                     @error('ur')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -72,6 +92,7 @@
                 </div>
             </div>
 
+            {{-- CATEGORÍAS / ENFOQUE --}}
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label class="form-label">Categorías</label>

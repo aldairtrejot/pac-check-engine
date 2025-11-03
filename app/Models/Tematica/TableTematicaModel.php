@@ -7,21 +7,20 @@ use Illuminate\Support\Facades\DB;
 
 class TableTematicaModel extends Model
 {
-    /**
-     * Lista temáticas con paginación y búsqueda
-     */
     public function list($limit, $offset, $search, $select)
     {
+        // COUNT
         $countQuery = DB::table('public.cat_tematica');
         $this->applySearch($countQuery, $search);
         $allRow = $countQuery->count();
 
+        // DATA
         $query = DB::table('public.cat_tematica')
             ->selectRaw('
                 public.cat_tematica.id_tematica AS id,
-                public.cat_tematica.tematica AS tematica,
+                public.cat_tematica.tematica   AS tematica,
                 public.cat_tematica.categorias AS categorias,
-                public.cat_tematica.enfoque AS enfoque
+                public.cat_tematica.enfoque    AS enfoque
             ');
 
         $this->applySearch($query, $search);
@@ -42,10 +41,6 @@ class TableTematicaModel extends Model
 
     private function applySearch($query, $search)
     {
-        if ($search === null || $search === '') {
-            return $query;
-        }
-
         return $query->where(function ($q) use ($search) {
             $q->whereRaw(
                 'UPPER(TRIM(public.unaccent(public.cat_tematica.tematica))) LIKE UPPER(TRIM(public.unaccent(?)))',
