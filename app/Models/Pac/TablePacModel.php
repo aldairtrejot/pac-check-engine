@@ -85,20 +85,23 @@ class TablePacModel extends Model
         return $query->where(function ($query) use ($request) {
 
             if (! empty($request->name)) {
+                $searchTerm = '%'.$request->name.'%';
+
                 $query->whereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))) LIKE UPPER(TRIM(public.unaccent(?)))',
-                    ['%'.$request->name.'%']
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    [$searchTerm]
                 )->orWhereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))) LIKE UPPER(TRIM(public.unaccent(?)))',
-                    ['%'.$request->name.'%']
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    [$searchTerm]
                 )->orWhereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))) LIKE UPPER(TRIM(public.unaccent(?)))',
-                    ['%'.$request->name.'%']
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    [$searchTerm]
                 )->orWhereRaw(
-                    "UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))) || '  ' ||
-                UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))) || ' ' ||
-                UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))) LIKE UPPER(TRIM(public.unaccent(?)))",
-                    ['%'.$request->name.'%']
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') || 
+         REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') || 
+         REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
+         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    [$searchTerm]
                 );
             }
 
@@ -106,7 +109,7 @@ class TablePacModel extends Model
             if (! empty($request->curp)) {
                 $query->whereRaw(
                     'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) LIKE UPPER(TRIM(public.unaccent(?)))',
-                    ['%' . $request->curp . '%']
+                    ['%'.$request->curp.'%']
                 );
             }
 
