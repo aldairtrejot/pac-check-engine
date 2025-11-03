@@ -17,8 +17,6 @@ class AuthLoginController extends Controller
 {
     /**
      * El metodo retorna el inicio de sesión de la aplicación
-     *
-     * @return void
      */
     public function authLogin(Request $request): JsonResponse
     {
@@ -27,14 +25,13 @@ class AuthLoginController extends Controller
             $config = HTMLPurifier_Config::createDefault();
             $purifier = new HTMLPurifier($config);
 
-            // object start modification}
-
+            // sanitizar inputs
             $request->merge([
                 'email' => $purifier->purify(trim($request->email)),
                 'password' => $purifier->purify(trim($request->password)),
             ]);
 
-            // the IP is optimized for registration
+            // rate limiter
             $key = 'login-attempts:'.$request->ip();
 
             if (RateLimiter::tooManyAttempts($key, 10)) {
@@ -44,7 +41,6 @@ class AuthLoginController extends Controller
                 ], 200);
             }
 
-            // session count
             RateLimiter::hit($key);
 
             $credentials = $request->validate([
@@ -65,22 +61,34 @@ class AuthLoginController extends Controller
 
             Auth::login($user);
 
-            // If the credentials are incorrect, it returns an error.
             return response()->json([
                 'status' => true,
-            ], 200); // Code 401: Unauthorized
+            ], 200);
         } catch (ValidationException $e) {
             return response()->json([
                 'status' => false,
-                'errors' => $e->errors(), // Return validation errors
-            ], 422); // HTTP 422 for validation errors
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Throwable $th) {
             // \Log::info($th);
 
             return response()->json([
                 'status' => false,
-                'message' => __('default.error_message'), // Default error message
-            ], 200); // Return general error response
+                'message' => __('default.error_message'),
+            ], 200);
         }
+    }
+
+    /**
+     * Cierra la sesión del usuario y lo redirige al login
+     */
+    public function logout(Request $request)
+    {
+        Auth::logout();                        // Cierra la sesión
+
+        $request->session()->invalidate();     // Invalida la sesión actual
+        $request->session()->regenerateToken();// Regenera el token CSRF
+
+        return redirect()->route('login');     // Regresa a la pantalla de login
     }
 }

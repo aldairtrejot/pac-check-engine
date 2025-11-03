@@ -1,9 +1,14 @@
 <x-template.app-page>
 
-    <x-template.app-header tittle="Acción">
-        <a href="{{ route('action') }}" class="btn btn-sm btn-secondary">
-            <i class="fa fa-arrow-left me-1"></i> Regresar
-        </a>
+    <x-template.app-header
+        :tittle="isset($accion) ? 'Editar acción' : 'Agregar acción'"
+    >
+        {{-- Regresar con mismo diseño que "Agregar" --}}
+        <x-button.button-header-action
+            route="{{ route('action') }}"
+            icon="fa fa-arrow-left me-sm-1"
+            tittle="Regresar"
+        />
     </x-template.app-header>
 
     <x-template.app-card>
@@ -166,7 +171,7 @@
                 </div>
             </div>
 
-            {{-- 5) FINALIDAD (si la quieres capturar también) --}}
+            {{-- 5) FINALIDAD --}}
             <div class="row mb-3">
                 <div class="col-md-12">
                     <label class="form-label">Finalidad</label>
@@ -180,8 +185,14 @@
                 </div>
             </div>
 
-            <div class="d-flex justify-content-end">
-                <button type="submit" class="btn btn-success">
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <a href="{{ route('action') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa fa-times me-1"></i> Cancelar
+                </a>
+                {{-- Guardar / Actualizar con color #235B4E --}}
+                <button type="submit"
+                        class="btn btn-sm text-white"
+                        style="background-color:#235B4E;border-color:#235B4E;">
                     <i class="fa fa-save me-1"></i>
                     @isset($accion)
                         Actualizar

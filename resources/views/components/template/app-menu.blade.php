@@ -18,7 +18,10 @@
 
             <x-button.button-nav-menu active="tematica" route="tematica" icon="fa fa-list-alt fa-lg" title="Temática" />
 
-            <x-button.button-nav-menu active="login" route="login" icon="fa fa-power-off fa-lg" title="Salir" />
+            <x-button.button-nav-menu active="instancia" route="instancia" icon="fa fa-university fa-lg" title="Instancias"/>
+
+            <x-button.button-nav-menu active="logout" route="logout" icon="fa fa-power-off fa-lg" title="Salir" />
+
         </ul>
     </div>
 </aside>
