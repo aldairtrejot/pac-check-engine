@@ -16,6 +16,8 @@
 
             <x-button.button-nav-menu active="action" route="action" icon="fa fa-align-center fa-lg" title="Acción" />
 
+            <x-button.button-nav-menu active="tematica" route="tematica" icon="fa fa-list-alt fa-lg" title="Temática" />
+
             <x-button.button-nav-menu active="login" route="login" icon="fa fa-power-off fa-lg" title="Salir" />
         </ul>
     </div>
