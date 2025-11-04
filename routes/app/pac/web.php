@@ -5,6 +5,7 @@ use App\Http\Controllers\Pac\MainPacController;
 use App\Http\Controllers\Pac\SavePacController;
 use App\Http\Controllers\Pac\TablePacController;
 use App\Http\Controllers\Pac\ViewPacController;
+use App\Http\Controllers\Pac\CoursePacController; // 👈 NUEVO
 
 /*
 |--------------------------------------------------------------------------
@@ -23,4 +24,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pac/table', [TablePacController::class, 'table'])->name('pac.table');
     Route::post('/pac/data', [DataPacController::class, 'dataPac'])->name('pac.data');
     Route::post('/pac/save', [SavePacController::class, 'save'])->name('pac.save');
+
+    // 🔹 NUEVO: catálogo de cursos para el modal "Agregar curso"
+    Route::post('/pac/courses', [CoursePacController::class, 'listCourses'])->name('pac.courses');
+
+    // 🔹 NUEVO: agregar curso a empleado
+    Route::post('/pac/employee/add-course', [CoursePacController::class, 'addCourseToEmployee'])->name('pac.employee.addCourse');
 });
