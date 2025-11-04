@@ -300,19 +300,17 @@
 </template>
 
 <script setup>
-// Import reactivity functions from Vue
 import { ref, onMounted } from 'vue'
 import { notyf } from '@components/notyf.js'
 import { BASE_URL } from '@/components/url.js'
 
-// Helper functions for table events and pagination
 import { setupTableEvents } from '@helpers/table/table-events.vue'
 import { handlePagination } from '@helpers/table/table-pagination.vue'
 import tableButtonEdit from '@helpers/table/table-button-edit.vue'
 import inputField from '@helpers/form/input-field.vue'
-import modalTemplate from '@helpers/modal/modal-template.vue' // Custom modal component
+import modalTemplate from '@helpers/modal/modal-template.vue'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
-// Import custom table-related components
+
 import tableTittle from '@helpers/table/table-tittle.vue'
 import tableFooter from '@helpers/table/table-footer.vue'
 import tableSpinner from '@helpers/table/table-spinner.vue'
@@ -322,10 +320,9 @@ import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputSelect from '@helpers/form/input-select.vue'
 import inputCheckbox from '@helpers/form/input-checkbox.vue'
-import { clearErrors } from '@components/clearErrors.js' // Importing function to clear previous errors
+import { clearErrors } from '@components/clearErrors.js'
 import { handleErrors } from '@components/handleErrors.js'
 
-// Import axios instance for HTTP requests
 import axios from '@axios'
 
 const gridx3 = ref('col-12 col-md-6 mb-6')
@@ -335,14 +332,13 @@ const is_complete = ref(false)
 const listSelectAcction = ref([])
 const listOptionsAcction = ref([])
 
-// Reactive variables
-const item = ref([]) // Table data list
-const rowsAll = ref(0) // Total number of rows
-const row = ref(0) // Number of rows currently shown
-const currentPage = ref(1) // Current page number
-const limit = ref(5) // Limit of rows per page
-const searchTerm = ref('') // Search input value
-const spinnerRef = ref(null) // Spinner reference
+const item = ref([])
+const rowsAll = ref(0)
+const row = ref(0)
+const currentPage = ref(1)
+const limit = ref(5)
+const searchTerm = ref('')
+const spinnerRef = ref(null)
 
 // data modal
 const m_nivel_salarial = ref('')
@@ -373,43 +369,41 @@ const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
 const courseOptions = ref([])
 
-// Function to fetch table data from backend
 const fetchTableData = async () => {
-  const MIN_SPINNER_DURATION = 1000 // Minimum spinner visible time in milliseconds
-  const startTime = Date.now() // Capture start time
+  const MIN_SPINNER_DURATION = 1000
+  const startTime = Date.now()
 
-  spinnerRef.value?.show() // Show spinner
+  spinnerRef.value?.show()
 
-  const offset = (currentPage.value - 1) * limit.value // Calculate pagination offset
+  const offset = (currentPage.value - 1) * limit.value
 
   try {
     const { data } = await axios.post('/pac/table', {
-      limit: limit.value, // Number of items per page
-      offset, // Starting point for current page
-      search: searchTerm.value, // Search input value
-      select: parseInt(document.getElementById('footer-filter')?.value || 5), // Footer filter value, default 5
+      limit: limit.value,
+      offset,
+      search: searchTerm.value,
+      select: parseInt(document.getElementById('footer-filter')?.value || 5),
       name: name.value,
       curp: curp.value,
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? '',
     })
 
-    item.value = data.list // Set items to display
-    rowsAll.value = data.allRow // Set total row count
-    row.value = data.row // Set current row count
+    item.value = data.list
+    rowsAll.value = data.allRow
+    row.value = data.row
   } catch (error) {
     // notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
-    const elapsed = Date.now() - startTime // Calculate elapsed time
-    const delay = elapsed < MIN_SPINNER_DURATION ? MIN_SPINNER_DURATION - elapsed : 0 // Calculate remaining delay
+    const elapsed = Date.now() - startTime
+    const delay = elapsed < MIN_SPINNER_DURATION ? MIN_SPINNER_DURATION - elapsed : 0
 
     setTimeout(() => {
-      spinnerRef.value?.hide() // Hide spinner after minimum duration
+      spinnerRef.value?.hide()
     }, delay)
   }
 }
 
-// Load data and set up table events on component mount
 onMounted(() => {
   main()
   fetchTableData()
@@ -422,7 +416,6 @@ onMounted(() => {
   })
 })
 
-// La función limpia los filtros y actualiza la información
 function clear_search() {
   currentPage.value = 1
   name.value = ''
@@ -432,13 +425,12 @@ function clear_search() {
   fetchTableData()
 }
 
-// La función realiza la búsqueda
 function search_function() {
   currentPage.value = 1
   fetchTableData()
 }
 
-// Inicio de catálogo de cursos (filtro principal)
+// catálogo de cursos (filtro principal)
 async function main() {
   try {
     const request = await axios.post('/pac/main')
@@ -452,8 +444,8 @@ async function main() {
 
 async function button_confirm() {
   try {
-    const form = document.querySelector('#data_form_x') // Select the form
-    const formData = new FormData(form) // Create a FormData object with the form data
+    const form = document.querySelector('#data_form_x')
+    const formData = new FormData(form)
     const key = window._selectkybyemployee
 
     formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '')
@@ -461,17 +453,16 @@ async function button_confirm() {
     formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '')
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
 
-    showSpinner() // Start the loader to indicate processing
-    clearErrors() // Clear any previous errors
+    showSpinner()
+    clearErrors()
 
-    // Send a POST request to the backend with the form data
     formData.append('id', key)
 
     const response = await axios.post('/pac/save', formData)
 
     if (!response.data.status) {
-      clearErrors() // Clear errors if there is an issue
-      notyf.error(response.data.message) // Show the error message using the notification system
+      clearErrors()
+      notyf.error(response.data.message)
     }
 
     if (response.data.status) {
@@ -480,13 +471,12 @@ async function button_confirm() {
       fetchTableData()
     }
   } catch (error) {
-    // Handle any errors that occur during the request
-    clearErrors() // Clear previous errors
+    clearErrors()
     if (error.response && error.response.data.errors) {
-      handleErrors(error.response.data.errors) // Display validation errors using the handleErrors function
+      handleErrors(error.response.data.errors)
     }
   } finally {
-    hideSpinner() // Stop the loader after the request is finished
+    hideSpinner()
   }
 }
 
@@ -495,7 +485,7 @@ async function setOption(id) {
   window._selectkybyemployee = id
   showSpinner()
   try {
-    const request = await axios.post('/pac/data', { id: id })
+    const request = await axios.post('/pac/data', { id })
     const data = request.data.data
     const selectx = request.data
 

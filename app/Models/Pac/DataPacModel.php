@@ -11,7 +11,7 @@ class DataPacModel extends Model
      * La función lista los datos principales de las tablas
      *
      * @param  mixed  $id
-     * @return \Illuminate\Support\Collection<int, \stdClass>
+     * @return \stdClass|null
      */
     public function dataPac($id)
     {
@@ -37,6 +37,8 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.eval_aprendizaje AS eval_aprendizaje',
                 'public.a1_cat_acciones.duracion_hrs AS duracion_hrs',
                 'public.a2_acciones_empleados.horas_real AS horas_real',
+                // 🔹 Temática del curso en el catálogo de acciones
+                'public.a1_cat_acciones.tematica AS tematica_accion'
             )
             ->join(
                 'public.a2_acciones_capacitacion',
