@@ -254,8 +254,6 @@
               :multiple="false"
               grid="col-12"
             />
-            <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica"
-              label="Temática" :multiple="false" grid="col-12" :disabled="true"/>
           </div>
           <div class="row">
             <inputField
