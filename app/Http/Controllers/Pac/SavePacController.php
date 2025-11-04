@@ -67,7 +67,7 @@ class SavePacController extends Controller
                 'id_instancia' => 'required',
                 'id_cat_tematica' => 'required',
                 'm_observaciones' => 'string|max:250',
-                'm_horas_real' => 'required|decimal:0,1|min:0.1|max:100.0'
+                'm_horas_real' => 'required|decimal:0,1|min:0.1|max:200.0'
             ];
 
             $request->validate($rules); // Run validation
