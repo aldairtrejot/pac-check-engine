@@ -164,7 +164,7 @@
           </div>
           <div class="row">
             <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica"
-              label="Temática" :multiple="false" grid="col-12" />
+              label="Temática" :multiple="false" grid="col-12" :disabled="true"/>
           </div>
           <div class="row">
             <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones"
