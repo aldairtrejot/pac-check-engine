@@ -12,16 +12,72 @@
     <div class="collapse navbar-collapse  w-auto " id="sidenav-collapse-main">
         <ul class="navbar-nav">
 
-            <x-button.button-nav-menu active="pac" route="pac" icon="fa fa-id-badge fa-lg" title="Mi plantilla" />
+            <x-button.button-nav-menu
+                active="pac"
+                route="pac"
+                icon="fa fa-id-badge fa-lg"
+                title="Mi plantilla"
+            />
 
-            <x-button.button-nav-menu active="action" route="action" icon="fa fa-align-center fa-lg" title="Acción" />
+            <x-button.button-nav-menu
+                active="action"
+                route="action"
+                icon="fa fa-align-center fa-lg"
+                title="Acción"
+            />
 
-            <x-button.button-nav-menu active="tematica" route="tematica" icon="fa fa-list-alt fa-lg" title="Temática" />
+            <x-button.button-nav-menu
+                active="tematica"
+                route="tematica"
+                icon="fa fa-list-alt fa-lg"
+                title="Temática"
+            />
 
-            <x-button.button-nav-menu active="instancia" route="instancia" icon="fa fa-university fa-lg" title="Instancias"/>
+            <x-button.button-nav-menu
+                active="instancia"
+                route="instancia"
+                icon="fa fa-university fa-lg"
+                title="Instancias"
+            />
 
-            <x-button.button-nav-menu active="logout" route="logout" icon="fa fa-power-off fa-lg" title="Salir" />
+            <x-button.button-nav-menu
+                active="logout"
+                route="logout"
+                icon="fa fa-power-off fa-lg"
+                title="Salir"
+            />
 
         </ul>
     </div>
 </aside>
+
+{{-- SweetAlert2 sólo para este menú (CDN) --}}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const logoutLink = document.querySelector('a[href="{{ route('logout') }}"]');
+
+    if (!logoutLink) return;
+
+    logoutLink.addEventListener('click', function (e) {
+        e.preventDefault();
+Swal.fire({
+    title: 'Cerrar sesión',
+    text: '¿Deseas salir del sistema?',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, salir',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#235B4E',
+    cancelButtonColor: '#6c757d',
+    reverseButtons: true,
+})
+.then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = this.href;
+            }
+        });
+    });
+});
+</script>

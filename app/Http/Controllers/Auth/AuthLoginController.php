@@ -82,13 +82,14 @@ class AuthLoginController extends Controller
     /**
      * Cierra la sesión del usuario y lo redirige al login
      */
-    public function logout(Request $request)
-    {
-        Auth::logout();                        // Cierra la sesión
+public function logout(Request $request)
+{
+    Auth::logout();                           // Cierra sesión del usuario
 
-        $request->session()->invalidate();     // Invalida la sesión actual
-        $request->session()->regenerateToken();// Regenera el token CSRF
+    $request->session()->invalidate();        // Invalida la sesión
+    $request->session()->regenerateToken();   // Regenera el token CSRF
 
-        return redirect()->route('login');     // Regresa a la pantalla de login
-    }
+    return redirect()->route('login');        // Te manda al login
+}
+
 }
