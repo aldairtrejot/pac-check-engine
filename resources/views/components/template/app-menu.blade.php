@@ -33,7 +33,7 @@
                 title="Mi plantilla"
             />
 
-            {{-- Sólo para correos autorizados --}}
+            {{-- Sólo para correos autorizados 
             @if($canSeeCatalogos)
 
                 <x-button.button-nav-menu
@@ -41,7 +41,7 @@
                     route="empleado"
                     icon="fa fa-user-plus fa-lg"
                     title="Agregar empleado"
-                />
+                />--}}
 
                 <x-button.button-nav-menu
                     active="action"
