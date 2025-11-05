@@ -8,13 +8,11 @@ class EntityActionModel extends Model
 {
     protected $table = 'public.a1_cat_acciones';
     protected $primaryKey = 'id_accion';
-
-    public $incrementing = false;   // 👉 lo controlamos nosotros
-    protected $keyType = 'int';
+    public $incrementing = false;
     public $timestamps = false;
 
     protected $fillable = [
-        'id_accion',        // 👉 lo vamos a llenar a mano
+        'id_accion',
         'ramo',
         'ur',
         'institucion',
@@ -24,6 +22,6 @@ class EntityActionModel extends Model
         'modalidad',
         'estatus',
         'tematica',
-        'finalidad',
+        'finalidad', // 👈 IMPORTANTE: aquí va el texto de la finalidad
     ];
 }

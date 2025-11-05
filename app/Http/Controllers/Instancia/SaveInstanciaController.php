@@ -64,15 +64,21 @@ class SaveInstanciaController extends Controller
             DB::beginTransaction();
 
             try {
-                // Bloqueamos la fila de mayor consecutivo para evitar choques
+                // Obtenemos la última instancia para calcular el consecutivo
                 $last = EntityInstanciaModel::orderBy('consecutivo', 'desc')
                     ->lockForUpdate()
                     ->first();
 
                 $consecutivo = ($last->consecutivo ?? 0) + 1;
 
-                // id_instancia = '00' + consecutivo  (ej: 1 -> 001, 10 -> 0010, 100 -> 00100)
-                $idInstancia = '00' . $consecutivo;
+                // Construir id_instancia:
+                // - Si hay ramo y ur válidos => 47AYO152
+                // - Si no, sólo consecutivo con ceros => 00152
+                if ($ramo !== '0' && $ur !== '0') {
+                    $idInstancia = $ramo . $ur . $consecutivo;
+                } else {
+                    $idInstancia = str_pad((string) $consecutivo, 5, '0', STR_PAD_LEFT);
+                }
 
                 EntityInstanciaModel::create([
                     'id_instancia' => $idInstancia,

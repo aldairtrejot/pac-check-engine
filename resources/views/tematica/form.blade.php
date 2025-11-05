@@ -1,3 +1,25 @@
+@php
+    // Ramos y UR ya usados en cat_tematica
+    $ramoTematicas = DB::table('public.cat_tematica')
+        ->select('ramo')
+        ->whereNotNull('ramo')
+        ->where('ramo', '<>', '0')
+        ->distinct()
+        ->orderBy('ramo')
+        ->get();
+
+    $urTematicas = DB::table('public.cat_tematica')
+        ->select('ur')
+        ->whereNotNull('ur')
+        ->where('ur', '<>', '0')
+        ->distinct()
+        ->orderBy('ur')
+        ->get();
+
+    $ramoSeleccionado = old('ramo', $tematica->ramo ?? '');
+    $urSeleccionado   = old('ur', $tematica->ur ?? '');
+@endphp
+
 <x-template.app-page>
 
     <x-template.app-header
@@ -78,22 +100,28 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Ramo</label>
-                    <input
-                        type="text"
-                        name="ramo"
-                        class="form-control"
-                        value="{{ old('ramo', $tematica->ramo ?? '0') }}"
-                    >
+                    <select name="ramo" class="form-select">
+                        <option value="">Seleccione...</option>
+                        @foreach($ramoTematicas as $r)
+                            <option value="{{ $r->ramo }}"
+                                {{ $ramoSeleccionado === $r->ramo ? 'selected' : '' }}>
+                                {{ $r->ramo }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <div class="col-md-6 mb-3">
                     <label class="form-label">UR</label>
-                    <input
-                        type="text"
-                        name="ur"
-                        class="form-control"
-                        value="{{ old('ur', $tematica->ur ?? '0') }}"
-                    >
+                    <select name="ur" class="form-select">
+                        <option value="">Seleccione...</option>
+                        @foreach($urTematicas as $u)
+                            <option value="{{ $u->ur }}"
+                                {{ $urSeleccionado === $u->ur ? 'selected' : '' }}>
+                                {{ $u->ur }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 

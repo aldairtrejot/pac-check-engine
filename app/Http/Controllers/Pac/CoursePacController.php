@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 class CoursePacController extends Controller
 {
     /**
-     * Devuelve el catálogo de cursos (acciones) para el combo.
+     * Catálogo de cursos para el modal de "Agregar curso".
      */
     public function listCourses()
     {
@@ -37,13 +37,9 @@ class CoursePacController extends Controller
 
     /**
      * Agrega un curso (acción) a un empleado.
-     *
-     * Reglas:
-     *  - Usa un registro base (id_empl_accion_base).
-     *  - Calcula el siguiente id_empl_accion (MAX + 1).
-     *  - Calcula el siguiente id_num_curso para ese empleado (por CURP).
-     *  - Asigna id_finalidad = 6 por defecto.
-     *  - Valida que el curso no esté ya registrado para ese empleado.
+     * - Usa horas programadas de la acción.
+     * - SIEMPRE pone id_finalidad = 6.
+     * - Genera consecutivo id_num_curso para ese empleado.
      */
     public function addCourseToEmployee(Request $request)
     {
@@ -65,66 +61,77 @@ class CoursePacController extends Controller
                 ], 200);
             }
 
-            // 2) Verificar que el curso no exista ya para este empleado (CURP + id_accion)
-            $exists = DB::table('public.a2_acciones_empleados')
-                ->where('curp', $base->curp)
-                ->where('id_accion', $request->id_accion)
-                ->exists();
-
-            if ($exists) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Este curso ya está registrado para este empleado.',
-                ], 200);
-            }
-
-            // 3) Obtener horas programadas de la acción
+            // 2) Datos de la acción (solo horas)
             $accion = DB::table('public.a1_cat_acciones')
                 ->select('duracion_hrs')
                 ->where('id_accion', $request->id_accion)
                 ->first();
 
+            if (! $accion) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Acción seleccionada no encontrada.',
+                ], 200);
+            }
+
             $horasProgramadas = $accion->duracion_hrs ?? null;
 
-            // 4) Generar nuevo id_empl_accion (sin tocar la estructura de la tabla)
-            $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
-            $newId = $maxId ? $maxId + 1 : 1;
+            // 3) Evitar duplicados: mismo empleado + misma acción
+            $existe = DB::table('public.a2_acciones_empleados')
+                ->where('id_puesto', $base->id_puesto)
+                ->where('curp', $base->curp)
+                ->where('id_accion', $request->id_accion)
+                ->exists();
 
-            // 5) Calcular el siguiente id_num_curso para este empleado (por CURP)
+            if ($existe) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Este curso ya está asignado al empleado.',
+                ], 200);
+            }
+
+            // 4) Consecutivo id_num_curso para ese empleado
             $maxNumCurso = DB::table('public.a2_acciones_empleados')
+                ->where('id_puesto', $base->id_puesto)
                 ->where('curp', $base->curp)
                 ->max('id_num_curso');
 
-            $newNumCurso = $maxNumCurso ? $maxNumCurso + 1 : 1;
+            $nextNumCurso = $maxNumCurso ? $maxNumCurso + 1 : 1;
 
-            // 6) Crear nuevo registro en a2_acciones_empleados
+            // 5) Nuevo id_empl_accion
+            $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
+            $newId = $maxId ? $maxId + 1 : 1;
+
+            // 6) Crear registro
             $entity = new EntityPacModel();
-            $entity->id_empl_accion  = $newId;
-            $entity->id_puesto       = $base->id_puesto;
-            $entity->curp            = $base->curp;
-            $entity->id_accion       = $request->id_accion;
-            $entity->id_finalidad    = 6;              // 👈 Finalidad por defecto
-            $entity->horas_real      = null;
-            $entity->id_instancia    = null;
-            $entity->costo_unitario  = null;
-            $entity->fecha_ini       = null;
-            $entity->fecha_fin       = null;
-            $entity->id_trimestre    = null;
-            $entity->id_num_curso    = $newNumCurso;   // 👈 Número de curso consecutivo
-            $entity->eval_aprendizaje = false;
-            $entity->observaciones   = null;
-            $entity->id_cat_estatus  = null;
-            $entity->id_cat_tematica = null;
+            $entity->id_empl_accion   = $newId;
+            $entity->id_puesto        = $base->id_puesto;
+            $entity->curp             = $base->curp;
+            $entity->id_accion        = $request->id_accion;
+
+            // 👇 REGLA: siempre 6
+            $entity->id_finalidad     = 6;
+
+            $entity->horas_real       = null;
+            $entity->id_instancia     = null;
+            $entity->costo_unitario   = null;
+            $entity->fecha_ini        = null;
+            $entity->fecha_fin        = null;
+            $entity->id_trimestre     = null;
+            $entity->id_num_curso     = $nextNumCurso;
+            $entity->eval_aprendizaje = null;
+            $entity->observaciones    = null;
+            $entity->id_cat_estatus   = null;
+            $entity->id_cat_tematica  = null;
             $entity->horas_progamadas = $horasProgramadas;
 
             $entity->save();
 
             return response()->json([
                 'status'  => true,
-                'message' => 'Curso agregado correctamente con ID generado y finalidad asignada.',
+                'message' => 'Curso agregado correctamente con finalidad 6 y número de curso consecutivo.',
             ], 200);
         } catch (\Throwable $th) {
-            // \Log::info($th);
             return response()->json([
                 'status'  => false,
                 'message' => 'Ocurrió un error al agregar el curso.',

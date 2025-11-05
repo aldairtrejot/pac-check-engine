@@ -1,9 +1,14 @@
 <x-template.app-page>
 
+    {{-- Catálogo de finalidades (opcional) --}}
+    @inject('finalidadModel', 'App\Models\Pac\Collection\CollectionFinalidadModel')
+    @php
+        $finalidadList = $finalidadModel->listCollection();
+    @endphp
+
     <x-template.app-header
         :tittle="isset($accion) ? 'Editar acción' : 'Agregar acción'"
     >
-        {{-- Regresar con mismo diseño que "Agregar" --}}
         <x-button.button-header-action
             route="{{ route('action') }}"
             icon="fa fa-arrow-left me-sm-1"
@@ -15,7 +20,6 @@
         <form action="{{ route('action.save') }}" method="POST">
             @csrf
 
-            {{-- Si hay $accion, estamos editando --}}
             @isset($accion)
                 <input type="hidden" name="id_accion" value="{{ $accion->id_accion }}">
             @endisset
@@ -171,14 +175,20 @@
                 </div>
             </div>
 
-            {{-- 5) FINALIDAD --}}
+            {{-- 5) FINALIDAD (combo, guarda la DESCRIPCIÓN) --}}
             <div class="row mb-3">
                 <div class="col-md-12">
                     <label class="form-label">Finalidad</label>
-                    <input type="text"
-                           name="finalidad"
-                           class="form-control @error('finalidad') is-invalid @enderror"
-                           value="{{ old('finalidad', $accion->finalidad ?? '') }}">
+                    <select name="finalidad"
+                            class="form-select @error('finalidad') is-invalid @enderror">
+                        <option value="">Seleccione...</option>
+                        @foreach($finalidadList as $fin)
+                            <option value="{{ $fin->descripcion }}"
+                                {{ old('finalidad', $accion->finalidad ?? '') == $fin->descripcion ? 'selected' : '' }}>
+                                {{ $fin->descripcion }}
+                            </option>
+                        @endforeach
+                    </select>
                     @error('finalidad')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -189,7 +199,7 @@
                 <a href="{{ route('action') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="fa fa-times me-1"></i> Cancelar
                 </a>
-                {{-- Guardar / Actualizar con color #235B4E --}}
+
                 <button type="submit"
                         class="btn btn-sm text-white"
                         style="background-color:#235B4E;border-color:#235B4E;">
