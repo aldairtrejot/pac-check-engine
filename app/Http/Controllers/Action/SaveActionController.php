@@ -22,8 +22,7 @@ class SaveActionController extends Controller
             'duracion_hrs'  => 'nullable|numeric',
             'tipo_capacitacion' => 'nullable|string|max:255',
             'modalidad'         => 'nullable|string|max:255',
-
-            // 👇 AQUÍ: solo guardamos la descripción de la finalidad (texto)
+            // finalidad se guarda como TEXTO (descripción)
             'finalidad'         => 'nullable|string|max:255',
         ]);
 
@@ -37,9 +36,14 @@ class SaveActionController extends Controller
 
             // 👉 CREAR
             } else {
-                // siguiente id_accion (MAX + 1)
+                // siguiente id_accion: MAX + 1
                 $nextId = (EntityActionModel::max('id_accion') ?? 0) + 1;
                 $validated['id_accion'] = $nextId;
+
+                // Si no viene finalidad, default F6-SENSIBILIZACION
+                if (empty($validated['finalidad'])) {
+                    $validated['finalidad'] = 'F6-SENSIBILIZACION';
+                }
 
                 EntityActionModel::create($validated);
                 $message = 'La acción se creó correctamente.';

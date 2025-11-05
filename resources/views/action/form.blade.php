@@ -175,7 +175,7 @@
                 </div>
             </div>
 
-            {{-- 5) FINALIDAD (combo, guarda la DESCRIPCIÓN) --}}
+            {{-- 5) FINALIDAD (combo, guarda la DESCRIPCIÓN, default F6-SENSIBILIZACION) --}}
             <div class="row mb-3">
                 <div class="col-md-12">
                     <label class="form-label">Finalidad</label>
@@ -184,7 +184,7 @@
                         <option value="">Seleccione...</option>
                         @foreach($finalidadList as $fin)
                             <option value="{{ $fin->descripcion }}"
-                                {{ old('finalidad', $accion->finalidad ?? '') == $fin->descripcion ? 'selected' : '' }}>
+                                {{ old('finalidad', $accion->finalidad ?? 'F6-SENSIBILIZACION') == $fin->descripcion ? 'selected' : '' }}>
                                 {{ $fin->descripcion }}
                             </option>
                         @endforeach
