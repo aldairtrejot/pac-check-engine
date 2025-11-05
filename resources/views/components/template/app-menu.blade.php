@@ -9,9 +9,23 @@
         </a>
     </div>
     <hr class="horizontal dark mt-0">
+
+    @php
+        // Correos que pueden ver Acción / Temática / Instancias
+        $allowedPacEmails = [
+            'soporte_rh@imssbienestar.gob.mx',
+            'yessica.colorado@imssbienestar.gob.mx',
+            'reforzamientorh012@imssbienestar.gob.mx',
+        ];
+
+        $canSeeCatalogos = auth()->check()
+            && in_array(auth()->user()->email, $allowedPacEmails, true);
+    @endphp
+
     <div class="collapse navbar-collapse  w-auto " id="sidenav-collapse-main">
         <ul class="navbar-nav">
 
+            {{-- Siempre visible --}}
             <x-button.button-nav-menu
                 active="pac"
                 route="pac"
@@ -19,27 +33,31 @@
                 title="Mi plantilla"
             />
 
-            <x-button.button-nav-menu
-                active="action"
-                route="action"
-                icon="fa fa-align-center fa-lg"
-                title="Acción"
-            />
+            {{-- Solo usuarios autorizados --}}
+            @if($canSeeCatalogos)
+                <x-button.button-nav-menu
+                    active="action"
+                    route="action"
+                    icon="fa fa-align-center fa-lg"
+                    title="Acción"
+                />
 
-            <x-button.button-nav-menu
-                active="tematica"
-                route="tematica"
-                icon="fa fa-list-alt fa-lg"
-                title="Temática"
-            />
+                <x-button.button-nav-menu
+                    active="tematica"
+                    route="tematica"
+                    icon="fa fa-list-alt fa-lg"
+                    title="Temática"
+                />
 
-            <x-button.button-nav-menu
-                active="instancia"
-                route="instancia"
-                icon="fa fa-university fa-lg"
-                title="Instancias"
-            />
+                <x-button.button-nav-menu
+                    active="instancia"
+                    route="instancia"
+                    icon="fa fa-university fa-lg"
+                    title="Instancias"
+                />
+            @endif
 
+            {{-- Siempre visible --}}
             <x-button.button-nav-menu
                 active="logout"
                 route="logout"
@@ -62,18 +80,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     logoutLink.addEventListener('click', function (e) {
         e.preventDefault();
-Swal.fire({
-    title: 'Cerrar sesión',
-    text: '¿Deseas salir del sistema?',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, salir',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#235B4E',
-    cancelButtonColor: '#6c757d',
-    reverseButtons: true,
-})
-.then((result) => {
+        Swal.fire({
+            title: 'Cerrar sesión',
+            text: '¿Deseas salir del sistema?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, salir',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#235B4E',
+            cancelButtonColor: '#6c757d',
+            reverseButtons: true,
+        }).then((result) => {
             if (result.isConfirmed) {
                 window.location.href = this.href;
             }

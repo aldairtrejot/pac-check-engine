@@ -12,7 +12,10 @@ class ViewActioController extends Controller
      */
     public function view()
     {
-        // Catálogo de finalidades (no es estrictamente necesario aquí)
+        // 🔐 Restringir acceso por correo
+        $this->ensurePacAdmin();
+
+        // Catálogo de finalidades (para el combo en el formulario de acciones)
         $collectionFinalidad = new CollectionFinalidadModel();
         $finalidadList = $collectionFinalidad->listCollection();
 
