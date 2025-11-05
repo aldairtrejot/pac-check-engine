@@ -1,4 +1,4 @@
-<aside class="sidenav navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-3 "
+<aside class="sidenav navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-3"
     id="sidenav-main">
     <div class="sidenav-header">
         <i class="fas fa-times p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
@@ -11,18 +11,18 @@
     <hr class="horizontal dark mt-0">
 
     @php
-        // Correos que pueden ver Acción / Temática / Instancias
-        $allowedPacEmails = [
+        // Correos que pueden ver "Agregar empleado", Acción, Temática e Instancias
+        $allowedEmails = [
             'soporte_rh@imssbienestar.gob.mx',
             'yessica.colorado@imssbienestar.gob.mx',
             'reforzamientorh012@imssbienestar.gob.mx',
         ];
 
         $canSeeCatalogos = auth()->check()
-            && in_array(auth()->user()->email, $allowedPacEmails, true);
+            && in_array(auth()->user()->email, $allowedEmails, true);
     @endphp
 
-    <div class="collapse navbar-collapse  w-auto " id="sidenav-collapse-main">
+    <div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
         <ul class="navbar-nav">
 
             {{-- Siempre visible --}}
@@ -33,8 +33,16 @@
                 title="Mi plantilla"
             />
 
-            {{-- Solo usuarios autorizados --}}
+            {{-- Sólo para correos autorizados --}}
             @if($canSeeCatalogos)
+
+                <x-button.button-nav-menu
+                    active="empleado"
+                    route="empleado"
+                    icon="fa fa-user-plus fa-lg"
+                    title="Agregar empleado"
+                />
+
                 <x-button.button-nav-menu
                     active="action"
                     route="action"
@@ -55,6 +63,7 @@
                     icon="fa fa-university fa-lg"
                     title="Instancias"
                 />
+
             @endif
 
             {{-- Siempre visible --}}

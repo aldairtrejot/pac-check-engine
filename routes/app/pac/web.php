@@ -6,6 +6,8 @@ use App\Http\Controllers\Pac\SavePacController;
 use App\Http\Controllers\Pac\TablePacController;
 use App\Http\Controllers\Pac\ViewPacController;
 use App\Http\Controllers\Pac\CoursePacController; // 👈 NUEVO
+use App\Http\Controllers\Empleado\ViewEmpleadoController;
+use App\Http\Controllers\Empleado\SaveEmpleadoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,4 +32,10 @@ Route::middleware(['auth'])->group(function () {
 
     // 🔹 NUEVO: agregar curso a empleado
     Route::post('/pac/employee/add-course', [CoursePacController::class, 'addCourseToEmployee'])->name('pac.employee.addCourse');
+
+        Route::get('/empleado', [ViewEmpleadoController::class, 'view'])
+        ->name('empleado');
+
+    Route::post('/empleado/save', [SaveEmpleadoController::class, 'save'])
+        ->name('empleado.save');
 });

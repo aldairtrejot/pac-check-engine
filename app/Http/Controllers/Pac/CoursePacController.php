@@ -11,6 +11,7 @@ class CoursePacController extends Controller
 {
     /**
      * Catálogo de cursos para el modal de "Agregar curso".
+     * SOLO cursos con estatus VIGENTE.
      */
     public function listCourses()
     {
@@ -20,6 +21,8 @@ class CoursePacController extends Controller
                     'id_accion as id',
                     'nombre_accion as descripcion'
                 )
+                // 🔹 Solo cursos VIGENTES
+                ->whereRaw("TRIM(UPPER(estatus)) = 'VIGENTE'")
                 ->orderBy('nombre_accion', 'ASC')
                 ->get();
 
