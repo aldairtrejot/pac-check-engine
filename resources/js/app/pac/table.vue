@@ -245,6 +245,19 @@
               grid="col-md-6 col-sm-12"
             />
           </div>
+
+          <!-- 🔹 NUEVO: combo de Finalidad -->
+          <div class="row">
+            <inputSelect
+              v-model="listSelectFinalidad"
+              :options="listOptionFinalidad"
+              id="id_finalidad"
+              label="Finalidad"
+              :multiple="false"
+              grid="col-12"
+            />
+          </div>
+
           <div class="row">
             <inputSelect
               v-model="listSelectTematica"
@@ -364,6 +377,10 @@ const listOptionInstance = ref([])
 const listSelectTematica = ref([])
 const listOptionTematica = ref([])
 
+// 🔹 NUEVO: finalidad
+const listSelectFinalidad = ref([])
+const listOptionFinalidad = ref([])
+
 // estado para "Agregar curso"
 const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
@@ -451,6 +468,8 @@ async function button_confirm() {
     formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '')
     formData.append('id_instancia', listSelectInstance.value?.id ?? '')
     formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '')
+    // 🔹 NUEVO: enviar finalidad seleccionada
+    formData.append('id_finalidad', listSelectFinalidad.value?.id ?? '')
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
 
     showSpinner()
@@ -512,6 +531,10 @@ async function setOption(id) {
     listSelectInstance.value = (selectx.listSelectInstance ?? [])[0] ?? null
     listOptionTematica.value = selectx.listOptionTematica ?? []
     listSelectTematica.value = (selectx.listSelectTematica ?? [])[0] ?? null
+
+    // 🔹 FINALIDAD desde backend
+    listOptionFinalidad.value = selectx.listOptionFinalidad ?? []
+    listSelectFinalidad.value = (selectx.listSelectFinalidad ?? [])[0] ?? null
   } catch (error) {
     notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {

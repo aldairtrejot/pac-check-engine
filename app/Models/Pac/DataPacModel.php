@@ -34,6 +34,7 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.id_cat_estatus AS id_cat_estatus',
                 'public.a2_acciones_empleados.id_instancia AS id_instancia',
                 'public.a2_acciones_empleados.id_cat_tematica AS id_cat_tematica',
+                'public.a2_acciones_empleados.id_finalidad AS id_finalidad', // 🔹 NUEVO: finalidad del empleado-curso
                 'public.a2_acciones_empleados.eval_aprendizaje AS eval_aprendizaje',
                 'public.a1_cat_acciones.duracion_hrs AS duracion_hrs',
                 'public.a2_acciones_empleados.horas_real AS horas_real',

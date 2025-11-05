@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pac\Collection\CollectionInstanceModel;
 use App\Models\Pac\Collection\CollectionStatusModel;
 use App\Models\Pac\Collection\CollectionTematicaModel;
+use App\Models\Pac\Collection\CollectionFinalidadModel; // 🔹 NUEVO
 use App\Models\Pac\DataPacModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,9 +17,10 @@ class DataPacController extends Controller
     {
         try {
             // Catálogos
-            $collectionStatusModel   = new CollectionStatusModel;
-            $collectionInstanceModel = new CollectionInstanceModel;
-            $collectionTematicaModel = new CollectionTematicaModel;
+            $collectionStatusModel    = new CollectionStatusModel;
+            $collectionInstanceModel  = new CollectionInstanceModel;
+            $collectionTematicaModel  = new CollectionTematicaModel;
+            $collectionFinalidadModel = new CollectionFinalidadModel; // 🔹 NUEVO
 
             // Datos del empleado / acción
             $dataPacModel = new DataPacModel;
@@ -77,15 +79,28 @@ class DataPacController extends Controller
                 }
             }
 
+            // ===== Finalidad =====
+            $listOptionFinalidad = $collectionFinalidadModel->listCollection();
+
+            if (! empty($data->id_finalidad)) {
+                // Si ya trae finalidad en a2_acciones_empleados, se respeta
+                $listSelectFinalidad = $collectionFinalidadModel->listConllectionSelect($data->id_finalidad);
+            } else {
+                // Si viene null (registros viejos), sugerimos 6 como default si existe
+                $listSelectFinalidad = $collectionFinalidadModel->listConllectionSelect(6);
+            }
+
             return response()->json([
-                'status'             => true,
-                'data'               => $data,
-                'listSelectStatus'   => $listSelectStatus,
-                'listOptionStatus'   => $listOptionStatus,
-                'listOptionInstance' => $listOptionInstance,
-                'listSelectInstance' => $listSelectInstance,
-                'listOptionTematica' => $listOptionTematica,
-                'listSelectTematica' => $listSelectTematica,
+                'status'              => true,
+                'data'                => $data,
+                'listSelectStatus'    => $listSelectStatus,
+                'listOptionStatus'    => $listOptionStatus,
+                'listOptionInstance'  => $listOptionInstance,
+                'listSelectInstance'  => $listSelectInstance,
+                'listOptionTematica'  => $listOptionTematica,
+                'listSelectTematica'  => $listSelectTematica,
+                'listOptionFinalidad' => $listOptionFinalidad,   // 🔹 NUEVO
+                'listSelectFinalidad' => $listSelectFinalidad,   // 🔹 NUEVO
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([

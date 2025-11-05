@@ -64,38 +64,56 @@ class SavePacController extends Controller
                     'before_or_equal:2025-12-31',
                 ],
                 'id_cat_estatus' => 'required',
-                'id_instancia' => 'required',
-                'id_cat_tematica' => 'required',
-                'm_observaciones' => 'string|max:250',
-                'm_horas_real' => 'required|decimal:0,1|min:0.1|max:200.0'
+                'id_instancia'   => 'required',
+                'id_cat_tematica'=> 'required',
+                'id_finalidad'   => 'nullable|integer', // 🔹 NUEVO
+                'm_observaciones'=> 'string|max:250',
+                'm_horas_real'   => 'required|decimal:0,1|min:0.1|max:200.0'
             ];
 
             $request->validate($rules); // Run validation
 
-            $data = [ // Prepare user data
-                'fecha_ini' => $request->m_fecha_ini,
-                'fecha_fin' => $request->m_fecha_fin,
-                'id_cat_estatus' => $request->id_cat_estatus,
-                'id_instancia' => $request->id_instancia,
+            // Datos para actualizar en a2_acciones_empleados
+            $updateData = [
+                'fecha_ini'       => $request->m_fecha_ini,
+                'fecha_fin'       => $request->m_fecha_fin,
+                'id_cat_estatus'  => $request->id_cat_estatus,
+                'id_instancia'    => $request->id_instancia,
                 'id_cat_tematica' => $request->id_cat_tematica,
-                'observaciones' => $request->m_observaciones,
-                'id_trimestre' => $getTrimestreModel->getTrimestre($request->m_fecha_fin),
-                'eval_aprendizaje' => $request->m_eval_aprendizaje,
-                'horas_real' => $request->m_horas_real
+                'observaciones'   => $request->m_observaciones,
+                'id_trimestre'    => $getTrimestreModel->getTrimestre($request->m_fecha_fin),
+                'eval_aprendizaje'=> $request->m_eval_aprendizaje,
+                'horas_real'      => $request->m_horas_real,
             ];
 
-            EntityPacModel::where('id_empl_accion', $request->id)->update($data); // Update user data
+            // 🔹 SOLO actualizamos id_finalidad si viene en el request
+            if ($request->filled('id_finalidad')) {
+                $updateData['id_finalidad'] = $request->id_finalidad;
+            }
 
-            unset($data['id_trimestre']); // Remove
-            $data['creado_en'] = $timestamp; // Add updated timestamp
-            $data['id_usuario'] = Auth::user()->id; // Set modifier user
-            $data['id_empl_accion'] = $request->id; // Set modifier user
+            // Actualiza datos del empleado-curso
+            EntityPacModel::where('id_empl_accion', $request->id)->update($updateData);
 
-            LogDataModel::create($data);
+            // Datos para la tabla de log (sin id_trimestre y sin id_finalidad para no romper nada)
+            $logData = [
+                'fecha_ini'       => $updateData['fecha_ini'],
+                'fecha_fin'       => $updateData['fecha_fin'],
+                'id_cat_estatus'  => $updateData['id_cat_estatus'],
+                'id_instancia'    => $updateData['id_instancia'],
+                'id_cat_tematica' => $updateData['id_cat_tematica'],
+                'observaciones'   => $updateData['observaciones'],
+                'eval_aprendizaje'=> $updateData['eval_aprendizaje'],
+                'horas_real'      => $updateData['horas_real'],
+                'creado_en'       => $timestamp,
+                'id_usuario'      => Auth::user()->id,
+                'id_empl_accion'  => $request->id,
+            ];
+
+            LogDataModel::create($logData);
             $message = __('default.edit_success_message');
 
             return response()->json([
-                'status' => true, // Success response
+                'status'  => true, // Success response
                 'message' => $message,
             ], 200);
 
