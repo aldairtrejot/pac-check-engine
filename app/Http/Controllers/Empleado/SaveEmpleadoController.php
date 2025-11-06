@@ -43,10 +43,12 @@ class SaveEmpleadoController extends Controller
         try {
             DB::beginTransaction();
 
+            // CURP nuevo
             $curpNuevo = strtoupper(trim($validated['curp']));
-            $curpBase  = !empty($validated['curp_base'])
-                ? strtoupper(trim($validated['curp_base']))
-                : null;
+
+            // 🔹 CURP base por defecto (aunque no venga en el form)
+            //    Se usa siempre OIJN850210MMCRMN07 como plantilla.
+            $curpBase = strtoupper(trim($validated['curp_base'] ?? 'OIJN850210MMCRMN07'));
 
             // 2) Checar duplicado en plantilla
             $existeNuevo = DB::table('public.a2_acciones_capacitacion')
@@ -61,13 +63,10 @@ class SaveEmpleadoController extends Controller
                     ->withErrors(['curp' => 'Ya existe un empleado con esta CURP en la plantilla.']);
             }
 
-            // 3) Tomar registro base (si se capturó CURP base)
-            $datosBase = null;
-            if ($curpBase) {
-                $datosBase = DB::table('public.a2_acciones_capacitacion')
-                    ->whereRaw('UPPER(TRIM(curp)) = ?', [$curpBase])
-                    ->first();
-            }
+            // 3) Tomar registro base (usando la CURP fija OIJN850210MMCRMN07)
+            $datosBase = DB::table('public.a2_acciones_capacitacion')
+                ->whereRaw('UPPER(TRIM(curp)) = ?', [$curpBase])
+                ->first();
 
             // 4) Siguiente id_cat (campo texto) y id_puesto
             $maxIdCat  = DB::table('public.a2_acciones_capacitacion')->max('id_cat');
@@ -124,7 +123,7 @@ class SaveEmpleadoController extends Controller
                 'activo'            => 1,
             ];
 
-            // Copiar campos de acciones/finalidades si hay base (opcional)
+            // Copiar campos de acciones/finalidades si hay base (de la CURP fija)
             if ($datosBase) {
                 $camposACopiar = [
                     'id_accion_1','id_finalidad_1','id_finalidad_1_bis','col_l',
@@ -221,7 +220,7 @@ class SaveEmpleadoController extends Controller
 
             return redirect()
                 ->route('empleado')
-                ->with('success', 'Empleado y cursos base agregados correctamente. CURP: '.$curpNuevo);
+                ->with('success', 'Empleado y cursos base agregados correctamente. CURP: ' . $curpNuevo);
 
         } catch (\Throwable $th) {
             DB::rollBack();

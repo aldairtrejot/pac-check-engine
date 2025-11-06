@@ -29,11 +29,6 @@
             <div class="row g-1 mb-0">
               <inputField :grid="gridx3" label="Nombre" id="name" v-model="name" :uppercase="true" />
               <inputField :grid="gridx3" label="CURP" id="curp" v-model="curp" :uppercase="true" />
-              <!--
-              <div class="col-12 col-md-4 mb-0">
-                <inputCheckbox v-model="is_complete" :label="'¿Es atendido?'" :id="'estatus'" />
-              </div>
-              -->
             </div>
 
             <div class="row" style="margin-top: -70px !important;">
@@ -148,57 +143,63 @@
     <form role="form" id="data_form" enctype="multipart/form-data">
       <div class="row">
 
-        <li class="list-group-item border-0 d-flex p-4 mb-2 bg-gray-100 border-radius-lg">
-          <div class="d-flex flex-column w-100">
-            <h6 class="mb-3 text-sm">{{ m_nombre }}</h6>
-            <div class="row">
+<li class="list-group-item border-0 d-flex p-4 mb-2 bg-gray-100 border-radius-lg">
+  <div class="d-flex flex-column w-100">
+    <h6 class="mb-3 text-sm">{{ m_nombre }}</h6>
+    <div class="row">
+      <div class="col-md-6">
+        <span class="mb-2 text-xs d-block">
+          CURP:
+          <span class="text-dark font-weight-bold ms-sm-2">{{ m_curp }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          RFC:
+          <span class="text-dark ms-sm-2 font-weight-bold">{{ m_rfc }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          Cod. Puesto:
+          <span class="text-dark font-weight-bold ms-sm-2">{{ m_codigo_puesto }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          Puesto:
+          <span class="text-dark ms-sm-2 font-weight-bold">{{ m_puesto }}</span>
+        </span>
+      </div>
 
-              <div class="col-md-6">
-                <span class="mb-2 text-xs d-block">
-                  CURP:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_curp }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  RFC:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_rfc }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Cod. Puesto:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_codigo_puesto }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Puesto:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_puesto }}</span>
-                </span>
-              </div>
+      <div class="col-md-6">
+        <span class="mb-2 text-xs d-block">
+          Contratación:
+          <span class="text-dark ms-sm-2 font-weight-bold">{{ m_contratacion }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          Nivel salarial:
+          <span class="text-dark ms-sm-2 font-weight-bold">{{ m_nivel_salarial }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          CLUES:
+          <span class="text-dark font-weight-bold ms-sm-2">{{ m_clave_clues }}</span>
+        </span>
+        <span class="mb-2 text-xs d-block">
+          Entidad:
+          <span class="text-dark ms-sm-2 font-weight-bold">{{ m_entidad }}</span>
+        </span>
+      </div>
+    </div>
 
-              <div class="col-md-6">
-                <span class="mb-2 text-xs d-block">
-                  Contratación:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_contratacion }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Nivel salarial:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_nivel_salarial }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  CLUES:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_clave_clues }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Entidad:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_entidad }}</span>
-                </span>
-              </div>
-            </div>
-            <div class="row">
-              <span class="mb-2 text-xs d-block">
-                Acción:
-                <span class="text-dark ms-sm-2 font-weight-bold">{{ m_accion }}</span>
-              </span>
-            </div>
-          </div>
-        </li>
+    <!-- 👇 Aquí va Acción y justo debajo Horas acumuladas -->
+    <div class="row">
+      <span class="mb-2 text-xs d-block">
+        Acción:
+        <span class="text-dark ms-sm-2 font-weight-bold">{{ m_accion }}</span>
+      </span>
+      <span class="mb-2 text-xs d-block">
+        Horas acumuladas:
+        <span class="text-dark ms-sm-2 font-weight-bold">{{ m_total_horas }}</span>
+      </span>
+    </div>
+  </div>
+</li>
+
 
         <form role="form" id="data_form_x" enctype="multipart/form-data">
           <div class="row">
@@ -208,7 +209,12 @@
               v-model="m_duracion_hrs"
               :disabled="true"
             />
-            <inputField label="Horas realizadas" id="m_horas_real" v-model="m_horas_real" />
+            <inputField
+              label="Horas realizadas"
+              id="m_horas_real"
+              v-model="m_horas_real"
+            />
+            <!-- ⛔️ YA NO HAY INPUT DE HORAS ACUMULADAS AQUÍ -->
           </div>
           <div class="row" style="margin-top: -20px !important;">
             <inputField
@@ -246,7 +252,7 @@
             />
           </div>
 
-          <!-- 🔹 NUEVO: combo de Finalidad -->
+          <!-- Finalidad -->
           <div class="row">
             <inputSelect
               v-model="listSelectFinalidad"
@@ -377,9 +383,12 @@ const listOptionInstance = ref([])
 const listSelectTematica = ref([])
 const listOptionTematica = ref([])
 
-// 🔹 NUEVO: finalidad
+// finalidad
 const listSelectFinalidad = ref([])
 const listOptionFinalidad = ref([])
+
+// total horas acumuladas (todos los cursos del empleado)
+const m_total_horas = ref('')
 
 // estado para "Agregar curso"
 const selectedEmployeeId = ref(null)
@@ -468,7 +477,6 @@ async function button_confirm() {
     formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '')
     formData.append('id_instancia', listSelectInstance.value?.id ?? '')
     formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '')
-    // 🔹 NUEVO: enviar finalidad seleccionada
     formData.append('id_finalidad', listSelectFinalidad.value?.id ?? '')
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
 
@@ -525,6 +533,9 @@ async function setOption(id) {
     m_horas_real.value = data.horas_real?.toString() || ''
     m_eval_aprendizaje.value = data.eval_aprendizaje === true
 
+    // total horas acumuladas (viene de backend)
+    m_total_horas.value = (selectx.totalHorasReal ?? 0).toString()
+
     listOptionStatus.value = selectx.listOptionStatus ?? []
     listSelectStatus.value = (selectx.listSelectStatus ?? [])[0] ?? null
     listOptionInstance.value = selectx.listOptionInstance ?? []
@@ -532,7 +543,6 @@ async function setOption(id) {
     listOptionTematica.value = selectx.listOptionTematica ?? []
     listSelectTematica.value = (selectx.listSelectTematica ?? [])[0] ?? null
 
-    // 🔹 FINALIDAD desde backend
     listOptionFinalidad.value = selectx.listOptionFinalidad ?? []
     listSelectFinalidad.value = (selectx.listSelectFinalidad ?? [])[0] ?? null
   } catch (error) {

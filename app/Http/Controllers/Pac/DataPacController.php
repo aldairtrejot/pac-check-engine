@@ -36,6 +36,13 @@ class DataPacController extends Controller
                 $data->horas_real = $data->duracion_hrs;
             }
 
+            // 🔹 TOTAL HORAS REALIZADAS (TODOS LOS CURSOS DEL EMPLEADO)
+            $totalHorasReal = DB::table('public.a2_acciones_empleados')
+                ->where('curp', $data->curp)
+                ->sum('horas_real');
+
+            $totalHorasReal = $totalHorasReal ?? 0;
+
             /*
              * ===== ESTATUS (solo ALTA / BAJA) =====
              * cat_estatus:
@@ -114,6 +121,9 @@ class DataPacController extends Controller
                 'listSelectTematica'  => $listSelectTematica,
                 'listOptionFinalidad' => $listOptionFinalidad,
                 'listSelectFinalidad' => $listSelectFinalidad,
+
+                // 🔹 NUEVO: total de horas realizadas (todos los cursos del empleado)
+                'totalHorasReal'      => (float) $totalHorasReal,
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
@@ -123,4 +133,3 @@ class DataPacController extends Controller
         }
     }
 }
-

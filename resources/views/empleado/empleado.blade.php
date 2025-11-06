@@ -15,33 +15,8 @@
         <form method="POST" action="{{ route('empleado.save') }}" id="formEmpleado">
             @csrf
 
-            {{-- BLOQUE 1: Empleado base --}}
-            <div class="mb-2">
-                <h6 class="mb-1">Empleado base (opcional)</h6>
-                <small class="text-muted">
-                    Si capturas una CURP existente en la plantilla, se usarán sus datos técnicos
-                    (UR, ramo, CLUES, tipo de personal, etc.) como referencia para el nuevo empleado.
-                </small>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">CURP base (empleado plantilla)</label>
-                    <input
-                        type="text"
-                        name="curp_base"
-                        class="form-control @error('curp_base') is-invalid @enderror"
-                        value="{{ old('curp_base') }}"
-                        maxlength="18"
-                        style="text-transform: uppercase;"
-                    >
-                    @error('curp_base')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            <hr class="mt-0 mb-3">
+            {{-- 🔹 CURP base fija, oculta para el usuario --}}
+            <input type="hidden" name="curp_base" value="OIJN850210MMCRMN07">
 
             {{-- BLOQUE 2: Datos generales --}}
             <h6 class="mb-3">Datos generales</h6>
@@ -287,7 +262,7 @@
                 </div>
             </div>
 
-            {{-- BLOQUE 7: Otros --}}
+            {{-- BLOQUE 7: Otros datos --}}
             <h6 class="mb-3">Otros datos</h6>
 
             <div class="row mb-3">
@@ -325,7 +300,7 @@
 
     </x-template.app-card>
 
-    @push('scripts')
+    {{-- Script directo (sin @push) para que siempre se ejecute --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('formEmpleado');
@@ -339,7 +314,7 @@
                 });
             }
 
-            // Convertir automáticamente a mayúsculas los campos marcados
+            // Mayúsculas automáticas
             const upperCaseInputs = document.querySelectorAll('input[style*="text-transform: uppercase"]');
             upperCaseInputs.forEach(function(input) {
                 input.addEventListener('input', function() {
@@ -347,10 +322,7 @@
                 });
             });
 
-            // =========================
-            // Toasts con SweetAlert2
-            // =========================
-
+            // TOAST: éxito
             @if (session('success'))
                 Swal.fire({
                     toast: true,
@@ -359,10 +331,11 @@
                     title: @json(session('success')),
                     showConfirmButton: false,
                     timer: 4000,
-                    timerProgressBar: true
+                    timerProgressBar: true,
                 });
             @endif
 
+            // TOAST: errores de validación
             @if ($errors->any())
                 Swal.fire({
                     toast: true,
@@ -372,11 +345,10 @@
                     html: `{!! implode('<br>', $errors->all()) !!}`,
                     showConfirmButton: false,
                     timer: 7000,
-                    timerProgressBar: true
+                    timerProgressBar: true,
                 });
             @endif
         });
     </script>
-    @endpush
 
 </x-template.app-page>
