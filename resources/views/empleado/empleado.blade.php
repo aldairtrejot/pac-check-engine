@@ -47,7 +47,7 @@
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
                 <small class="text-muted">
-                    Se copiarán los datos técnicos (acciones, tipo_personal, etc.) de este registro.
+                    (Opcional) Solo referencia, por ahora no se usa para copiar datos.
                 </small>
             </div>
 
@@ -272,6 +272,23 @@
                     @error('entidad')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                </div>
+            </div>
+
+            {{-- 8) Quincena --}}
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Quincena</label>
+                    <input
+                        type="number"
+                        name="quincena"
+                        class="form-control @error('quincena') is-invalid @enderror"
+                        value="{{ old('quincena') }}"
+                    >
+                    @error('quincena')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <small class="text-muted">Si no capturas, se usará 18 por defecto.</small>
                 </div>
             </div>
 
