@@ -12,66 +12,58 @@
 
     <x-template.app-card>
 
-        {{-- Mensaje de éxito --}}
-        @if (session('success'))
-            <div class="alert alert-success">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        {{-- Errores --}}
-        @if ($errors->any())
-            <div class="alert alert-danger">
-                <ul class="mb-0">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <form method="POST" action="{{ route('empleado.save') }}">
+        <form method="POST" action="{{ route('empleado.save') }}" id="formEmpleado">
             @csrf
 
-            {{-- 1) CURP BASE (plantilla) --}}
-            <div class="mb-3">
-                <label class="form-label">CURP base (empleado plantilla)</label>
-                <input
-                    type="text"
-                    name="curp_base"
-                    class="form-control @error('curp_base') is-invalid @enderror"
-                    value="{{ old('curp_base') }}"
-                    maxlength="18"
-                >
-                @error('curp_base')
-                    <div class="invalid-feedback">{{ $message }}</div>
-                @enderror
+            {{-- BLOQUE 1: Empleado base --}}
+            <div class="mb-2">
+                <h6 class="mb-1">Empleado base (opcional)</h6>
                 <small class="text-muted">
-                    (Opcional) Solo referencia, por ahora no se usa para copiar datos.
+                    Si capturas una CURP existente en la plantilla, se usarán sus datos técnicos
+                    (UR, ramo, CLUES, tipo de personal, etc.) como referencia para el nuevo empleado.
                 </small>
             </div>
 
-            <hr>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">CURP base (empleado plantilla)</label>
+                    <input
+                        type="text"
+                        name="curp_base"
+                        class="form-control @error('curp_base') is-invalid @enderror"
+                        value="{{ old('curp_base') }}"
+                        maxlength="18"
+                        style="text-transform: uppercase;"
+                    >
+                    @error('curp_base')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
 
-            <h6 class="mb-3">Datos del nuevo empleado</h6>
+            <hr class="mt-0 mb-3">
 
-            {{-- 2) CURP / RFC / Sexo --}}
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">CURP</label>
+            {{-- BLOQUE 2: Datos generales --}}
+            <h6 class="mb-3">Datos generales</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">CURP <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         name="curp"
                         class="form-control @error('curp') is-invalid @enderror"
                         value="{{ old('curp') }}"
                         maxlength="18"
+                        required
+                        style="text-transform: uppercase;"
                     >
                     @error('curp')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4">
                     <label class="form-label">RFC</label>
                     <input
                         type="text"
@@ -79,24 +71,26 @@
                         class="form-control @error('rfc') is-invalid @enderror"
                         value="{{ old('rfc') }}"
                         maxlength="13"
+                        style="text-transform: uppercase;"
                     >
                     @error('rfc')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Sexo</label>
+                <div class="col-md-4">
+                    <label class="form-label">Sexo <span class="text-danger">*</span></label>
                     @php
                         $sexoOld = old('sexo');
                     @endphp
                     <select
                         name="sexo"
                         class="form-select @error('sexo') is-invalid @enderror"
+                        required
                     >
                         <option value="">Seleccione...</option>
                         <option value="HOMBRE" {{ $sexoOld === 'HOMBRE' ? 'selected' : '' }}>HOMBRE</option>
-                        <option value="MUJER" {{ $sexoOld === 'MUJER' ? 'selected' : '' }}>MUJER</option>
+                        <option value="MUJER"  {{ $sexoOld === 'MUJER'  ? 'selected' : '' }}>MUJER</option>
                     </select>
                     @error('sexo')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -104,41 +98,48 @@
                 </div>
             </div>
 
-            {{-- 3) Nombre y apellidos --}}
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Nombre</label>
+            {{-- BLOQUE 3: Nombre y apellidos --}}
+            <h6 class="mb-3">Nombre del trabajador</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Nombre <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         name="nombre"
                         class="form-control @error('nombre') is-invalid @enderror"
                         value="{{ old('nombre') }}"
+                        required
+                        style="text-transform: uppercase;"
                     >
                     @error('nombre')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Apellido paterno</label>
+                <div class="col-md-4">
+                    <label class="form-label">Apellido paterno <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         name="apellido_paterno"
                         class="form-control @error('apellido_paterno') is-invalid @enderror"
                         value="{{ old('apellido_paterno') }}"
+                        required
+                        style="text-transform: uppercase;"
                     >
                     @error('apellido_paterno')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4">
                     <label class="form-label">Apellido materno</label>
                     <input
                         type="text"
                         name="apellido_materno"
                         class="form-control @error('apellido_materno') is-invalid @enderror"
                         value="{{ old('apellido_materno') }}"
+                        style="text-transform: uppercase;"
                     >
                     @error('apellido_materno')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -146,41 +147,47 @@
                 </div>
             </div>
 
-            {{-- 4) Puesto / Código / Nivel salarial --}}
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Nombre del puesto</label>
+            {{-- BLOQUE 4: Puesto --}}
+            <h6 class="mb-3">Datos del puesto</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Nombre del puesto <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         name="nombre_puesto"
                         class="form-control @error('nombre_puesto') is-invalid @enderror"
                         value="{{ old('nombre_puesto') }}"
+                        required
+                        style="text-transform: uppercase;"
                     >
                     @error('nombre_puesto')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4">
                     <label class="form-label">Código de puesto</label>
                     <input
                         type="text"
                         name="codigo_puesto"
                         class="form-control @error('codigo_puesto') is-invalid @enderror"
                         value="{{ old('codigo_puesto') }}"
+                        style="text-transform: uppercase;"
                     >
                     @error('codigo_puesto')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4">
                     <label class="form-label">Nivel salarial</label>
                     <input
                         type="text"
                         name="nivel_salarial"
                         class="form-control @error('nivel_salarial') is-invalid @enderror"
                         value="{{ old('nivel_salarial') }}"
+                        style="text-transform: uppercase;"
                     >
                     @error('nivel_salarial')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -188,28 +195,32 @@
                 </div>
             </div>
 
-            {{-- 5) CLUES --}}
-            <div class="row">
-                <div class="col-md-4 mb-3">
+            {{-- BLOQUE 5: CLUES --}}
+            <h6 class="mb-3">Unidad / CLUES</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
                     <label class="form-label">CLUES</label>
                     <input
                         type="text"
                         name="clave_clues"
                         class="form-control @error('clave_clues') is-invalid @enderror"
                         value="{{ old('clave_clues') }}"
+                        style="text-transform: uppercase;"
                     >
                     @error('clave_clues')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="col-md-8 mb-3">
+                <div class="col-md-8">
                     <label class="form-label">Descripción CLUES</label>
                     <input
                         type="text"
                         name="descripcion_clues"
                         class="form-control @error('descripcion_clues') is-invalid @enderror"
                         value="{{ old('descripcion_clues') }}"
+                        style="text-transform: uppercase;"
                     >
                     @error('descripcion_clues')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -217,9 +228,11 @@
                 </div>
             </div>
 
-            {{-- 6) Contratación / Nómina --}}
-            <div class="row">
-                <div class="col-md-6 mb-3">
+            {{-- BLOQUE 6: Datos laborales --}}
+            <h6 class="mb-3">Datos laborales</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
                     <label class="form-label">Tipo de contratación</label>
                     <input
                         type="text"
@@ -232,7 +245,7 @@
                     @enderror
                 </div>
 
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6">
                     <label class="form-label">Nómina</label>
                     <input
                         type="text"
@@ -246,9 +259,8 @@
                 </div>
             </div>
 
-            {{-- 7) Nivel de atención / Entidad --}}
-            <div class="row">
-                <div class="col-md-6 mb-3">
+            <div class="row mb-3">
+                <div class="col-md-6">
                     <label class="form-label">Nivel de atención</label>
                     <input
                         type="text"
@@ -261,7 +273,7 @@
                     @enderror
                 </div>
 
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6">
                     <label class="form-label">Entidad</label>
                     <input
                         type="text"
@@ -275,15 +287,19 @@
                 </div>
             </div>
 
-            {{-- 8) Quincena --}}
-            <div class="row">
-                <div class="col-md-4 mb-3">
+            {{-- BLOQUE 7: Otros --}}
+            <h6 class="mb-3">Otros datos</h6>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
                     <label class="form-label">Quincena</label>
                     <input
                         type="number"
                         name="quincena"
                         class="form-control @error('quincena') is-invalid @enderror"
                         value="{{ old('quincena') }}"
+                        min="1"
+                        max="24"
                     >
                     @error('quincena')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -299,7 +315,8 @@
 
                 <button type="submit"
                         class="btn btn-sm text-white"
-                        style="background-color:#235B4E;border-color:#235B4E;">
+                        style="background-color:#235B4E;border-color:#235B4E;"
+                        id="btnGuardar">
                     <i class="fa fa-save me-1"></i>
                     Guardar
                 </button>
@@ -307,5 +324,59 @@
         </form>
 
     </x-template.app-card>
+
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('formEmpleado');
+            const btnGuardar = document.getElementById('btnGuardar');
+
+            // Prevenir doble envío
+            if (form && btnGuardar) {
+                form.addEventListener('submit', function() {
+                    btnGuardar.disabled = true;
+                    btnGuardar.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Guardando...';
+                });
+            }
+
+            // Convertir automáticamente a mayúsculas los campos marcados
+            const upperCaseInputs = document.querySelectorAll('input[style*="text-transform: uppercase"]');
+            upperCaseInputs.forEach(function(input) {
+                input.addEventListener('input', function() {
+                    this.value = this.value.toUpperCase();
+                });
+            });
+
+            // =========================
+            // Toasts con SweetAlert2
+            // =========================
+
+            @if (session('success'))
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: @json(session('success')),
+                    showConfirmButton: false,
+                    timer: 4000,
+                    timerProgressBar: true
+                });
+            @endif
+
+            @if ($errors->any())
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Verifica la información capturada',
+                    html: `{!! implode('<br>', $errors->all()) !!}`,
+                    showConfirmButton: false,
+                    timer: 7000,
+                    timerProgressBar: true
+                });
+            @endif
+        });
+    </script>
+    @endpush
 
 </x-template.app-page>

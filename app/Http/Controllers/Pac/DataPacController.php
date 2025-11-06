@@ -4,9 +4,8 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pac\Collection\CollectionInstanceModel;
-use App\Models\Pac\Collection\CollectionStatusModel;
 use App\Models\Pac\Collection\CollectionTematicaModel;
-use App\Models\Pac\Collection\CollectionFinalidadModel; // 🔹 NUEVO
+use App\Models\Pac\Collection\CollectionFinalidadModel;
 use App\Models\Pac\DataPacModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,10 +16,9 @@ class DataPacController extends Controller
     {
         try {
             // Catálogos
-            $collectionStatusModel    = new CollectionStatusModel;
             $collectionInstanceModel  = new CollectionInstanceModel;
             $collectionTematicaModel  = new CollectionTematicaModel;
-            $collectionFinalidadModel = new CollectionFinalidadModel; // 🔹 NUEVO
+            $collectionFinalidadModel = new CollectionFinalidadModel;
 
             // Datos del empleado / acción
             $dataPacModel = new DataPacModel;
@@ -38,11 +36,27 @@ class DataPacController extends Controller
                 $data->horas_real = $data->duracion_hrs;
             }
 
-            // ===== Estatus =====
-            $listOptionStatus = $collectionStatusModel->listCollection();
-            $listSelectStatus = isset($data->id_cat_estatus)
-                ? $collectionStatusModel->listConllectionSelect($data->id_cat_estatus)
-                : [];
+            /*
+             * ===== ESTATUS (solo ALTA / BAJA) =====
+             * cat_estatus:
+             * 2 = ALTA
+             * 3 = BAJA
+             */
+            $listOptionStatus = DB::table('public.cat_estatus')
+                ->select('id_cat_estatus as id', 'descripcion')
+                ->whereIn('id_cat_estatus', [2, 3])
+                ->orderBy('id_cat_estatus')
+                ->get();
+
+            if (isset($data->id_cat_estatus) && in_array((int) $data->id_cat_estatus, [2, 3], true)) {
+                // Solo marcamos seleccionado si es ALTA o BAJA
+                $listSelectStatus = $listOptionStatus
+                    ->where('id', (int) $data->id_cat_estatus)
+                    ->values()
+                    ->all();
+            } else {
+                $listSelectStatus = [];
+            }
 
             // ===== Instancia =====
             $listOptionInstance = $collectionInstanceModel->listCollection();
@@ -53,7 +67,7 @@ class DataPacController extends Controller
             // ===== Temática =====
             $listOptionTematica = $collectionTematicaModel->listCollection();
 
-            if (isset($data->id_cat_tematica) && $data->id_cat_tematica !== null && $data->id_cat_tematica !== '') {
+            if (!empty($data->id_cat_tematica)) {
                 // Ya hay temática guardada en a2_acciones_empleados → se respeta
                 $listSelectTematica = $collectionTematicaModel->listConllectionSelect($data->id_cat_tematica);
             } else {
@@ -73,7 +87,6 @@ class DataPacController extends Controller
                         ->first();
 
                     if ($row) {
-                        // Esto es lo que verá seleccionado por defecto en el combo de Temática
                         $listSelectTematica = [$row];
                     }
                 }
@@ -93,14 +106,14 @@ class DataPacController extends Controller
             return response()->json([
                 'status'              => true,
                 'data'                => $data,
-                'listSelectStatus'    => $listSelectStatus,
                 'listOptionStatus'    => $listOptionStatus,
+                'listSelectStatus'    => $listSelectStatus,
                 'listOptionInstance'  => $listOptionInstance,
                 'listSelectInstance'  => $listSelectInstance,
                 'listOptionTematica'  => $listOptionTematica,
                 'listSelectTematica'  => $listSelectTematica,
-                'listOptionFinalidad' => $listOptionFinalidad,   // 🔹 NUEVO
-                'listSelectFinalidad' => $listSelectFinalidad,   // 🔹 NUEVO
+                'listOptionFinalidad' => $listOptionFinalidad,
+                'listSelectFinalidad' => $listSelectFinalidad,
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
@@ -110,3 +123,4 @@ class DataPacController extends Controller
         }
     }
 }
+

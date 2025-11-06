@@ -9,6 +9,7 @@ class ViewEmpleadoController extends Controller
 {
     /**
      * Correos con permiso para usar esta sección.
+     * Solo estos usuarios pueden agregar empleados al sistema.
      */
     protected $allowedEmails = [
         'soporte_rh@imssbienestar.gob.mx',
@@ -18,12 +19,22 @@ class ViewEmpleadoController extends Controller
 
     public function __construct()
     {
-        // Restringimos acceso solo a los correos autorizados
+        // IMPORTANTE: El middleware de autenticación debe ir primero
+        $this->middleware('auth');
+        
+        // Luego verificamos los permisos específicos
         $this->middleware(function ($request, $next) {
             $user = Auth::user();
 
-            if (! $user || ! in_array($user->email, $this->allowedEmails)) {
-                abort(403, 'No tienes permiso para acceder a esta sección.');
+            // Verificar que el usuario esté autenticado
+            if (!$user) {
+                return redirect()->route('login')
+                    ->withErrors(['error' => 'Debes iniciar sesión para acceder a esta sección.']);
+            }
+
+            // Verificar que el correo del usuario esté en la lista de permitidos
+            if (!in_array($user->email, $this->allowedEmails)) {
+                abort(403, 'Acceso denegado. Solo personal autorizado de Recursos Humanos puede agregar empleados al sistema.');
             }
 
             return $next($request);
@@ -31,11 +42,16 @@ class ViewEmpleadoController extends Controller
     }
 
     /**
-     * Muestra el formulario para agregar un empleado
-     * usando una plantilla base de a2_acciones_capacitacion.
+     * Muestra el formulario para agregar un nuevo empleado.
+     * 
+     * @return \Illuminate\View\View
      */
     public function view()
     {
-        return view('empleado.empleado');
+        $user = Auth::user();
+        
+        return view('empleado.empleado', [
+            'usuario' => $user,
+        ]);
     }
 }

@@ -4,6 +4,9 @@
     @inject('finalidadModel', 'App\Models\Pac\Collection\CollectionFinalidadModel')
     @php
         $finalidadList = $finalidadModel->listCollection();
+
+        // Estatus por defecto: VIGENTE
+        $estatusActual = old('estatus', $accion->estatus ?? 'VIGENTE');
     @endphp
 
     <x-template.app-header
@@ -83,10 +86,12 @@
                             class="form-select @error('estatus') is-invalid @enderror">
                         <option value="">Seleccione...</option>
                         @foreach($statusList as $st)
-                            <option value="{{ $st->descripcion }}"
-                                {{ old('estatus', $accion->estatus ?? '') == $st->descripcion ? 'selected' : '' }}>
-                                {{ $st->descripcion }}
-                            </option>
+                            @if(in_array($st->descripcion, ['VIGENTE', 'NO VIGENTE']))
+                                <option value="{{ $st->descripcion }}"
+                                    {{ $estatusActual === $st->descripcion ? 'selected' : '' }}>
+                                    {{ $st->descripcion }}
+                                </option>
+                            @endif
                         @endforeach
                     </select>
                     @error('estatus')
@@ -200,17 +205,17 @@
                     <i class="fa fa-times me-1"></i> Cancelar
                 </a>
 
-                <button type="submit"
-                        class="btn btn-sm text-white"
-                        style="background-color:#235B4E;border-color:#235B4E;">
-                    <i class="fa fa-save me-1"></i>
-                    @isset($accion)
-                        Actualizar
-                    @else
-                        Guardar
-                    @endisset
-                </button>
-            </div>
+            <button type="submit"
+                    class="btn btn-sm text-white"
+                    style="background-color:#235B4E;border-color:#235B4E;">
+                <i class="fa fa-save me-1"></i>
+                @isset($accion)
+                    Actualizar
+                @else
+                    Guardar
+                @endisset
+            </button>
+        </div>
         </form>
     </x-template.app-card>
 
