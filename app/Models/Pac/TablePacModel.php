@@ -10,16 +10,10 @@ class TablePacModel extends Model
     /**
      * The function returns the table apart from its query, however it expects the limit, offset,
      * search and select as parameters, returning the generated query, the total and the iterator.
-     *
-     * @param  mixed  $limit
-     * @param  mixed  $offset
-     * @param  mixed  $search
-     * @param  mixed  $select
-     * @return array{allRow: int, list: \Illuminate\Support\Collection<int, \stdClass>, row: float|int}
      */
     public function list($limit, $offset, $search, $select, $request)
     {
-        // Primero crea la query base con todos los JOINs
+        // Query base
         $query = DB::table('public.a2_acciones_empleados')
             ->selectRaw("
                 public.a2_acciones_empleados.id_empl_accion AS id,
@@ -47,19 +41,34 @@ class TablePacModel extends Model
                     ELSE 'PENDIENTE'
                 END AS atendido
             ")
-            ->join('public.a1_cat_acciones', 'public.a2_acciones_empleados.id_accion', '=', 'public.a1_cat_acciones.id_accion')
+            ->join(
+                'public.a1_cat_acciones',
+                'public.a2_acciones_empleados.id_accion',
+                '=',
+                'public.a1_cat_acciones.id_accion'
+            )
             ->join('public.a2_acciones_capacitacion', function ($join) {
-                $join->on(DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'), '=', 'public.a2_acciones_capacitacion.id_puesto');
+                $join->on(
+                    DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
+                    '=',
+                    'public.a2_acciones_capacitacion.id_puesto'
+                );
             });
 
-        // Aplica los filtros de búsqueda
+        // ✅ NUEVO: mostrar solo registros con estatus NULL, 1 (VIGENTE) o 2 (ALTA) → ocultar BAJA (3)
+        $query->where(function ($q) {
+            $q->whereNull('public.a2_acciones_empleados.id_cat_estatus')
+              ->orWhereIn('public.a2_acciones_empleados.id_cat_estatus', [1, 2]);
+        });
+
+        // Filtros de búsqueda
         $this->applySearch($query, $request);
 
-        // Clona la query para el conteo (antes de limit/offset)
+        // Conteo total
         $countQuery = clone $query;
         $allRow = $countQuery->count();
 
-        // Aplica ordenamiento y paginación a la query original
+        // Orden + paginación
         $list = $query->orderBy('public.a2_acciones_empleados.curp', 'ASC')
             ->offset($offset)
             ->limit($limit)
@@ -68,17 +77,14 @@ class TablePacModel extends Model
         $row = abs(($allRow < ($offset + $select)) ? $allRow : ($offset + $select));
 
         return [
-            'row' => $row,
+            'row'    => $row,
             'allRow' => $allRow,
-            'list' => $list,
+            'list'   => $list,
         ];
     }
 
     /**
-     * Private helper to apply the search filters using unaccent and case-insensitive comparison
-     *
-     * @param  mixed  $query
-     * @param  mixed  $search
+     * Aplica los filtros de búsqueda (nombre, curp, acción…)
      */
     private function applySearch($query, $request)
     {
@@ -88,38 +94,46 @@ class TablePacModel extends Model
                 $searchTerm = '%'.$request->name.'%';
 
                 $query->whereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') 
+                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') 
+                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
+                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
                     "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') || 
-         REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') || 
-         REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
-         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') || 
+                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
+                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 );
             }
 
-            // Filtro adicional para CURP
             if (! empty($request->curp)) {
                 $query->whereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) LIKE UPPER(TRIM(public.unaccent(?)))',
+                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
+                     LIKE UPPER(TRIM(public.unaccent(?)))',
                     ['%'.$request->curp.'%']
                 );
             }
 
             if (! empty($request->id_accion)) {
                 $query->where(
-                    'public.a2_acciones_empleados.id_accion', '=', $request->id_accion
+                    'public.a2_acciones_empleados.id_accion',
+                    '=',
+                    $request->id_accion
                 );
             }
 
-            // Filtro adicional para estado (COMPLETO/INCOMPLETO)
+            // (filtro de completo/incompleto sigue comentado tal como lo tenías)
+    
+
+
             // Filtro adicional para estado (COMPLETO/INCOMPLETO)
             /*
             if (isset($request->is_complete)) {

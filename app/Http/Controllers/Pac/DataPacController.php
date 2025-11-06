@@ -36,27 +36,24 @@ class DataPacController extends Controller
                 $data->horas_real = $data->duracion_hrs;
             }
 
-            // 🔹 TOTAL HORAS REALIZADAS (TODOS LOS CURSOS DEL EMPLEADO)
+            // Total de horas acumuladas por CURP
             $totalHorasReal = DB::table('public.a2_acciones_empleados')
-                ->where('curp', $data->curp)
+                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$data->curp])
                 ->sum('horas_real');
 
-            $totalHorasReal = $totalHorasReal ?? 0;
-
             /*
-             * ===== ESTATUS (solo ALTA / BAJA) =====
-             * cat_estatus:
+             * ESTATUS en el modal:
+             * 1 = VIGENTE
              * 2 = ALTA
              * 3 = BAJA
              */
             $listOptionStatus = DB::table('public.cat_estatus')
                 ->select('id_cat_estatus as id', 'descripcion')
-                ->whereIn('id_cat_estatus', [2, 3])
+                ->whereIn('id_cat_estatus', [1, 2, 3])          // ✅ aquí se agrega 1 (VIGENTE)
                 ->orderBy('id_cat_estatus')
                 ->get();
 
-            if (isset($data->id_cat_estatus) && in_array((int) $data->id_cat_estatus, [2, 3], true)) {
-                // Solo marcamos seleccionado si es ALTA o BAJA
+            if (isset($data->id_cat_estatus) && in_array((int) $data->id_cat_estatus, [1, 2, 3], true)) {
                 $listSelectStatus = $listOptionStatus
                     ->where('id', (int) $data->id_cat_estatus)
                     ->values()
@@ -65,20 +62,18 @@ class DataPacController extends Controller
                 $listSelectStatus = [];
             }
 
-            // ===== Instancia =====
+            // Instancia
             $listOptionInstance = $collectionInstanceModel->listCollection();
             $listSelectInstance = isset($data->id_instancia)
                 ? $collectionInstanceModel->listConllectionSelect($data->id_instancia)
                 : [];
 
-            // ===== Temática =====
+            // Temática
             $listOptionTematica = $collectionTematicaModel->listCollection();
 
-            if (!empty($data->id_cat_tematica)) {
-                // Ya hay temática guardada en a2_acciones_empleados → se respeta
+            if (! empty($data->id_cat_tematica)) {
                 $listSelectTematica = $collectionTematicaModel->listConllectionSelect($data->id_cat_tematica);
             } else {
-                // No hay temática guardada → intentamos tomar la temática del curso (a1_cat_acciones.tematica)
                 $listSelectTematica = [];
 
                 if (! empty($data->tematica_accion)) {
@@ -99,20 +94,19 @@ class DataPacController extends Controller
                 }
             }
 
-            // ===== Finalidad =====
+            // Finalidad
             $listOptionFinalidad = $collectionFinalidadModel->listCollection();
 
             if (! empty($data->id_finalidad)) {
-                // Si ya trae finalidad en a2_acciones_empleados, se respeta
                 $listSelectFinalidad = $collectionFinalidadModel->listConllectionSelect($data->id_finalidad);
             } else {
-                // Si viene null (registros viejos), sugerimos 6 como default si existe
                 $listSelectFinalidad = $collectionFinalidadModel->listConllectionSelect(6);
             }
 
             return response()->json([
                 'status'              => true,
                 'data'                => $data,
+                'totalHorasReal'      => (float) $totalHorasReal,
                 'listOptionStatus'    => $listOptionStatus,
                 'listSelectStatus'    => $listSelectStatus,
                 'listOptionInstance'  => $listOptionInstance,
@@ -121,9 +115,6 @@ class DataPacController extends Controller
                 'listSelectTematica'  => $listSelectTematica,
                 'listOptionFinalidad' => $listOptionFinalidad,
                 'listSelectFinalidad' => $listSelectFinalidad,
-
-                // 🔹 NUEVO: total de horas realizadas (todos los cursos del empleado)
-                'totalHorasReal'      => (float) $totalHorasReal,
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
