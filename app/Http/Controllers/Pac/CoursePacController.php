@@ -22,7 +22,11 @@ class CoursePacController extends Controller
                     'nombre_accion as descripcion'
                 )
                 // 🔹 Solo cursos VIGENTES
-                ->whereRaw("TRIM(UPPER(estatus)) = 'VIGENTE'")
+                
+                ->where(function ($q) {
+                    $q->whereRaw("TRIM(UPPER(estatus)) = 'VIGENTE'")
+                      ->orWhereRaw("TRIM(UPPER(estatus)) = 'ALTA'");
+                })
                 ->orderBy('nombre_accion', 'ASC')
                 ->get();
 
