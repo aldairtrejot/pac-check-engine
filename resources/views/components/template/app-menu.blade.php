@@ -3,23 +3,27 @@
     <div class="sidenav-header">
         <i class="fas fa-times p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
             aria-hidden="true" id="iconSidenav"></i>
+
         <a class="navbar-brand m-0" href="{{ route('pac') }}">
             <img src="{{ asset('assets/images/bienestar/logo_imss_blanco.png') }}" alt="main_logo"
                 style="height: 54px !important; width: auto !important;">
         </a>
     </div>
+
     <hr class="horizontal dark mt-0">
 
     @php
-        // Correos que pueden ver "Agregar empleado", Acción, Temática e Instancias
-        $allowedEmails = [
-            'soporte_rh@imssbienestar.gob.mx',
-            'yessica.colorado@imssbienestar.gob.mx',
-            'reforzamientorh012@imssbienestar.gob.mx',
-        ];
+        $user = auth()->user();
 
-        $canSeeCatalogos = auth()->check()
-            && in_array(auth()->user()->email, $allowedEmails, true);
+        // Centrales: Admin + Supervisor (ven todo)
+        $isCentral = auth()->check()
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['admin_oc', 'supervisor_oc']);
+
+        // (Opcional) Solo Admin OC
+        $isAdminCentral = auth()->check()
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('admin_oc');
     @endphp
 
     <div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
@@ -33,8 +37,8 @@
                 title="Mi plantilla"
             />
 
-            {{-- Sólo para correos autorizados --}}
-            @if($canSeeCatalogos)
+            {{-- Catálogos (solo Centrales) --}}
+            @if($isCentral)
 
                 <x-button.button-nav-menu
                     active="empleado"
@@ -64,6 +68,18 @@
                     title="Instancias"
                 />
 
+                {{-- Ejemplo extra: si luego agregas "Usuarios", solo Admin OC --}}
+                {{--
+                @if($isAdminCentral)
+                    <x-button.button-nav-menu
+                        active="usuarios"
+                        route="usuarios"
+                        icon="fa fa-users-cog fa-lg"
+                        title="Usuarios"
+                    />
+                @endif
+                --}}
+
             @endif
 
             {{-- Siempre visible --}}
@@ -78,13 +94,12 @@
     </div>
 </aside>
 
-{{-- SweetAlert2 sólo para este menú (CDN) --}}
+{{-- SweetAlert2 --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const logoutLink = document.querySelector('a[href="{{ route('logout') }}"]');
-
     if (!logoutLink) return;
 
     logoutLink.addEventListener('click', function (e) {

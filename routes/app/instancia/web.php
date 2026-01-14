@@ -12,7 +12,7 @@ use App\Http\Controllers\Instancia\SaveInstanciaController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'role:admin_oc,supervisor_oc'])->group(function () {
     Route::get('/instancia', [ViewInstanciaController::class, 'view'])->name('instancia');
     Route::get('/instancia/create', [ViewCreateInstanciaController::class, 'create'])->name('instancia.create');
     Route::get('/instancia/edit/{id}', [ViewEditInstanciaController::class, 'edit'])->name('instancia.edit');

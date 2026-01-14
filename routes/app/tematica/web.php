@@ -7,7 +7,7 @@ use App\Http\Controllers\Tematica\ViewEditTematicaController;
 use App\Http\Controllers\Tematica\TableTematicaController;
 use App\Http\Controllers\Tematica\SaveTematicaController;
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'role:admin_oc,supervisor_oc'])->group(function () {
     Route::get('/tematica', [ViewTematicaController::class, 'view'])->name('tematica');
     Route::get('/tematica/create', [ViewCreateTematicaController::class, 'create'])->name('tematica.create');
     Route::get('/tematica/edit/{id}', [ViewEditTematicaController::class, 'edit'])->name('tematica.edit');
