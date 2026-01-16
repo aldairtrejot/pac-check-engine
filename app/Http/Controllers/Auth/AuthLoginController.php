@@ -15,28 +15,22 @@ use Illuminate\Validation\ValidationException;
 
 class AuthLoginController extends Controller
 {
-    /**
-     * El metodo retorna el inicio de sesión de la aplicación
-     */
     public function authLogin(Request $request): JsonResponse
     {
         try {
-            // class
             $config = HTMLPurifier_Config::createDefault();
             $purifier = new HTMLPurifier($config);
 
-            // sanitizar inputs
             $request->merge([
-                'email' => $purifier->purify(trim($request->email)),
-                'password' => $purifier->purify(trim($request->password)),
+                'email'    => $purifier->purify(trim((string) $request->email)),
+                'password' => $purifier->purify(trim((string) $request->password)),
             ]);
 
-            // rate limiter
-            $key = 'login-attempts:'.$request->ip();
+            $key = 'login-attempts:' . $request->ip();
 
             if (RateLimiter::tooManyAttempts($key, 10)) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => __('default.rate_limiter_message'),
                 ], 200);
             }
@@ -44,52 +38,54 @@ class AuthLoginController extends Controller
             RateLimiter::hit($key);
 
             $credentials = $request->validate([
-                'email' => 'required|email',
-                'password' => 'required',
+                'email'    => 'required|email',
+                'password' => 'required|string',
             ]);
 
+            // ✅ FIX: estatus (no status)
             $user = UserEntityModel::where('email', $credentials['email'])
-                ->where('status', true)
+                ->where('estatus', true)
                 ->first();
 
             if (! $user || ! Hash::check($credentials['password'], $user->password)) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => __('default.login_failure_message'),
                 ], 200);
             }
 
             Auth::login($user);
 
+            // ✅ evita problemas de sesión
+            $request->session()->regenerate();
+
+            // ✅ limpia intentos
+            RateLimiter::clear($key);
+
             return response()->json([
                 'status' => true,
             ], 200);
+
         } catch (ValidationException $e) {
             return response()->json([
                 'status' => false,
                 'errors' => $e->errors(),
             ], 422);
-        } catch (\Throwable $th) {
-            // \Log::info($th);
 
+        } catch (\Throwable $th) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => __('default.error_message'),
             ], 200);
         }
     }
 
-    /**
-     * Cierra la sesión del usuario y lo redirige al login
-     */
-public function logout(Request $request)
-{
-    Auth::logout();                           // Cierra sesión del usuario
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
-    $request->session()->invalidate();        // Invalida la sesión
-    $request->session()->regenerateToken();   // Regenera el token CSRF
-
-    return redirect()->route('login');        // Te manda al login
-}
-
+        return redirect()->route('login');
+    }
 }

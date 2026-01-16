@@ -11,17 +11,15 @@ class RoleMiddleware
     {
         $user = $request->user();
 
-        if (!$user) {
-            abort(401);
+        if (! $user) {
+            abort(401, 'No autenticado');
         }
 
-        // Si no se pasan roles, deja pasar
         if (empty($roles)) {
             return $next($request);
         }
 
-        // Usa tu método del modelo: hasAnyRole()
-        if (!method_exists($user, 'hasAnyRole') || !$user->hasAnyRole($roles)) {
+        if (! method_exists($user, 'hasAnyRole') || ! $user->hasAnyRole($roles)) {
             abort(403, 'No autorizado');
         }
 

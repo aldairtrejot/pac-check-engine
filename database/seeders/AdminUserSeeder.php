@@ -11,10 +11,8 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        // ✅ Usa el correo que ya tienes en allowedEmails
         $email = 'soporte_rh@imssbienestar.gob.mx';
 
-        // 1) Crear o actualizar usuario
         $user = User::updateOrCreate(
             ['email' => $email],
             [
@@ -23,16 +21,14 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        // 2) Buscar id del rol admin_oc
         $roleId = DB::table('administracion.roles')
             ->where('code', 'admin_oc')
             ->value('id');
 
-        // 3) Asignar rol en la pivot administracion.user_roles
         if ($roleId) {
             DB::table('administracion.user_roles')->updateOrInsert(
                 ['user_id' => $user->id, 'role_id' => $roleId],
-                ['updated_at' => now(), 'created_at' => now()]
+                [] // ✅ NO metas timestamps si la tabla no los tiene
             );
         }
     }
