@@ -11,15 +11,15 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    /**
-     * ✅ IMPORTANTE: apuntar a tu tabla real en PostgreSQL (schema.tabla)
-     */
+    // ✅ tu tabla real
     protected $table = 'administracion.users';
 
     protected $primaryKey = 'id';
     public $incrementing = true;
     protected $keyType = 'int';
-    public $timestamps = true; // tu tabla SI tiene created_at/updated_at
+
+    // Tu tabla sí tiene created_at / updated_at
+    public $timestamps = true;
 
     protected $fillable = [
         'name',
@@ -27,8 +27,6 @@ class User extends Authenticatable
         'email_verified_at',
         'password',
         'remember_token',
-        'created_at',
-        'updated_at',
     ];
 
     protected $hidden = [

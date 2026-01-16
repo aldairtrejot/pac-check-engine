@@ -2,17 +2,13 @@
   <body style="margin:0; padding:0;">
     <main class="main-content" style="padding:0; margin:0;">
       <section style="padding:0; margin:0;">
-        <div
-          class="page-header d-flex justify-content-center align-items-center"
-          style="padding:0; margin:0; min-height:100vh; overflow:visible;"
-        >
+        <div class="page-header d-flex justify-content-center align-items-center"
+             style="padding:0; margin:0; min-height:100vh; overflow:visible;">
           <div class="col-xl-3 col-lg-4 col-md-5 col-sm-8 col-10" style="padding:0;">
-            <div
-              class="card card-plain"
-              style="background-color: transparent !important;
-                     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
-                     border-radius: 12px !important;"
-            >
+            <div class="card card-plain"
+                 style="background-color: transparent !important;
+                        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+                        border-radius: 12px !important;">
               <div class="card-header pb-0 text-left bg-transparent">
                 <h3 class="font-weight-bolder text-info text-gradient text-center">
                   Validación de Plantillas PAC
@@ -21,7 +17,7 @@
               </div>
 
               <div class="card-body">
-                <form id="data_form" @submit.prevent="sendData">
+                <form role="form" id="data_form">
                   <label for="email">Usuario</label>
                   <div class="mb-3">
                     <input
@@ -29,8 +25,6 @@
                       v-model="email"
                       class="form-control"
                       placeholder="Email"
-                      aria-label="Email"
-                      aria-describedby="email-addon"
                       id="email"
                       name="email"
                       autocomplete="username"
@@ -45,8 +39,6 @@
                       v-model="password"
                       class="form-control"
                       placeholder="Password"
-                      aria-label="Password"
-                      aria-describedby="password-addon"
                       id="password"
                       name="password"
                       autocomplete="current-password"
@@ -55,7 +47,7 @@
                   </div>
 
                   <div class="text-center">
-                    <button type="submit" class="btn bg-gradient-info w-100 mt-4 mb-0">
+                    <button type="button" @click="sendData" class="btn bg-gradient-info w-100 mt-4 mb-0">
                       Ingresar
                     </button>
                   </div>
@@ -86,34 +78,26 @@ import { notyf } from '@components/notyf.js'
 import axios from '@axios'
 import { BASE_URL } from '@/components/url.js'
 
-// Campos del formulario
 const email = ref('')
 const password = ref('')
 
-// Inicialización
 onMounted(() => {
-  try {
-    showSpinner()
-  } finally {
-    hideSpinner()
-  }
+  showSpinner()
+  hideSpinner()
 })
 
-// Enviar datos
 async function sendData() {
   try {
     showSpinner()
     clearErrors()
 
-    const payload = {
+    const response = await axios.post('/auth/login', {
       email: email.value,
       password: password.value,
-    }
+    })
 
-    const response = await axios.post('/auth/login', payload)
-
-    if (!response.data?.status) {
-      notyf.error(response.data?.message ?? 'No se pudo iniciar sesión.')
+    if (!response.data.status) {
+      notyf.error(response.data.message ?? 'No se pudo completar la acción.')
       return
     }
 
@@ -121,21 +105,13 @@ async function sendData() {
   } catch (error) {
     clearErrors()
 
-    // Validación
-    if (error.response?.status === 422 && error.response?.data?.errors) {
-      handleErrors(error.response.data.errors)
-      return
-    }
-
-    // CSRF / sesión
     if (error.response?.status === 419) {
-      notyf.error('Error CSRF (419). Falta meta csrf-token o la sesión expiró.')
+      notyf.error('Sesión/CSRF inválido. Recarga la página e intenta de nuevo.')
       return
     }
 
-    // Credenciales / auth
-    if (error.response?.status === 401) {
-      notyf.error('Credenciales inválidas.')
+    if (error.response?.data?.errors) {
+      handleErrors(error.response.data.errors)
       return
     }
 

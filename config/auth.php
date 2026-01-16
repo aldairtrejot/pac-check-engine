@@ -17,7 +17,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            // ✅ No lo dejes ambiguo por ENV mientras arreglas:
+            // ✅ NO uses AUTH_MODEL aquí mientras depuras, para no apuntar a otro sin querer
             'model' => App\Models\User::class,
         ],
     ],

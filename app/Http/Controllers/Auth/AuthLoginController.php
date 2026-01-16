@@ -3,64 +3,55 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Auth\UserEntityModel;
-use HTMLPurifier;
-use HTMLPurifier_Config;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 class AuthLoginController extends Controller
 {
+    /**
+     * Inicio de sesión (session guard web)
+     */
     public function authLogin(Request $request): JsonResponse
     {
         try {
-            $config = HTMLPurifier_Config::createDefault();
-            $purifier = new HTMLPurifier($config);
-
+            // sanitizar inputs (simple y seguro)
             $request->merge([
-                'email'    => $purifier->purify(trim((string) $request->email)),
-                'password' => $purifier->purify(trim((string) $request->password)),
+                'email' => trim((string) $request->input('email')),
+                'password' => (string) $request->input('password'),
             ]);
 
-            $key = 'login-attempts:' . $request->ip();
+            $credentials = $request->validate([
+                'email' => ['required', 'email'],
+                'password' => ['required', 'string'],
+            ]);
+
+            // Rate limiter por email + ip
+            $key = 'login:' . mb_strtolower($credentials['email']) . '|' . $request->ip();
 
             if (RateLimiter::tooManyAttempts($key, 10)) {
                 return response()->json([
-                    'status'  => false,
+                    'status' => false,
                     'message' => __('default.rate_limiter_message'),
-                ], 200);
+                ], 429);
             }
 
-            RateLimiter::hit($key);
-
-            $credentials = $request->validate([
-                'email'    => 'required|email',
-                'password' => 'required|string',
-            ]);
-
-            // ✅ FIX: estatus (no status)
-            $user = UserEntityModel::where('email', $credentials['email'])
-                ->where('estatus', true)
-                ->first();
-
-            if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+            // ✅ Auth::attempt usa el provider de config/auth.php
+            // y ahora provider apunta a App\Models\User (administracion.users)
+            if (!Auth::guard('web')->attempt($credentials, $request->boolean('remember'))) {
+                RateLimiter::hit($key, 60);
                 return response()->json([
-                    'status'  => false,
+                    'status' => false,
                     'message' => __('default.login_failure_message'),
                 ], 200);
             }
 
-            Auth::login($user);
-
-            // ✅ evita problemas de sesión
-            $request->session()->regenerate();
-
-            // ✅ limpia intentos
             RateLimiter::clear($key);
+
+            // ✅ muy importante para sesión
+            $request->session()->regenerate();
 
             return response()->json([
                 'status' => true,
@@ -71,15 +62,18 @@ class AuthLoginController extends Controller
                 'status' => false,
                 'errors' => $e->errors(),
             ], 422);
-
         } catch (\Throwable $th) {
+            // \Log::error($th); // descomenta si quieres ver el error exacto
             return response()->json([
-                'status'  => false,
+                'status' => false,
                 'message' => __('default.error_message'),
             ], 200);
         }
     }
 
+    /**
+     * Logout
+     */
     public function logout(Request $request)
     {
         Auth::logout();

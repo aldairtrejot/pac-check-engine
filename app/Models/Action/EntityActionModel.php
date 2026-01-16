@@ -3,8 +3,8 @@
 namespace App\Models\Action;
 
 use Illuminate\Database\Eloquent\Model;
-
-class EntityActionModel extends Model
+use App\Models\User;
+class EntityActionModel extends User
 {
     protected $table = 'public.a1_cat_acciones';
     protected $primaryKey = 'id_accion';
