@@ -6,7 +6,7 @@ import vue_table_action from './app/action/table.vue'
 import vue_table_tematica from './app/tematica/table.vue'
 import vue_table_instancia from './app/instancia/table.vue'
 
-const components = [
+const components = [  
   // login
   { selector: '#blade_form_login', component: vue_form_login },
 
