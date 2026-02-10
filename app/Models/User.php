@@ -11,14 +11,12 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    // ✅ tu tabla real
     protected $table = 'administracion.users';
 
     protected $primaryKey = 'id';
     public $incrementing = true;
     protected $keyType = 'int';
 
-    // Tu tabla sí tiene created_at / updated_at
     public $timestamps = true;
 
     protected $fillable = [
@@ -27,6 +25,11 @@ class User extends Authenticatable
         'email_verified_at',
         'password',
         'remember_token',
+
+        // ✅ NUEVO (BD nueva)
+        'id_entidad',
+        'id_tipo_nomina',
+        'id_clues',
     ];
 
     protected $hidden = [
@@ -37,6 +40,11 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+
+        // ✅ recomendable
+        'id_entidad' => 'integer',
+        'id_tipo_nomina' => 'integer',
+        'id_clues' => 'integer',
     ];
 
     // =========================================================================

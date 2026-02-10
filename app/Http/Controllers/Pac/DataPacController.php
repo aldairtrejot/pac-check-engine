@@ -15,41 +15,33 @@ class DataPacController extends Controller
     public function dataPac(Request $request)
     {
         try {
-            // Catálogos
             $collectionInstanceModel  = new CollectionInstanceModel;
             $collectionTematicaModel  = new CollectionTematicaModel;
             $collectionFinalidadModel = new CollectionFinalidadModel;
 
-            // Datos del empleado / acción
             $dataPacModel = new DataPacModel;
-            $data = $dataPacModel->dataPac($request->id);
+
+            // ✅ ahora pasa user para aplicar visibilidad
+            $data = $dataPacModel->dataPac($request->id, $request->user());
 
             if (! $data) {
                 return response()->json([
                     'status'  => false,
-                    'message' => 'Registro no encontrado.',
+                    'message' => 'Registro no encontrado o sin permiso.',
                 ], 200);
             }
 
-            // Si no tiene horas_real, se llena con la duración del curso
             if (empty($data->horas_real)) {
                 $data->horas_real = $data->duracion_hrs;
             }
 
-            // Total de horas acumuladas por CURP
             $totalHorasReal = DB::table('public.a2_acciones_empleados')
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$data->curp])
                 ->sum('horas_real');
 
-            /*
-             * ESTATUS en el modal:
-             * 1 = VIGENTE
-             * 2 = ALTA
-             * 3 = BAJA
-             */
             $listOptionStatus = DB::table('public.cat_estatus')
                 ->select('id_cat_estatus as id', 'descripcion')
-                ->whereIn('id_cat_estatus', [1, 2, 3])          // ✅ aquí se agrega 1 (VIGENTE)
+                ->whereIn('id_cat_estatus', [1, 2, 3])
                 ->orderBy('id_cat_estatus')
                 ->get();
 
@@ -62,13 +54,11 @@ class DataPacController extends Controller
                 $listSelectStatus = [];
             }
 
-            // Instancia
             $listOptionInstance = $collectionInstanceModel->listCollection();
             $listSelectInstance = isset($data->id_instancia)
                 ? $collectionInstanceModel->listConllectionSelect($data->id_instancia)
                 : [];
 
-            // Temática
             $listOptionTematica = $collectionTematicaModel->listCollection();
 
             if (! empty($data->id_cat_tematica)) {
@@ -94,7 +84,6 @@ class DataPacController extends Controller
                 }
             }
 
-            // Finalidad
             $listOptionFinalidad = $collectionFinalidadModel->listCollection();
 
             if (! empty($data->id_finalidad)) {
@@ -116,6 +105,7 @@ class DataPacController extends Controller
                 'listOptionFinalidad' => $listOptionFinalidad,
                 'listSelectFinalidad' => $listSelectFinalidad,
             ], 200);
+
         } catch (\Throwable $th) {
             return response()->json([
                 'status'  => false,

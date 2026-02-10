@@ -2,18 +2,14 @@
 
 namespace App\Models\Pac;
 
+use App\Support\PacVisibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class TablePacModel extends Model
 {
-    /**
-     * The function returns the table apart from its query, however it expects the limit, offset,
-     * search and select as parameters, returning the generated query, the total and the iterator.
-     */
     public function list($limit, $offset, $search, $select, $request)
     {
-        // Query base
         $query = DB::table('public.a2_acciones_empleados')
             ->selectRaw("
                 public.a2_acciones_empleados.id_empl_accion AS id,
@@ -29,12 +25,12 @@ class TablePacModel extends Model
                         AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
                         AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
                         AND (
-                            public.a2_acciones_empleados.id_instancia IS NOT NULL 
-                            OR TRIM(public.a2_acciones_empleados.id_instancia) <> ''
+                            public.a2_acciones_empleados.id_instancia IS NOT NULL
+                            AND TRIM(COALESCE(public.a2_acciones_empleados.id_instancia::text,'')) <> ''
                         )
                         AND (
-                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL 
-                            OR TRIM(public.a2_acciones_empleados.id_cat_tematica) <> ''
+                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
+                            AND TRIM(COALESCE(public.a2_acciones_empleados.id_cat_tematica::text,'')) <> ''
                         )
                     ) 
                     THEN 'CONCLUIDO'
@@ -55,20 +51,22 @@ class TablePacModel extends Model
                 );
             });
 
-        // ✅ NUEVO: mostrar solo registros con estatus NULL, 1 (VIGENTE) o 2 (ALTA) → ocultar BAJA (3)
+        // ✅ VISIBILIDAD POR ROL/ENTIDAD/NÓMINA/CLUES (Laravel sí o sí)
+        PacVisibility::apply($query, $request->user(), 'public.a2_acciones_capacitacion');
+
+        // ✅ ocultar BAJA (3)
         $query->where(function ($q) {
             $q->whereNull('public.a2_acciones_empleados.id_cat_estatus')
               ->orWhereIn('public.a2_acciones_empleados.id_cat_estatus', [1, 2]);
         });
 
-        // Filtros de búsqueda
-        $this->applySearch($query, $request);
+        // filtros (nombre/curp/acción)
+        $this->applyFilters($query, $request);
 
         // Conteo total
         $countQuery = clone $query;
         $allRow = $countQuery->count();
 
-        // Orden + paginación
         $list = $query->orderBy('public.a2_acciones_empleados.curp', 'ASC')
             ->offset($offset)
             ->limit($limit)
@@ -83,17 +81,14 @@ class TablePacModel extends Model
         ];
     }
 
-    /**
-     * Aplica los filtros de búsqueda (nombre, curp, acción…)
-     */
-    private function applySearch($query, $request)
+    private function applyFilters($query, $request)
     {
-        return $query->where(function ($query) use ($request) {
+        // NAME (OR agrupado)
+        if (! empty($request->name)) {
+            $searchTerm = '%' . $request->name . '%';
 
-            if (! empty($request->name)) {
-                $searchTerm = '%'.$request->name.'%';
-
-                $query->whereRaw(
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw(
                     "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') 
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
@@ -112,52 +107,23 @@ class TablePacModel extends Model
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 );
-            }
+            });
+        }
 
-            if (! empty($request->curp)) {
-                $query->whereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
-                     LIKE UPPER(TRIM(public.unaccent(?)))',
-                    ['%'.$request->curp.'%']
-                );
-            }
+        // CURP
+        if (! empty($request->curp)) {
+            $query->whereRaw(
+                'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
+                 LIKE UPPER(TRIM(public.unaccent(?)))',
+                ['%' . $request->curp . '%']
+            );
+        }
 
-            if (! empty($request->id_accion)) {
-                $query->where(
-                    'public.a2_acciones_empleados.id_accion',
-                    '=',
-                    $request->id_accion
-                );
-            }
+        // ACCIÓN
+        if (! empty($request->id_accion)) {
+            $query->where('public.a2_acciones_empleados.id_accion', '=', $request->id_accion);
+        }
 
-            // (filtro de completo/incompleto sigue comentado tal como lo tenías)
-    
-
-
-            // Filtro adicional para estado (COMPLETO/INCOMPLETO)
-            /*
-            if (isset($request->is_complete)) {
-                if ($request->is_complete === '1') {
-                    // COMPLETO: NINGUNO puede ser NULL (todos deben tener datos)
-                    $query->whereNotNull('public.a2_acciones_empleados.id_cat_estatus')
-                        ->whereNotNull('public.a2_acciones_empleados.fecha_ini')
-                        ->whereNotNull('public.a2_acciones_empleados.fecha_fin')
-                        ->whereNotNull('public.a2_acciones_empleados.id_trimestre')
-                        ->whereNotNull('public.a2_acciones_empleados.id_instancia')
-                        ->whereNotNull('public.a2_acciones_empleados.id_cat_tematica');
-                } elseif ($request->is_complete === '0') {
-                    // INCOMPLETO: AL MENOS UNO puede ser NULL
-                    $query->where(function ($q) {
-                        $q->whereNull('public.a2_acciones_empleados.id_cat_estatus')
-                            ->orWhereNull('public.a2_acciones_empleados.fecha_ini')
-                            ->orWhereNull('public.a2_acciones_empleados.fecha_fin')
-                            ->orWhereNull('public.a2_acciones_empleados.id_trimestre')
-                            ->orWhereNull('public.a2_acciones_empleados.id_instancia')
-                            ->orWhereNull('public.a2_acciones_empleados.id_cat_tematica');
-                    });
-                }
-            }*/
-
-        });
+        return $query;
     }
 }

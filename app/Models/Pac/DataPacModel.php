@@ -2,18 +2,14 @@
 
 namespace App\Models\Pac;
 
+use App\Models\User;
+use App\Support\PacVisibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class DataPacModel extends Model
 {
-    /**
-     * La función lista los datos principales de las tablas
-     *
-     * @param  mixed  $id
-     * @return \stdClass|null
-     */
-    public function dataPac($id)
+    public function dataPac($id, User $user)
     {
         $query = DB::table('public.a2_acciones_empleados')
             ->select(
@@ -34,11 +30,10 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.id_cat_estatus AS id_cat_estatus',
                 'public.a2_acciones_empleados.id_instancia AS id_instancia',
                 'public.a2_acciones_empleados.id_cat_tematica AS id_cat_tematica',
-                'public.a2_acciones_empleados.id_finalidad AS id_finalidad', // 🔹 NUEVO: finalidad del empleado-curso
+                'public.a2_acciones_empleados.id_finalidad AS id_finalidad',
                 'public.a2_acciones_empleados.eval_aprendizaje AS eval_aprendizaje',
                 'public.a1_cat_acciones.duracion_hrs AS duracion_hrs',
                 'public.a2_acciones_empleados.horas_real AS horas_real',
-                // 🔹 Temática del curso en el catálogo de acciones
                 'public.a1_cat_acciones.tematica AS tematica_accion'
             )
             ->join(
@@ -46,15 +41,18 @@ class DataPacModel extends Model
                 DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
                 '=',
                 'public.a2_acciones_capacitacion.id_puesto'
-            )->join(
+            )
+            ->join(
                 'public.a1_cat_acciones',
                 'public.a2_acciones_empleados.id_accion',
                 '=',
                 'public.a1_cat_acciones.id_accion'
             )
-            ->where('public.a2_acciones_empleados.id_empl_accion', $id)
-            ->first();
+            ->where('public.a2_acciones_empleados.id_empl_accion', $id);
 
-        return $query;
+        // ✅ VISIBILIDAD
+        PacVisibility::apply($query, $user, 'public.a2_acciones_capacitacion');
+
+        return $query->first();
     }
 }

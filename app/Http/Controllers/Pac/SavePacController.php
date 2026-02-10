@@ -6,51 +6,42 @@ use App\Http\Controllers\Controller;
 use App\Models\Log\LogDataModel;
 use App\Models\Pac\EntityPacModel;
 use App\Models\Pac\Helpers\GetTrimestreModel;
+use App\Support\PacVisibility;
 use Carbon\Carbon;
 use HTMLPurifier;
 use HTMLPurifier_Config;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SavePacController extends Controller
 {
-    /**
-     * The function sanitizes the data and returns the validation function, as well as the editing or aggregation.
-     *
-     * @return mixed|\Illuminate\Http\JsonResponse
-     */
     public function save(Request $request)
     {
         try {
-            $config = HTMLPurifier_Config::createDefault(); // create a default HTMLPurifier configuration
-            $purifier = new HTMLPurifier($config); // instantiate HTMLPurifier with the config
+            $config = HTMLPurifier_Config::createDefault();
+            $purifier = new HTMLPurifier($config);
 
             $request->merge([
-                'm_observaciones' => strtoupper($purifier->purify(trim($request->m_observaciones))), // sanitize
+                'm_observaciones' => strtoupper($purifier->purify(trim((string) $request->m_observaciones))),
             ]);
 
-            return $this->storage($request); // return to storage
+            return $this->storage($request);
 
         } catch (\Throwable $th) {
             return response()->json([
-                'status' => false, // return a JSON response with status false on error
-                'message' => __('default.error_message'), // Message error
-            ], 200); // respond with HTTP status code 200 even in error case
+                'status' => false,
+                'message' => __('default.error_message'),
+            ], 200);
         }
     }
 
-    /**
-     * The function validates the information, and saves either new records or updates, where it records its log.
-     *
-     * @param  mixed  $request
-     * @return mixed|\Illuminate\Http\JsonResponse
-     */
     private function storage($request)
     {
         try {
             $getTrimestreModel = new GetTrimestreModel;
-            $timestamp = Carbon::now(); // Get current timestamp
+            $timestamp = Carbon::now();
 
             $rules = [
                 'm_fecha_ini' => [
@@ -66,14 +57,17 @@ class SavePacController extends Controller
                 'id_cat_estatus' => 'required',
                 'id_instancia'   => 'required',
                 'id_cat_tematica'=> 'required',
-                'id_finalidad'   => 'nullable|integer', // 🔹 NUEVO
+                'id_finalidad'   => 'nullable|integer',
                 'm_observaciones'=> 'string|max:250',
-                'm_horas_real'   => 'required|decimal:0,1|min:0.1|max:200.0'
+                'm_horas_real'   => 'required|decimal:0,1|min:0.1|max:200.0',
+                'id'             => 'required|integer',
             ];
 
-            $request->validate($rules); // Run validation
+            $request->validate($rules);
 
-            // Datos para actualizar en a2_acciones_empleados
+            // ✅ CERRAR BACKEND: valida permiso sobre ese id_empl_accion
+            $this->authorizePacRecord((int) $request->id, $request->user());
+
             $updateData = [
                 'fecha_ini'       => $request->m_fecha_ini,
                 'fecha_fin'       => $request->m_fecha_fin,
@@ -86,15 +80,12 @@ class SavePacController extends Controller
                 'horas_real'      => $request->m_horas_real,
             ];
 
-            // 🔹 SOLO actualizamos id_finalidad si viene en el request
             if ($request->filled('id_finalidad')) {
                 $updateData['id_finalidad'] = $request->id_finalidad;
             }
 
-            // Actualiza datos del empleado-curso
-            EntityPacModel::where('id_empl_accion', $request->id)->update($updateData);
+            EntityPacModel::where('id_empl_accion', (int) $request->id)->update($updateData);
 
-            // Datos para la tabla de log (sin id_trimestre y sin id_finalidad para no romper nada)
             $logData = [
                 'fecha_ini'       => $updateData['fecha_ini'],
                 'fecha_fin'       => $updateData['fecha_fin'],
@@ -106,29 +97,49 @@ class SavePacController extends Controller
                 'horas_real'      => $updateData['horas_real'],
                 'creado_en'       => $timestamp,
                 'id_usuario'      => Auth::user()->id,
-                'id_empl_accion'  => $request->id,
+                'id_empl_accion'  => (int) $request->id,
             ];
 
             LogDataModel::create($logData);
-            $message = __('default.edit_success_message');
 
             return response()->json([
-                'status'  => true, // Success response
-                'message' => $message,
+                'status'  => true,
+                'message' => __('default.edit_success_message'),
             ], 200);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'status' => false,
-                'errors' => $e->errors(), // Return validation errors
-            ], 422); // HTTP 422 for validation errors
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Throwable $th) {
-            // \Log::info($th);
-
             return response()->json([
                 'status' => false,
-                'message' => __('default.error_message'), // Default error message
-            ], 200); // Return general error response
+                'message' => __('default.error_message'),
+            ], 200);
+        }
+    }
+
+    /**
+     * Verifica que el id_empl_accion pertenezca al ámbito del usuario
+     * (entidad + nómina y si HRAES => clues).
+     */
+    private function authorizePacRecord(int $idEmplAccion, $user): void
+    {
+        $q = DB::table('public.a2_acciones_empleados')
+            ->join('public.a2_acciones_capacitacion', function ($join) {
+                $join->on(
+                    DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
+                    '=',
+                    'public.a2_acciones_capacitacion.id_puesto'
+                );
+            })
+            ->where('public.a2_acciones_empleados.id_empl_accion', $idEmplAccion);
+
+        PacVisibility::apply($q, $user, 'public.a2_acciones_capacitacion');
+
+        if (! $q->exists()) {
+            abort(403, 'No autorizado para modificar este registro.');
         }
     }
 }

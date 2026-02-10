@@ -3,11 +3,12 @@
 namespace App\Models\Action;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\User;
-class EntityActionModel extends User
+
+class EntityActionModel extends Model
 {
     protected $table = 'public.a1_cat_acciones';
     protected $primaryKey = 'id_accion';
+
     public $incrementing = false;
     public $timestamps = false;
 
@@ -22,6 +23,6 @@ class EntityActionModel extends User
         'modalidad',
         'estatus',
         'tematica',
-        'finalidad', // 👈 IMPORTANTE: aquí va el texto de la finalidad
+        'finalidad',
     ];
 }
