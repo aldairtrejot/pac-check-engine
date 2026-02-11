@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EntityPacModel extends Model
 {
-// table
+    // table
     protected $table = 'public.a2_acciones_empleados';
 
     // primary field
@@ -40,6 +40,8 @@ class EntityPacModel extends Model
         'id_cat_estatus',
         'id_cat_tematica',
         'horas_progamadas',
-    ];
 
+        // ✅ NUEVO
+        'calificacion',
+    ];
 }

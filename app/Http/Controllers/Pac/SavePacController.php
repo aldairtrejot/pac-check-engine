@@ -30,6 +30,9 @@ class SavePacController extends Controller
                 'id_instancia'    => 'nullable|string|max:50',
                 'id_cat_tematica' => 'nullable|string|max:50',
                 'id_finalidad'    => 'nullable|integer',
+
+                // ✅ NUEVO
+                'calificacion'    => 'nullable|integer|min:70|max:100',
             ]);
 
             // ✅ chequeo de acceso (si no pertenece a su entidad/nomina/clues -> no existe)
@@ -55,15 +58,13 @@ class SavePacController extends Controller
             $row = EntityPacModel::findOrFail((int) $validated['id']);
 
             // Normalizar vacíos a null
-            $idEstatus  = ($validated['id_cat_estatus'] ?? '') !== '' ? (int) $validated['id_cat_estatus'] : null;
+            $idEstatus   = ($validated['id_cat_estatus'] ?? '') !== '' ? (int) $validated['id_cat_estatus'] : null;
             $idFinalidad = ($validated['id_finalidad'] ?? '') !== '' ? (int) $validated['id_finalidad'] : null;
 
-            $idInstancia = ($validated['id_instancia'] ?? '');
-            $idInstancia = trim((string) $idInstancia);
+            $idInstancia = trim((string)($validated['id_instancia'] ?? ''));
             $idInstancia = $idInstancia !== '' ? $idInstancia : null;
 
-            $idTematica = ($validated['id_cat_tematica'] ?? '');
-            $idTematica = trim((string) $idTematica);
+            $idTematica = trim((string)($validated['id_cat_tematica'] ?? ''));
             $idTematica = $idTematica !== '' ? $idTematica : null;
 
             $fechaIni = $validated['m_fecha_ini'] ?? null;
@@ -92,6 +93,12 @@ class SavePacController extends Controller
 
             $eval = ($validated['m_eval_aprendizaje'] ?? '0') === '1' ? 1 : 0;
 
+            // ✅ calificación: default 100, entero, clamp 70..100
+            $cal = $validated['calificacion'] ?? 100;
+            $cal = (int) $cal;
+            if ($cal < 70) $cal = 70;
+            if ($cal > 100) $cal = 100;
+
             $row->id_cat_estatus   = $idEstatus;
             $row->id_finalidad     = $idFinalidad;
             $row->id_instancia     = $idInstancia;
@@ -102,6 +109,9 @@ class SavePacController extends Controller
             $row->horas_real       = $horasReal;
             $row->observaciones    = $obs;
             $row->eval_aprendizaje = $eval;
+
+            // ✅ NUEVO
+            $row->calificacion     = $cal;
 
             $row->save();
 
