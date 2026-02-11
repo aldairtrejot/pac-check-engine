@@ -2,59 +2,164 @@
 
 namespace App\Support;
 
-use App\Models\User;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class PacVisibility
 {
-    /**
-     * Aplica reglas de visibilidad según rol del usuario.
-     *
-     * Reglas:
-     * - admin_oc, supervisor_oc => ven todo (no filtra)
-     * - revisor_est, supervisor_est => filtra por:
-     *      id_entidad = user.id_entidad
-     *      id_tipo_nomina = user.id_tipo_nomina
-     *      y si es HRAES => además id_clues = user.id_clues
-     *
-     * Nota práctica:
-     * Para detectar HRAES sin depender del catálogo, usamos:
-     *  - Si el usuario tiene id_clues asignado => aplicamos el filtro por id_clues.
-     * (Esto cumple tu regla de HRAES y evita depender del nombre de columna del catálogo.)
-     */
-    public static function apply(Builder $query, User $user, string $tableOrAlias = 'public.a2_acciones_capacitacion'): Builder
+    private static array $columnsCache = [];
+
+    public static function apply(Builder $query, $user, string $capTableQualified = 'public.a2_acciones_capacitacion'): void
     {
+        if (! $user) {
+            abort(401, 'No autenticado');
+        }
+
         // Centrales ven todo
-        if ($user->hasAnyRole(['admin_oc', 'supervisor_oc'])) {
-            return $query;
+        if (method_exists($user, 'isCentral') && $user->isCentral()) {
+            return;
         }
 
-        // Solo operativos deben llegar aquí
-        if (! $user->hasAnyRole(['revisor_est', 'supervisor_est'])) {
-            // Si llega un rol raro, por seguridad filtramos a nada
-            return $query->whereRaw('1=0');
+        // Si no es operativo, no filtramos aquí
+        if (method_exists($user, 'isOperative') && ! $user->isOperative()) {
+            return;
         }
 
-        // Validaciones mínimas (si no trae datos, mejor bloquear)
-        if (empty($user->id_entidad) || empty($user->id_tipo_nomina)) {
-            return $query->whereRaw('1=0');
+        // Operativos requieren estos IDs
+        if (empty($user->id_entidad)) {
+            abort(403, 'Usuario operativo sin id_entidad asignado.');
+        }
+        if (empty($user->id_tipo_nomina)) {
+            abort(403, 'Usuario operativo sin id_tipo_nomina asignado.');
         }
 
-        // Normaliza alias: si te pasan "cap" o "public.a2_acciones_capacitacion"
-        $t = Str::contains($tableOrAlias, '.') || Str::contains($tableOrAlias, ' ')
-            ? $tableOrAlias
-            : $tableOrAlias;
+        [$schemaCap, $tableCap] = self::splitQualified($capTableQualified);
 
-        $query->where("{$t}.id_entidad", (int) $user->id_entidad)
-              ->where("{$t}.id_tipo_nomina", (int) $user->id_tipo_nomina);
+        $capEntidadCol = self::firstExistingColumn($schemaCap, $tableCap, ['id_entidad', 'entidad']);
+        $capNominaCol  = self::firstExistingColumn($schemaCap, $tableCap, ['id_tipo_nomina', 'nomina']);
+        $capCluesCol   = self::firstExistingColumn($schemaCap, $tableCap, ['id_clues', 'clave_clues', 'clues']);
 
-        // Regla extra para HRAES: además por id_clues
-        // (asumimos que si el usuario tiene id_clues asignado aplica esta restricción)
-        if (! empty($user->id_clues)) {
-            $query->where("{$t}.id_clues", (int) $user->id_clues);
+        if (! $capEntidadCol) {
+            abort(500, "a2_acciones_capacitacion no tiene columna id_entidad ni entidad.");
+        }
+        if (! $capNominaCol) {
+            abort(500, "a2_acciones_capacitacion no tiene columna id_tipo_nomina ni nomina.");
         }
 
-        return $query;
+        $cap = $capTableQualified;
+
+        // ==========================
+        // ENTIDAD (a2.entidad es TEXTO en tu caso)
+        // ==========================
+        if ($capEntidadCol === 'id_entidad') {
+            $query->where($cap . '.id_entidad', '=', (int) $user->id_entidad);
+        } else {
+            $entidadTxt = self::lookupLabel(
+                'administracion.cat_entidad',
+                'id_entidad',
+                (int) $user->id_entidad,
+                ['entidad', 'descripcion', 'nombre', 'desc_entidad']
+            );
+
+            if (! $entidadTxt) {
+                abort(403, 'No se pudo resolver el texto de entidad desde cat_entidad.');
+            }
+
+            $query->whereRaw("TRIM(UPPER({$cap}.entidad)) = TRIM(UPPER(?))", [$entidadTxt]);
+        }
+
+        // ==========================
+        // NÓMINA (a2.nomina es TEXTO en tu caso)
+        // ==========================
+        if ($capNominaCol === 'id_tipo_nomina') {
+            $query->where($cap . '.id_tipo_nomina', '=', (int) $user->id_tipo_nomina);
+        } else {
+            $nominaTxt = self::lookupLabel(
+                'administracion.cat_tipo_nomina',
+                'id_tipo_nomina',
+                (int) $user->id_tipo_nomina,
+                ['tipo_nomina', 'nomina', 'descripcion', 'nombre']
+            );
+
+            if (! $nominaTxt) {
+                abort(403, 'No se pudo resolver el texto de nómina desde cat_tipo_nomina.');
+            }
+
+            $query->whereRaw("TRIM(UPPER({$cap}.nomina)) = TRIM(UPPER(?))", [$nominaTxt]);
+        }
+
+        // ==========================
+        // CLUES (OPCIONAL) - tú sí tienes clave_clues
+        // ==========================
+        if (! empty($user->id_clues) && $capCluesCol) {
+            $cluesTxt = self::lookupLabel(
+                'administracion.cat_clues',
+                'id_clues',
+                (int) $user->id_clues,
+                ['clave_clues', 'clues', 'descripcion', 'nombre']
+            );
+
+            if ($cluesTxt) {
+                if ($capCluesCol === 'id_clues') {
+                    $query->where($cap . '.id_clues', '=', (int) $user->id_clues);
+                } elseif ($capCluesCol === 'clave_clues') {
+                    $query->whereRaw("TRIM(UPPER({$cap}.clave_clues)) = TRIM(UPPER(?))", [$cluesTxt]);
+                } else {
+                    $query->whereRaw("TRIM(UPPER({$cap}.clues)) = TRIM(UPPER(?))", [$cluesTxt]);
+                }
+            }
+        }
+    }
+
+    // ==========================
+    // Helpers internos
+    // ==========================
+    private static function splitQualified(string $qualified): array
+    {
+        $qualified = trim($qualified);
+        if (str_contains($qualified, '.')) {
+            $parts = explode('.', $qualified);
+            if (count($parts) === 2) return [$parts[0], $parts[1]];
+        }
+        return ['public', $qualified];
+    }
+
+    private static function columnsFor(string $schema, string $table): array
+    {
+        $key = $schema . '.' . $table;
+
+        if (! isset(self::$columnsCache[$key])) {
+            $rows = DB::table('information_schema.columns')
+                ->select('column_name')
+                ->where('table_schema', $schema)
+                ->where('table_name', $table)
+                ->get();
+
+            self::$columnsCache[$key] = $rows->pluck('column_name')->map(fn ($c) => (string) $c)->all();
+        }
+
+        return self::$columnsCache[$key];
+    }
+
+    private static function firstExistingColumn(string $schema, string $table, array $candidates): ?string
+    {
+        $cols = self::columnsFor($schema, $table);
+        $set  = array_flip($cols);
+
+        foreach ($candidates as $c) {
+            if (isset($set[$c])) return $c;
+        }
+        return null;
+    }
+
+    private static function lookupLabel(string $qualifiedTable, string $idCol, int $idVal, array $labelCandidates): ?string
+    {
+        [$schema, $table] = self::splitQualified($qualifiedTable);
+
+        $labelCol = self::firstExistingColumn($schema, $table, $labelCandidates);
+        if (! $labelCol) return null;
+
+        $val = DB::table($qualifiedTable)->where($idCol, $idVal)->value($labelCol);
+        return $val !== null ? (string) $val : null;
     }
 }

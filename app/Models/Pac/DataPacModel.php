@@ -2,15 +2,16 @@
 
 namespace App\Models\Pac;
 
-use App\Models\User;
 use App\Support\PacVisibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class DataPacModel extends Model
 {
-    public function dataPac($id, User $user)
+    public function dataPac($id)
     {
+        $user = auth()->user();
+
         $query = DB::table('public.a2_acciones_empleados')
             ->select(
                 'public.a2_acciones_empleados.id_empl_accion AS id',
@@ -50,7 +51,7 @@ class DataPacModel extends Model
             )
             ->where('public.a2_acciones_empleados.id_empl_accion', $id);
 
-        // ✅ VISIBILIDAD
+        // ✅ filtro operativo (entidad/nomina/clues)
         PacVisibility::apply($query, $user, 'public.a2_acciones_capacitacion');
 
         return $query->first();

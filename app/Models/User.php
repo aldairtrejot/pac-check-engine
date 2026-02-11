@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Models\Auth\RoleModel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
 {
@@ -25,8 +27,7 @@ class User extends Authenticatable
         'email_verified_at',
         'password',
         'remember_token',
-
-        // ✅ NUEVO (BD nueva)
+        'status',
         'id_entidad',
         'id_tipo_nomina',
         'id_clues',
@@ -40,8 +41,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
-
-        // ✅ recomendable
+        'status' => 'boolean',
         'id_entidad' => 'integer',
         'id_tipo_nomina' => 'integer',
         'id_clues' => 'integer',
@@ -51,7 +51,7 @@ class User extends Authenticatable
     // ROLES
     // =========================================================================
 
-    public function roles()
+    public function roles(): BelongsToMany
     {
         return $this->belongsToMany(
             RoleModel::class,
@@ -61,14 +61,32 @@ class User extends Authenticatable
         );
     }
 
+    private function rolesPivotExists(): bool
+    {
+        try {
+            $row = DB::selectOne("SELECT to_regclass('administracion.user_roles') AS t");
+            return !empty($row?->t);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     public function hasRole(string $code): bool
     {
+        if (! $this->rolesPivotExists()) {
+            return false;
+        }
+
         $this->loadMissing('roles');
         return $this->roles->contains(fn ($r) => $r->code === $code);
     }
 
     public function hasAnyRole(array $codes): bool
     {
+        if (! $this->rolesPivotExists()) {
+            return false;
+        }
+
         $this->loadMissing('roles');
         return $this->roles->whereIn('code', $codes)->isNotEmpty();
     }

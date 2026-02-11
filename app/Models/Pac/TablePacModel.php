@@ -10,6 +10,8 @@ class TablePacModel extends Model
 {
     public function list($limit, $offset, $search, $select, $request)
     {
+        $user = auth()->user();
+
         $query = DB::table('public.a2_acciones_empleados')
             ->selectRaw("
                 public.a2_acciones_empleados.id_empl_accion AS id,
@@ -25,12 +27,12 @@ class TablePacModel extends Model
                         AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
                         AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
                         AND (
-                            public.a2_acciones_empleados.id_instancia IS NOT NULL
-                            AND TRIM(COALESCE(public.a2_acciones_empleados.id_instancia::text,'')) <> ''
+                            public.a2_acciones_empleados.id_instancia IS NOT NULL 
+                            OR TRIM(public.a2_acciones_empleados.id_instancia) <> ''
                         )
                         AND (
-                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
-                            AND TRIM(COALESCE(public.a2_acciones_empleados.id_cat_tematica::text,'')) <> ''
+                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL 
+                            OR TRIM(public.a2_acciones_empleados.id_cat_tematica) <> ''
                         )
                     ) 
                     THEN 'CONCLUIDO'
@@ -51,19 +53,18 @@ class TablePacModel extends Model
                 );
             });
 
-        // ✅ VISIBILIDAD POR ROL/ENTIDAD/NÓMINA/CLUES (Laravel sí o sí)
-        PacVisibility::apply($query, $request->user(), 'public.a2_acciones_capacitacion');
-
-        // ✅ ocultar BAJA (3)
+        // Ocultar BAJA (3) en la lista: mostramos NULL, 1, 2
         $query->where(function ($q) {
             $q->whereNull('public.a2_acciones_empleados.id_cat_estatus')
               ->orWhereIn('public.a2_acciones_empleados.id_cat_estatus', [1, 2]);
         });
 
-        // filtros (nombre/curp/acción)
-        $this->applyFilters($query, $request);
+        // ✅ FILTRO OPERATIVO: entidad + nómina (+clues)
+        PacVisibility::apply($query, $user, 'public.a2_acciones_capacitacion');
 
-        // Conteo total
+        // filtros normales
+        $this->applySearch($query, $request);
+
         $countQuery = clone $query;
         $allRow = $countQuery->count();
 
@@ -81,14 +82,14 @@ class TablePacModel extends Model
         ];
     }
 
-    private function applyFilters($query, $request)
+    private function applySearch($query, $request)
     {
-        // NAME (OR agrupado)
-        if (! empty($request->name)) {
-            $searchTerm = '%' . $request->name . '%';
+        return $query->where(function ($query) use ($request) {
 
-            $query->where(function ($q) use ($searchTerm) {
-                $q->whereRaw(
+            if (! empty($request->name)) {
+                $searchTerm = '%'.$request->name.'%';
+
+                $query->whereRaw(
                     "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') 
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
@@ -107,23 +108,19 @@ class TablePacModel extends Model
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 );
-            });
-        }
+            }
 
-        // CURP
-        if (! empty($request->curp)) {
-            $query->whereRaw(
-                'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
-                 LIKE UPPER(TRIM(public.unaccent(?)))',
-                ['%' . $request->curp . '%']
-            );
-        }
+            if (! empty($request->curp)) {
+                $query->whereRaw(
+                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
+                     LIKE UPPER(TRIM(public.unaccent(?)))',
+                    ['%'.$request->curp.'%']
+                );
+            }
 
-        // ACCIÓN
-        if (! empty($request->id_accion)) {
-            $query->where('public.a2_acciones_empleados.id_accion', '=', $request->id_accion);
-        }
-
-        return $query;
+            if (! empty($request->id_accion)) {
+                $query->where('public.a2_acciones_empleados.id_accion', '=', $request->id_accion);
+            }
+        });
     }
 }

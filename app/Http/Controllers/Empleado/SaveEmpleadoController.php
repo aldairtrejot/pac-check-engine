@@ -68,7 +68,7 @@ class SaveEmpleadoController extends Controller
                 ->whereRaw('UPPER(TRIM(curp)) = ?', [$curpBase])
                 ->first();
 
-            // 4) Siguiente id_cat (campo texto) y id_puesto
+            // 4) Siguiente id_cat y id_puesto
             $maxIdCat  = DB::table('public.a2_acciones_capacitacion')->max('id_cat');
             $nextIdCat = ((int)($maxIdCat ?? 9999)) + 1;
 
@@ -159,15 +159,16 @@ class SaveEmpleadoController extends Controller
             // Insertar en plantilla
             DB::table('public.a2_acciones_capacitacion')->insert($insertCap);
 
-            // 6) Insertar cursos base en a2_acciones_empleados
-            //    (equivalente a tus 2 INSERT de ejemplo)
+            // =========================================================================
+            // 6) Insertar cursos base en a2_acciones_empleados (OBLIGATORIOS)
+            //    ✅ AHORA SON: 1000001 y 1000002
+            // =========================================================================
             $configCursos = [
-                ['id_accion' => 1, 'id_finalidad' => 3],
-                ['id_accion' => 2, 'id_finalidad' => 6],
+                ['id_accion' => 1000001, 'id_finalidad' => 3],
+                ['id_accion' => 1000002, 'id_finalidad' => 6],
             ];
 
-            $maxIdEmpl = DB::table('public.a2_acciones_empleados')
-                ->max('id_empl_accion') ?? 0;
+            $maxIdEmpl = DB::table('public.a2_acciones_empleados')->max('id_empl_accion') ?? 0;
 
             foreach ($configCursos as $cfg) {
                 // Datos de la acción
@@ -177,13 +178,17 @@ class SaveEmpleadoController extends Controller
                     ->first();
 
                 if (! $accion) {
-                    continue; // si no existe la acción, la saltamos
+                    // Si no existe el curso, lo saltamos (si prefieres que truene, dime y lo cambiamos)
+                    continue;
                 }
 
                 // id_tematica según tematica de la acción
-                $idTematica = DB::table('public.cat_tematica')
-                    ->whereRaw('TRIM(UPPER(tematica)) = TRIM(UPPER(?))', [$accion->tematica])
-                    ->value('id_tematica');
+                $idTematica = null;
+                if (!empty($accion->tematica)) {
+                    $idTematica = DB::table('public.cat_tematica')
+                        ->whereRaw('TRIM(UPPER(tematica)) = TRIM(UPPER(?))', [$accion->tematica])
+                        ->value('id_tematica');
+                }
 
                 // Consecutivo de curso para este empleado
                 $maxNumCurso = DB::table('public.a2_acciones_empleados')

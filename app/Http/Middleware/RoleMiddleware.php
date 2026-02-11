@@ -12,7 +12,7 @@ class RoleMiddleware
         $user = $request->user();
 
         if (! $user) {
-            abort(401, 'No autenticado');
+            return redirect()->route('login');
         }
 
         if (empty($roles)) {
