@@ -1,6 +1,5 @@
 <template>
   <div>
-    <!-- Component to display the table title -->
     <tableTittle value="Mi plantilla" />
 
     <div class="accordion accordion-flush shadow-sm rounded-3 border" id="accordionFilters">
@@ -30,14 +29,14 @@
               <inputField :grid="gridx3" label="CURP" id="curp" v-model="curp" :uppercase="true" />
             </div>
 
-            <div class="row" style="margin-top: -70px !important;">
+            <div class="row">
               <inputSelect
                 v-model="listSelectAcction"
                 :options="listOptionsAcction"
                 id="id_accion"
                 label="Acción"
                 :multiple="false"
-                grid="col-md-12 col-sm-12"
+                grid="col-12"
                 :required="true"
               />
             </div>
@@ -62,11 +61,9 @@
 
     <br />
 
-    <!-- Spinner component shown while data is loading -->
     <tableSpinner ref="spinnerRef" />
 
     <div class="table-responsive">
-      <!-- Main responsive table -->
       <table class="table align-items-center mb-0" id="table-default">
         <thead>
           <tr>
@@ -83,7 +80,6 @@
           <tr v-for="row in item" :key="row.id">
             <td class="text-center">
               <div class="button-container">
-                <!-- Botón Atender -->
                 <tableButtonDefault
                   color="#081F5E"
                   icon="fa fa-external-link"
@@ -94,7 +90,6 @@
                   modalTarget="#modal_password_user"
                 />
 
-                <!-- Botón: Agregar curso -->
                 <tableButtonDefault
                   color="#0E5E08"
                   icon="fa fa-plus"
@@ -137,132 +132,61 @@
   >
     <form role="form" id="data_form" enctype="multipart/form-data">
       <div class="row">
-
         <li class="list-group-item border-0 d-flex p-4 mb-2 bg-gray-100 border-radius-lg">
           <div class="d-flex flex-column w-100">
             <h6 class="mb-3 text-sm">{{ m_nombre }}</h6>
-            <div class="row">
+
+            <div class="row g-2">
               <div class="col-md-6">
-                <span class="mb-2 text-xs d-block">
-                  CURP:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_curp }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  RFC:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_rfc }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Cod. Puesto:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_codigo_puesto }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Puesto:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_puesto }}</span>
-                </span>
+                <span class="mb-2 text-xs d-block">CURP: <span class="text-dark font-weight-bold ms-sm-2">{{ m_curp }}</span></span>
+                <span class="mb-2 text-xs d-block">RFC: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_rfc }}</span></span>
+                <span class="mb-2 text-xs d-block">Cod. Puesto: <span class="text-dark font-weight-bold ms-sm-2">{{ m_codigo_puesto }}</span></span>
+                <span class="mb-2 text-xs d-block">Puesto: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_puesto }}</span></span>
               </div>
 
               <div class="col-md-6">
-                <span class="mb-2 text-xs d-block">
-                  Contratación:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_contratacion }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Nivel salarial:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_nivel_salarial }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  CLUES:
-                  <span class="text-dark font-weight-bold ms-sm-2">{{ m_clave_clues }}</span>
-                </span>
-                <span class="mb-2 text-xs d-block">
-                  Entidad:
-                  <span class="text-dark ms-sm-2 font-weight-bold">{{ m_entidad }}</span>
-                </span>
+                <span class="mb-2 text-xs d-block">Contratación: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_contratacion }}</span></span>
+                <span class="mb-2 text-xs d-block">Nivel salarial: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_nivel_salarial }}</span></span>
+                <span class="mb-2 text-xs d-block">CLUES: <span class="text-dark font-weight-bold ms-sm-2">{{ m_clave_clues }}</span></span>
+                <span class="mb-2 text-xs d-block">Entidad: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_entidad }}</span></span>
               </div>
             </div>
 
-            <div class="row">
-              <span class="mb-2 text-xs d-block">
-                Acción:
-                <span class="text-dark ms-sm-2 font-weight-bold">{{ m_accion }}</span>
-              </span>
-              <span class="mb-2 text-xs d-block">
-                Horas acumuladas:
-                <span class="text-dark ms-sm-2 font-weight-bold">{{ m_total_horas }}</span>
-              </span>
+            <div class="row g-2 mt-2">
+              <div class="col-12">
+                <span class="mb-2 text-xs d-block">Acción: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_accion }}</span></span>
+                <span class="mb-2 text-xs d-block">Horas acumuladas: <span class="text-dark ms-sm-2 font-weight-bold">{{ m_total_horas }}</span></span>
+              </div>
             </div>
           </div>
         </li>
 
+        <!-- ⚠️ Nota: tienes forms anidados; lo dejo como lo traes para no romperte,
+             pero idealmente QUITA el form interno y deja solo uno -->
         <form role="form" id="data_form_x" enctype="multipart/form-data">
-          <div class="row">
-            <inputField
-              label="Horas obligatorias"
-              id="m_duracion_hrs"
-              v-model="m_duracion_hrs"
-              :disabled="true"
-            />
-            <inputField
-              label="Horas realizadas"
-              id="m_horas_real"
-              v-model="m_horas_real"
-            />
+          <div class="row g-2">
+            <inputField label="Horas obligatorias" id="m_duracion_hrs" v-model="m_duracion_hrs" :disabled="true" grid="col-12 col-md-6 mb-2" />
+            <inputField label="Horas realizadas" id="m_horas_real" v-model="m_horas_real" grid="col-12 col-md-6 mb-2" />
           </div>
 
-          <div class="row" style="margin-top: -20px !important;">
-            <inputField
-              :grid="gridx3"
-              type="date"
-              label="Fecha Inicio"
-              id="m_fecha_ini"
-              v-model="m_fecha_ini"
-            />
-            <inputField
-              :grid="gridx3"
-              type="date"
-              label="Fecha Fin"
-              id="m_fecha_fin"
-              v-model="m_fecha_fin"
-            />
+          <div class="row g-2">
+            <inputField type="date" label="Fecha Inicio" id="m_fecha_ini" v-model="m_fecha_ini" grid="col-12 col-md-6 mb-2" />
+            <inputField type="date" label="Fecha Fin" id="m_fecha_fin" v-model="m_fecha_fin" grid="col-12 col-md-6 mb-2" />
           </div>
 
-          <div class="row" style="margin-top: -70px !important;">
-            <inputSelect
-              v-model="listSelectStatus"
-              :options="listOptionStatus"
-              id="id_cat_estatus"
-              label="Estatus"
-              :multiple="false"
-              grid="col-md-6 col-sm-12"
-            />
-
-            <inputSelect
-              v-model="listSelectInstance"
-              :options="listOptionInstance"
-              id="id_instancia"
-              :multiple="false"
-              label="Instancia"
-              grid="col-md-6 col-sm-12"
-            />
+          <div class="row g-2">
+            <inputSelect v-model="listSelectStatus" :options="listOptionStatus" id="id_cat_estatus" label="Estatus" :multiple="false" grid="col-12 col-md-6 mb-2" />
+            <inputSelect v-model="listSelectInstance" :options="listOptionInstance" id="id_instancia" :multiple="false" label="Instancia" grid="col-12 col-md-6 mb-2" />
           </div>
 
-          <!-- ✅ Finalidad + Calificación (MISMA FILA) - SIN AMONTONAR -->
-          <div class="row g-2 mt-2">
-            <inputSelect
-              v-model="listSelectFinalidad"
-              :options="listOptionFinalidad"
-              id="id_finalidad"
-              label="Finalidad"
-              :multiple="false"
-              grid="col-md-6 col-sm-12"
-            />
-
+          <div class="row g-2">
+            <inputSelect v-model="listSelectFinalidad" :options="listOptionFinalidad" id="id_finalidad" label="Finalidad" :multiple="false" grid="col-12 col-md-6 mb-2" />
             <inputField
               type="number"
               label="Calificación (70–100)"
               id="calificacion"
               v-model="m_calificacion"
-              grid="col-md-6 col-sm-12"
+              grid="col-12 col-md-6 mb-2"
               :disabled="!canEditCalificacion"
               :min="70"
               :max="100"
@@ -270,33 +194,16 @@
             />
           </div>
 
-          <div class="row">
-            <inputSelect
-              v-model="listSelectTematica"
-              :options="listOptionTematica"
-              id="id_cat_tematica"
-              label="Temática"
-              :multiple="false"
-              grid="col-12"
-            />
+          <div class="row g-2">
+            <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica" label="Temática" :multiple="false" grid="col-12 mb-2" />
           </div>
 
-          <div class="row">
-            <inputField
-              grid="col-12"
-              label="Observaciones"
-              id="m_observaciones"
-              v-model="m_observaciones"
-              :uppercase="true"
-            />
+          <div class="row g-2">
+            <inputField grid="col-12 mb-2" label="Observaciones" id="m_observaciones" v-model="m_observaciones" :uppercase="true" />
           </div>
 
-          <div class="row">
-            <inputCheckbox
-              v-model="m_eval_aprendizaje"
-              :label="'¿Realizó la evaluación de aprendizaje?'"
-              :id="'m_eval_aprendizaje'"
-            />
+          <div class="row g-2">
+            <inputCheckbox v-model="m_eval_aprendizaje" :label="'¿Realizó la evaluación de aprendizaje?'" :id="'m_eval_aprendizaje'" />
           </div>
         </form>
       </div>
@@ -311,8 +218,9 @@
     size="md"
   >
     <form id="form_add_course">
-      <div class="row">
+      <div class="row g-2">
         <inputSelect
+          :key="coursesKey"
           v-model="selectedCourse"
           :options="courseOptions"
           id="id_accion_add"
@@ -352,7 +260,7 @@ import { handleErrors } from '@components/handleErrors.js'
 
 import axios from '@axios'
 
-const gridx3 = ref('col-12 col-md-6 mb-6')
+const gridx3 = ref('col-12 col-md-6 mb-2')
 const name = ref('')
 const curp = ref('')
 const is_complete = ref(false)
@@ -395,8 +303,8 @@ const listOptionTematica = ref([])
 const listSelectFinalidad = ref([])
 const listOptionFinalidad = ref([])
 
-// ✅ calificación manual (70..100)
-const m_calificacion = ref(100) // default 100
+// calificación manual (70..100)
+const m_calificacion = ref(100)
 const canEditCalificacion = ref(false)
 
 // total horas acumuladas
@@ -406,8 +314,8 @@ const m_total_horas = ref('')
 const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
 const courseOptions = ref([])
+const coursesKey = ref(0) // ✅ fuerza refresh del inputSelect
 
-// clamp en caliente: solo enteros 70..100
 function clampCalificacion(val) {
   let n = parseInt(val ?? 100, 10)
   if (Number.isNaN(n)) n = 100
@@ -417,7 +325,6 @@ function clampCalificacion(val) {
 }
 
 watch(m_calificacion, (val) => {
-  // si el usuario escribe algo raro, lo normalizamos
   const fixed = clampCalificacion(val)
   if (fixed !== val) m_calificacion.value = fixed
 })
@@ -444,8 +351,6 @@ const fetchTableData = async () => {
     item.value = data.list
     rowsAll.value = data.allRow
     row.value = data.row
-  } catch (error) {
-    // notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
     const elapsed = Date.now() - startTime
     const delay = elapsed < MIN_SPINNER_DURATION ? MIN_SPINNER_DURATION - elapsed : 0
@@ -502,8 +407,6 @@ async function button_confirm() {
     formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '')
     formData.append('id_finalidad', listSelectFinalidad.value?.id ?? '')
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
-
-    // ✅ calificación manual 70..100 (entero)
     formData.append('calificacion', clampCalificacion(m_calificacion.value))
 
     showSpinner()
@@ -538,9 +441,7 @@ async function setOption(id) {
   clearErrors()
   window._selectkybyemployee = id
 
-  // ✅ solo editable al entrar por “Atender”
   canEditCalificacion.value = true
-
   showSpinner()
 
   try {
@@ -577,7 +478,6 @@ async function setOption(id) {
     listOptionFinalidad.value = selectx.listOptionFinalidad ?? []
     listSelectFinalidad.value = (selectx.listSelectFinalidad ?? [])[0] ?? null
 
-    // ✅ calificación desde BD (si no viene, 100)
     m_calificacion.value = clampCalificacion(data.calificacion ?? 100)
 
   } catch (error) {
@@ -591,15 +491,18 @@ async function setOption(id) {
 async function openAddCourse(id) {
   selectedEmployeeId.value = id
   selectedCourse.value = null
-
-  // aquí NO queremos editar calificación
   canEditCalificacion.value = false
 
   try {
     const { data } = await axios.post('/pac/courses')
     courseOptions.value = data.listCourses ?? []
+    coursesKey.value++ // ✅ fuerza re-render del select
   } catch (error) {
-    notyf.error('No se pudieron cargar los cursos.')
+    const msg =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      'No se pudieron cargar los cursos.'
+    notyf.error(msg)
   }
 }
 
@@ -614,7 +517,6 @@ async function confirmAddCourse() {
     const { data } = await axios.post('/pac/employee/add-course', {
       id_empl_accion_base: selectedEmployeeId.value,
       id_accion: selectedCourse.value.id,
-      // ✅ no mandamos calificación: DB la deja en 100 por default
     })
 
     if (!data.status) {
@@ -623,10 +525,14 @@ async function confirmAddCourse() {
     }
 
     $('#modal_add_course').modal('hide')
-    notyf.success(data.message ?? 'Curso agregado correctamente con ID generado y finalidad asignada.')
+    notyf.success(data.message ?? 'Curso agregado correctamente.')
     fetchTableData()
   } catch (error) {
-    notyf.error('Error al agregar el curso.')
+    const msg =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      'Error al agregar el curso.'
+    notyf.error(msg)
   }
 }
 </script>

@@ -1,167 +1,153 @@
 <?php
 
-namespace App\Support;
+namespace App\Http\Controllers\Pac;
 
-use Illuminate\Database\Query\Builder;
+use App\Http\Controllers\Controller;
+use App\Support\PacVisibility;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
-class PacVisibility
+class CoursePacController extends Controller
 {
-    private static array $columnsCache = [];
-
-    public static function apply(Builder $query, $user, string $capTableQualified = 'public.a2_acciones_capacitacion'): void
+    /**
+     * POST /pac/courses
+     * Lista cursos disponibles (SOLO ADMIN/CENTRAL)
+     */
+    public function listCourses(Request $request)
     {
-        if (! $user) {
-            abort(401, 'No autenticado');
-        }
+        $user = auth()->user();
 
-        // Centrales ven todo
-        if (method_exists($user, 'isCentral') && $user->isCentral()) {
-            return;
-        }
+        abort_unless(PacVisibility::canAddCourse($user), 403, 'Solo el administrador puede agregar cursos.');
 
-        // Si no es operativo, no filtramos aquí
-        if (method_exists($user, 'isOperative') && ! $user->isOperative()) {
-            return;
-        }
+        $list = DB::table('public.a1_cat_acciones')
+            ->selectRaw("id_accion as id, nombre_accion as text")
+            ->orderBy('nombre_accion', 'asc')
+            ->get();
 
-        // Operativos requieren estos IDs
-        if (empty($user->id_entidad)) {
-            abort(403, 'Usuario operativo sin id_entidad asignado.');
-        }
-        if (empty($user->id_tipo_nomina)) {
-            abort(403, 'Usuario operativo sin id_tipo_nomina asignado.');
-        }
+        return response()->json([
+            'status'      => true,
+            'listCourses' => $list,
+        ], 200);
+    }
 
-        [$schemaCap, $tableCap] = self::splitQualified($capTableQualified);
+    /**
+     * POST /pac/employee/add-course
+     * Agrega un curso al empleado (SOLO ADMIN/CENTRAL)
+     */
+    public function addCourseToEmployee(Request $request)
+    {
+        $user = auth()->user();
 
-        $capEntidadCol = self::firstExistingColumn($schemaCap, $tableCap, ['id_entidad', 'entidad']);
-        $capNominaCol  = self::firstExistingColumn($schemaCap, $tableCap, ['id_tipo_nomina', 'nomina']);
-        $capCluesCol   = self::firstExistingColumn($schemaCap, $tableCap, ['id_clues', 'clave_clues', 'clues']);
+        abort_unless(PacVisibility::canAddCourse($user), 403, 'Solo el administrador puede agregar cursos.');
 
-        if (! $capEntidadCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_entidad ni entidad.");
-        }
-        if (! $capNominaCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_tipo_nomina ni nomina.");
-        }
+        $validated = $request->validate([
+            'id_empl_accion_base' => 'required|integer',
+            'id_accion'           => 'required|integer',
+        ]);
 
-        $cap = $capTableQualified;
+        try {
+            return DB::transaction(function () use ($validated) {
 
-        // ==========================
-        // ENTIDAD (a2.entidad es TEXTO en tu caso)
-        // ==========================
-        if ($capEntidadCol === 'id_entidad') {
-            $query->where($cap . '.id_entidad', '=', (int) $user->id_entidad);
-        } else {
-            // ✅ EN TU CATÁLOGO LA COLUMNA ES "nombre"
-            $entidadTxt = self::lookupLabel(
-                'administracion.cat_entidad',
-                'id_entidad',
-                (int) $user->id_entidad,
-                ['nombre', 'abreviatura', 'descripcion', 'entidad']
-            );
+                $base = DB::table('public.a2_acciones_empleados')
+                    ->where('id_empl_accion', (int) $validated['id_empl_accion_base'])
+                    ->first();
 
-            if (! $entidadTxt) {
-                abort(403, 'No se pudo resolver el texto de entidad desde cat_entidad.');
-            }
-
-            $query->whereRaw("TRIM(UPPER({$cap}.entidad)) = TRIM(UPPER(?))", [$entidadTxt]);
-        }
-
-        // ==========================
-        // NÓMINA (a2.nomina es TEXTO en tu caso)
-        // ==========================
-        if ($capNominaCol === 'id_tipo_nomina') {
-            $query->where($cap . '.id_tipo_nomina', '=', (int) $user->id_tipo_nomina);
-        } else {
-            // ✅ EN TU CATÁLOGO LA COLUMNA ES "nombre"
-            $nominaTxt = self::lookupLabel(
-                'administracion.cat_tipo_nomina',
-                'id_tipo_nomina',
-                (int) $user->id_tipo_nomina,
-                ['nombre', 'codigo', 'descripcion', 'nomina', 'tipo_nomina']
-            );
-
-            if (! $nominaTxt) {
-                abort(403, 'No se pudo resolver el texto de nómina desde cat_tipo_nomina.');
-            }
-
-            $query->whereRaw("TRIM(UPPER({$cap}.nomina)) = TRIM(UPPER(?))", [$nominaTxt]);
-        }
-
-        // ==========================
-        // CLUES (OPCIONAL) - si el usuario trae id_clues
-        // ==========================
-        if (! empty($user->id_clues) && $capCluesCol) {
-            $cluesTxt = self::lookupLabel(
-                'administracion.cat_clues',
-                'id_clues',
-                (int) $user->id_clues,
-                ['clave_clues', 'clues', 'nombre', 'descripcion']
-            );
-
-            if ($cluesTxt) {
-                if ($capCluesCol === 'id_clues') {
-                    $query->where($cap . '.id_clues', '=', (int) $user->id_clues);
-                } elseif ($capCluesCol === 'clave_clues') {
-                    $query->whereRaw("TRIM(UPPER({$cap}.clave_clues)) = TRIM(UPPER(?))", [$cluesTxt]);
-                } else {
-                    $query->whereRaw("TRIM(UPPER({$cap}.clues)) = TRIM(UPPER(?))", [$cluesTxt]);
+                if (! $base) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'Registro base no encontrado.',
+                    ], 200);
                 }
-            }
+
+                // ✅ Validar que exista el curso en catálogo
+                $existsCourse = DB::table('public.a1_cat_acciones')
+                    ->where('id_accion', (int) $validated['id_accion'])
+                    ->exists();
+
+                if (! $existsCourse) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'El curso seleccionado no existe en el catálogo.',
+                    ], 200);
+                }
+
+                // ✅ Evitar duplicados (mismo empleado/puesto/curso)
+                $already = DB::table('public.a2_acciones_empleados')
+                    ->where('curp', $base->curp)
+                    ->where(DB::raw('id_puesto::INTEGER'), (int) $base->id_puesto)
+                    ->where('id_accion', (int) $validated['id_accion'])
+                    ->exists();
+
+                if ($already) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'Este empleado ya tiene asignado ese curso.',
+                    ], 200);
+                }
+
+                // ✅ Copiar estructura base para cumplir NOT NULL (si existen)
+                $cols = DB::table('information_schema.columns')
+                    ->where('table_schema', 'public')
+                    ->where('table_name', 'a2_acciones_empleados')
+                    ->orderBy('ordinal_position')
+                    ->pluck('column_name')
+                    ->map(fn ($c) => (string) $c)
+                    ->all();
+
+                $insert = [];
+                foreach ($cols as $col) {
+                    if ($col === 'id_empl_accion') continue; // PK autoincremental
+
+                    // copiamos valores del base si existen
+                    if (property_exists($base, $col)) {
+                        $insert[$col] = $base->$col;
+                    }
+                }
+
+                // ✅ Override para nuevo curso (en estado "pendiente")
+                $insert['id_accion'] = (int) $validated['id_accion'];
+
+                // reseteo de campos típicos del “atendido”
+                if (array_key_exists('id_cat_estatus', $insert))  $insert['id_cat_estatus'] = null;
+                if (array_key_exists('id_instancia', $insert))    $insert['id_instancia'] = null;
+                if (array_key_exists('id_cat_tematica', $insert)) $insert['id_cat_tematica'] = null;
+                if (array_key_exists('fecha_ini', $insert))       $insert['fecha_ini'] = null;
+                if (array_key_exists('fecha_fin', $insert))       $insert['fecha_fin'] = null;
+                if (array_key_exists('id_trimestre', $insert))    $insert['id_trimestre'] = null;
+                if (array_key_exists('horas_real', $insert))      $insert['horas_real'] = null;
+                if (array_key_exists('observaciones', $insert))   $insert['observaciones'] = null;
+                if (array_key_exists('eval_aprendizaje', $insert))$insert['eval_aprendizaje'] = 0;
+
+                // defaults de tu requerimiento
+                if (array_key_exists('calificacion', $insert))    $insert['calificacion'] = 100;
+
+                // si quieres que herede finalidad del base, deja esto:
+                if (array_key_exists('id_finalidad', $insert))    $insert['id_finalidad'] = $base->id_finalidad ?? null;
+
+                // timestamps si existen (por si tu tabla los maneja)
+                if (in_array('created_at', $cols, true)) $insert['created_at'] = now();
+                if (in_array('updated_at', $cols, true)) $insert['updated_at'] = now();
+
+                $newId = DB::table('public.a2_acciones_empleados')->insertGetId(
+                    $insert,
+                    'id_empl_accion'
+                );
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Curso agregado correctamente.',
+                    'id'      => $newId,
+                ], 200);
+            });
+
+        } catch (\Throwable $e) {
+            Log::error('Error addCourseToEmployee', ['e' => $e->getMessage()]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'No se pudo agregar el curso. Revisa logs.',
+            ], 200);
         }
-    }
-
-    // ==========================
-    // Helpers internos
-    // ==========================
-    private static function splitQualified(string $qualified): array
-    {
-        $qualified = trim($qualified);
-        if (str_contains($qualified, '.')) {
-            $parts = explode('.', $qualified);
-            if (count($parts) === 2) return [$parts[0], $parts[1]];
-        }
-        return ['public', $qualified];
-    }
-
-    private static function columnsFor(string $schema, string $table): array
-    {
-        $key = $schema . '.' . $table;
-
-        if (! isset(self::$columnsCache[$key])) {
-            $rows = DB::table('information_schema.columns')
-                ->select('column_name')
-                ->where('table_schema', $schema)
-                ->where('table_name', $table)
-                ->get();
-
-            self::$columnsCache[$key] = $rows->pluck('column_name')->map(fn ($c) => (string) $c)->all();
-        }
-
-        return self::$columnsCache[$key];
-    }
-
-    private static function firstExistingColumn(string $schema, string $table, array $candidates): ?string
-    {
-        $cols = self::columnsFor($schema, $table);
-        $set  = array_flip($cols);
-
-        foreach ($candidates as $c) {
-            if (isset($set[$c])) return $c;
-        }
-        return null;
-    }
-
-    private static function lookupLabel(string $qualifiedTable, string $idCol, int $idVal, array $labelCandidates): ?string
-    {
-        [$schema, $table] = self::splitQualified($qualifiedTable);
-
-        $labelCol = self::firstExistingColumn($schema, $table, $labelCandidates);
-        if (! $labelCol) return null;
-
-        $val = DB::table($qualifiedTable)->where($idCol, $idVal)->value($labelCol);
-        return $val !== null ? (string) $val : null;
     }
 }

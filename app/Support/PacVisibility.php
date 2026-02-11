@@ -11,27 +11,14 @@ class PacVisibility
 
     public static function apply(Builder $query, $user, string $capTableQualified = 'public.a2_acciones_capacitacion'): void
     {
-        if (! $user) {
-            abort(401, 'No autenticado');
-        }
+        if (! $user) abort(401, 'No autenticado');
 
-        // Centrales ven todo
-        if (method_exists($user, 'isCentral') && $user->isCentral()) {
-            return;
-        }
+        if (method_exists($user, 'isCentral') && $user->isCentral()) return;
 
-        // Si no es operativo, no filtramos aquí
-        if (method_exists($user, 'isOperative') && ! $user->isOperative()) {
-            return;
-        }
+        if (method_exists($user, 'isOperative') && ! $user->isOperative()) return;
 
-        // Operativos requieren estos IDs
-        if (empty($user->id_entidad)) {
-            abort(403, 'Usuario operativo sin id_entidad asignado.');
-        }
-        if (empty($user->id_tipo_nomina)) {
-            abort(403, 'Usuario operativo sin id_tipo_nomina asignado.');
-        }
+        if (empty($user->id_entidad)) abort(403, 'Usuario operativo sin id_entidad asignado.');
+        if (empty($user->id_tipo_nomina)) abort(403, 'Usuario operativo sin id_tipo_nomina asignado.');
 
         [$schemaCap, $tableCap] = self::splitQualified($capTableQualified);
 
@@ -39,18 +26,12 @@ class PacVisibility
         $capNominaCol  = self::firstExistingColumn($schemaCap, $tableCap, ['id_tipo_nomina', 'nomina']);
         $capCluesCol   = self::firstExistingColumn($schemaCap, $tableCap, ['id_clues', 'clave_clues', 'clues']);
 
-        if (! $capEntidadCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_entidad ni entidad.");
-        }
-        if (! $capNominaCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_tipo_nomina ni nomina.");
-        }
+        if (! $capEntidadCol) abort(500, "a2_acciones_capacitacion no tiene columna id_entidad ni entidad.");
+        if (! $capNominaCol)  abort(500, "a2_acciones_capacitacion no tiene columna id_tipo_nomina ni nomina.");
 
         $cap = $capTableQualified;
 
-        // ==========================
-        // ENTIDAD (a2.entidad es TEXTO en tu caso)
-        // ==========================
+        // ENTIDAD
         if ($capEntidadCol === 'id_entidad') {
             $query->where($cap . '.id_entidad', '=', (int) $user->id_entidad);
         } else {
@@ -58,19 +39,15 @@ class PacVisibility
                 'administracion.cat_entidad',
                 'id_entidad',
                 (int) $user->id_entidad,
-                ['entidad', 'descripcion', 'nombre', 'desc_entidad']
+                ['nombre', 'abreviatura', 'descripcion', 'entidad']
             );
 
-            if (! $entidadTxt) {
-                abort(403, 'No se pudo resolver el texto de entidad desde cat_entidad.');
-            }
+            if (! $entidadTxt) abort(403, 'No se pudo resolver el texto de entidad desde cat_entidad.');
 
             $query->whereRaw("TRIM(UPPER({$cap}.entidad)) = TRIM(UPPER(?))", [$entidadTxt]);
         }
 
-        // ==========================
-        // NÓMINA (a2.nomina es TEXTO en tu caso)
-        // ==========================
+        // NÓMINA
         if ($capNominaCol === 'id_tipo_nomina') {
             $query->where($cap . '.id_tipo_nomina', '=', (int) $user->id_tipo_nomina);
         } else {
@@ -78,25 +55,21 @@ class PacVisibility
                 'administracion.cat_tipo_nomina',
                 'id_tipo_nomina',
                 (int) $user->id_tipo_nomina,
-                ['tipo_nomina', 'nomina', 'descripcion', 'nombre']
+                ['nombre', 'codigo', 'descripcion', 'nomina', 'tipo_nomina']
             );
 
-            if (! $nominaTxt) {
-                abort(403, 'No se pudo resolver el texto de nómina desde cat_tipo_nomina.');
-            }
+            if (! $nominaTxt) abort(403, 'No se pudo resolver el texto de nómina desde cat_tipo_nomina.');
 
             $query->whereRaw("TRIM(UPPER({$cap}.nomina)) = TRIM(UPPER(?))", [$nominaTxt]);
         }
 
-        // ==========================
-        // CLUES (OPCIONAL) - tú sí tienes clave_clues
-        // ==========================
+        // CLUES (opcional)
         if (! empty($user->id_clues) && $capCluesCol) {
             $cluesTxt = self::lookupLabel(
                 'administracion.cat_clues',
                 'id_clues',
                 (int) $user->id_clues,
-                ['clave_clues', 'clues', 'descripcion', 'nombre']
+                ['clave_clues', 'clues', 'nombre', 'descripcion']
             );
 
             if ($cluesTxt) {
@@ -111,9 +84,37 @@ class PacVisibility
         }
     }
 
-    // ==========================
-    // Helpers internos
-    // ==========================
+    // usado por tu middleware
+    public static function isHraesTipoNomina(int $idTipoNomina): bool
+    {
+        $tbl = 'administracion.cat_tipo_nomina';
+        [$schema, $table] = self::splitQualified($tbl);
+
+        $col = self::firstExistingColumn($schema, $table, [
+            'codigo', 'clave', 'siglas', 'nombre', 'descripcion', 'nomina', 'tipo_nomina'
+        ]);
+
+        if (! $col) return false;
+
+        $val = DB::table($tbl)->where('id_tipo_nomina', $idTipoNomina)->value($col);
+        if ($val === null) return false;
+
+        return str_contains(strtoupper(trim((string) $val)), 'HRAES');
+    }
+
+    // permiso admin para agregar cursos
+    public static function canAddCourse($user): bool
+    {
+        if (! $user) return false;
+
+        if (method_exists($user, 'isCentral') && $user->isCentral()) return true;
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) return true;
+        if (isset($user->is_admin) && (bool) $user->is_admin) return true;
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) return true;
+
+        return false;
+    }
+
     private static function splitQualified(string $qualified): array
     {
         $qualified = trim($qualified);
