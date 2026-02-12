@@ -8,21 +8,8 @@ use App\Http\Controllers\Pac\ViewPacController;
 use App\Http\Controllers\Pac\CoursePacController;
 use App\Http\Controllers\Empleado\ViewEmpleadoController;
 use App\Http\Controllers\Empleado\SaveEmpleadoController;
+use App\Http\Controllers\Pac\Unidad\UnidadCoordinacionPacController;
 
-/*
-|--------------------------------------------------------------------------
-| Routes for pac-check-engine module design
-|--------------------------------------------------------------------------
-| Protected by: auth
-|
-| Estas rutas manejan:
-| - Módulo PAC (Programa Anual de Capacitación)
-| - Módulo de Empleados (solo personal autorizado de RH)
-*/
-
-// ============================================================================
-// RUTAS PROTEGIDAS POR AUTENTICACIÓN
-// ============================================================================
 Route::middleware(['auth'])->group(function () {
 
     // PAC para TODOS (centrales y operativos)
@@ -31,6 +18,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pac/table', [TablePacController::class, 'table'])->name('pac.table');
     Route::post('/pac/data', [DataPacController::class, 'dataPac'])->name('pac.data');
     Route::post('/pac/save', [SavePacController::class, 'save'])->name('pac.save');
+
     Route::post('/pac/courses', [CoursePacController::class, 'listCourses'])->name('pac.courses');
     Route::post('/pac/employee/add-course', [CoursePacController::class, 'addCourseToEmployee'])->name('pac.employee.addCourse');
 
@@ -39,4 +27,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/empleado', [ViewEmpleadoController::class, 'view'])->name('empleado');
         Route::post('/empleado/save', [SaveEmpleadoController::class, 'save'])->name('empleado.save');
     });
+
+    // ✅ NUEVAS: Unidad/Coordinación
+   Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades'])->name('pac.unidades');
+Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones'])->name('pac.coordinaciones');
+Route::post('/pac/asignacion-unidad/save', [UnidadCoordinacionPacController::class, 'saveAsignacion'])->name('pac.asignacionUnidad.save');
+
 });

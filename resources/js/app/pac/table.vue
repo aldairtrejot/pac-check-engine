@@ -141,6 +141,7 @@
         <li class="list-group-item border-0 d-flex p-4 mb-2 bg-gray-100 border-radius-lg">
           <div class="d-flex flex-column w-100">
             <h6 class="mb-3 text-sm">{{ m_nombre }}</h6>
+
             <div class="row">
               <div class="col-md-6">
                 <span class="mb-2 text-xs d-block">
@@ -190,6 +191,28 @@
                 Horas acumuladas:
                 <span class="text-dark ms-sm-2 font-weight-bold">{{ m_total_horas }}</span>
               </span>
+            </div>
+
+            <!-- ✅ BOTÓN NUEVO (MEJOR DISEÑO + 100% FUNCIONAL) -->
+            <div class="d-flex justify-content-end mt-2">
+              <button
+                type="button"
+                class="btn btn-sm mb-0"
+                @click="openAsignacionUnidad"
+                style="
+                  background: #10312B;
+                  color: #fff;
+                  border-radius: 12px;
+                  padding: 8px 12px;
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 8px;
+                  box-shadow: 0 8px 16px rgba(16, 49, 43, 0.18);
+                "
+              >
+                <i class="fa fa-sitemap"></i>
+                Asignación de unidad
+              </button>
             </div>
           </div>
         </li>
@@ -246,7 +269,7 @@
             />
           </div>
 
-          <!-- ✅ Finalidad + Calificación (MISMA FILA) - SIN AMONTONAR -->
+          <!-- ✅ Finalidad + Calificación (MISMA FILA) -->
           <div class="row g-2 mt-2">
             <inputSelect
               v-model="listSelectFinalidad"
@@ -317,6 +340,40 @@
           :options="courseOptions"
           id="id_accion_add"
           label="Curso"
+          :multiple="false"
+          grid="col-12"
+          :required="true"
+        />
+      </div>
+    </form>
+  </modalTemplate>
+
+  <!-- ✅ MODAL NUEVO: ASIGNACIÓN DE UNIDAD -->
+  <modalTemplate
+    modalId="modal_asignacion_unidad"
+    title="Asignación de unidad"
+    :onConfirm="confirmAsignacionUnidad"
+    size="md"
+  >
+    <form id="form_asignacion_unidad">
+      <div class="row">
+        <inputSelect
+          v-model="selectedUnidad"
+          :options="unidadOptions"
+          id="id_unidad"
+          label="Unidad"
+          :multiple="false"
+          grid="col-12"
+          :required="true"
+        />
+      </div>
+
+      <div class="row" style="margin-top: -20px !important;">
+        <inputSelect
+          v-model="selectedCoordinacion"
+          :options="coordinacionOptions"
+          id="id_coordinacion"
+          label="Coordinación"
           :multiple="false"
           grid="col-12"
           :required="true"
@@ -396,7 +453,7 @@ const listSelectFinalidad = ref([])
 const listOptionFinalidad = ref([])
 
 // ✅ calificación manual (70..100)
-const m_calificacion = ref(100) // default 100
+const m_calificacion = ref('100')
 const canEditCalificacion = ref(false)
 
 // total horas acumuladas
@@ -407,19 +464,38 @@ const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
 const courseOptions = ref([])
 
-// clamp en caliente: solo enteros 70..100
+// ✅ estado para "Asignación de unidad"
+const selectedUnidad = ref(null)
+const selectedCoordinacion = ref(null)
+const unidadOptions = ref([])
+const coordinacionOptions = ref([])
+
 function clampCalificacion(val) {
-  let n = parseInt(val ?? 100, 10)
+  let n = parseInt(val ?? '100', 10)
   if (Number.isNaN(n)) n = 100
   if (n < 70) n = 70
   if (n > 100) n = 100
-  return n
+  return String(n)
 }
 
 watch(m_calificacion, (val) => {
-  // si el usuario escribe algo raro, lo normalizamos
   const fixed = clampCalificacion(val)
-  if (fixed !== val) m_calificacion.value = fixed
+  if (fixed !== String(val)) m_calificacion.value = fixed
+})
+
+// ✅ cuando eligen unidad, cargar coordinaciones relacionadas
+watch(selectedUnidad, async (u) => {
+  selectedCoordinacion.value = null
+  coordinacionOptions.value = []
+
+  if (!u?.id) return
+
+  try {
+    const { data } = await axios.post('/pac/coordinaciones', { id_unidad: u.id })
+    coordinacionOptions.value = data.listCoordinaciones ?? []
+  } catch (e) {
+    notyf.error('No se pudieron cargar las coordinaciones.')
+  }
 })
 
 const fetchTableData = async () => {
@@ -504,7 +580,7 @@ async function button_confirm() {
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
 
     // ✅ calificación manual 70..100 (entero)
-    formData.append('calificacion', clampCalificacion(m_calificacion.value))
+ formData.append('calificacion', parseInt(m_calificacion.value, 10))
 
     showSpinner()
     clearErrors()
@@ -579,7 +655,6 @@ async function setOption(id) {
 
     // ✅ calificación desde BD (si no viene, 100)
     m_calificacion.value = clampCalificacion(data.calificacion ?? 100)
-
   } catch (error) {
     notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
@@ -614,7 +689,6 @@ async function confirmAddCourse() {
     const { data } = await axios.post('/pac/employee/add-course', {
       id_empl_accion_base: selectedEmployeeId.value,
       id_accion: selectedCourse.value.id,
-      // ✅ no mandamos calificación: DB la deja en 100 por default
     })
 
     if (!data.status) {
@@ -623,10 +697,96 @@ async function confirmAddCourse() {
     }
 
     $('#modal_add_course').modal('hide')
-    notyf.success(data.message ?? 'Curso agregado correctamente con ID generado y finalidad asignada.')
+    notyf.success(data.message ?? 'Curso agregado correctamente.')
     fetchTableData()
   } catch (error) {
     notyf.error('Error al agregar el curso.')
+  }
+}
+
+/**
+ * ✅ Abrir "Asignación de unidad"
+ * (SIN RAREZAS): cierra Atender -> espera -> abre modal asignación
+ * y si cierras asignación (X), regresa a Atender.
+ */
+async function openAsignacionUnidad() {
+  const id = window._selectkybyemployee
+  if (!id) {
+    notyf.error('No se detectó el ID del registro.')
+    return
+  }
+
+  selectedEmployeeId.value = id
+  selectedUnidad.value = null
+  selectedCoordinacion.value = null
+  unidadOptions.value = []
+  coordinacionOptions.value = []
+
+  try {
+    const { data } = await axios.post('/pac/unidades')
+    unidadOptions.value = data.listUnidades ?? []
+  } catch (error) {
+    notyf.error('No se pudieron cargar las unidades.')
+    return
+  }
+
+  // ✅ Siempre que se cierre el modal de asignación, regresamos a "Atender"
+  $('#modal_asignacion_unidad')
+    .off('hidden.bs.modal.unidad')
+    .on('hidden.bs.modal.unidad', async function () {
+      $('#modal_password_user').modal('show')
+      if (selectedEmployeeId.value) {
+        await setOption(selectedEmployeeId.value)
+      }
+    })
+
+  // cerrar Atender
+  $('#modal_password_user').modal('hide')
+
+  // abrir asignación con delay (evita el “abre y se cierra”)
+  setTimeout(() => {
+    $('#modal_asignacion_unidad').modal('show')
+  }, 350)
+}
+
+/**
+ * ✅ Guardar asignación en a2_acciones_capacitacion (unidad/coordinacion)
+ */
+async function confirmAsignacionUnidad() {
+  const id = selectedEmployeeId.value
+
+  if (!id) {
+    notyf.error('No se detectó el registro a actualizar.')
+    return
+  }
+  if (!selectedUnidad.value?.id) {
+    notyf.error('Selecciona una unidad.')
+    return
+  }
+  if (!selectedCoordinacion.value?.id) {
+    notyf.error('Selecciona una coordinación.')
+    return
+  }
+
+  try {
+    const { data } = await axios.post('/pac/asignacion-unidad/save', {
+      id,
+      id_unidad: selectedUnidad.value.id,
+      id_coordinacion: selectedCoordinacion.value.id,
+    })
+
+    if (!data.status) {
+      notyf.error(data.message ?? 'No se pudo guardar la asignación.')
+      return
+    }
+
+    notyf.success(data.message ?? 'Unidad y coordinación asignadas correctamente.')
+    fetchTableData()
+
+    // cerramos el modal: el handler hidden.bs.modal.unidad se encarga de regresar a Atender
+    $('#modal_asignacion_unidad').modal('hide')
+  } catch (error) {
+    notyf.error('Error al guardar la asignación.')
   }
 }
 </script>
