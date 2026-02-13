@@ -15,6 +15,7 @@ class DataPacModel extends Model
         $query = DB::table('public.a2_acciones_empleados')
             ->select(
                 'public.a2_acciones_empleados.id_empl_accion AS id',
+
                 'public.a2_acciones_capacitacion.nivel_salarial AS nivel_salarial',
                 'public.a2_acciones_capacitacion.rfc AS rfc',
                 'public.a2_acciones_capacitacion.codigo_puesto AS codigo_puesto',
@@ -23,6 +24,11 @@ class DataPacModel extends Model
                 DB::raw("public.a2_acciones_capacitacion.nombre || ' ' || public.a2_acciones_capacitacion.apellido_paterno || ' ' || public.a2_acciones_capacitacion.apellido_materno AS nombre"),
                 'public.a2_acciones_capacitacion.entidad AS entidad',
                 'public.a2_acciones_capacitacion.tipo_contratacion AS contratacion',
+
+                // ✅ NUEVO: para que el modal “Ficha” muestre unidad/coordinación
+                'public.a2_acciones_capacitacion.unidad AS unidad',
+                'public.a2_acciones_capacitacion.coordinacion AS coordinacion',
+
                 'public.a2_acciones_empleados.curp AS curp',
                 'public.a1_cat_acciones.nombre_accion AS accion',
                 'public.a2_acciones_empleados.fecha_ini AS fecha_ini',
@@ -37,7 +43,7 @@ class DataPacModel extends Model
                 'public.a2_acciones_empleados.horas_real AS horas_real',
                 'public.a1_cat_acciones.tematica AS tematica_accion',
 
-                // ✅ NUEVO
+                // ✅ calificación
                 'public.a2_acciones_empleados.calificacion AS calificacion'
             )
             ->join(

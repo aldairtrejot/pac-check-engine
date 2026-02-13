@@ -8,7 +8,7 @@ use App\Http\Controllers\Pac\ViewPacController;
 use App\Http\Controllers\Pac\CoursePacController;
 use App\Http\Controllers\Empleado\ViewEmpleadoController;
 use App\Http\Controllers\Empleado\SaveEmpleadoController;
-use App\Http\Controllers\Pac\Unidad\UnidadCoordinacionPacController;
+use App\Http\Controllers\Pac\UnidadCoordinacionPacController;
 
 Route::middleware(['auth'])->group(function () {
 
@@ -27,10 +27,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/empleado', [ViewEmpleadoController::class, 'view'])->name('empleado');
         Route::post('/empleado/save', [SaveEmpleadoController::class, 'save'])->name('empleado.save');
     });
+Route::post('/pac/data', [DataPacController::class, 'dataPac']);
 
-    // ✅ NUEVAS: Unidad/Coordinación
-   Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades'])->name('pac.unidades');
-Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones'])->name('pac.coordinaciones');
-Route::post('/pac/asignacion-unidad/save', [UnidadCoordinacionPacController::class, 'saveAsignacion'])->name('pac.asignacionUnidad.save');
+Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades']);
+Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones']);
+Route::post('/pac/asignacion-unidad/data', [UnidadCoordinacionPacController::class, 'dataAsignacion']);
+Route::post('/pac/asignacion-unidad/save', [UnidadCoordinacionPacController::class, 'saveAsignacion']);
 
 });

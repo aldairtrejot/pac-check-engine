@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
-use App\Support\PacVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,15 +14,7 @@ class UnidadCoordinacionPacController extends Controller
     public function listUnidades(Request $request)
     {
         try {
-            $user = auth()->user();
-
-            if (!PacVisibility::canAddCourse($user)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Solo el administrador puede asignar unidad.',
-                    'listUnidades' => [],
-                ], 403);
-            }
+            $this->assertAdminCanAsignarUnidad();
 
             $list = DB::table('public.cat_unidades')
                 ->selectRaw('id_unidad as id, nombre_unidad as descripcion')
@@ -35,6 +26,7 @@ class UnidadCoordinacionPacController extends Controller
                 'status' => true,
                 'listUnidades' => $list,
             ], 200);
+
         } catch (\Throwable $th) {
             Log::error('PAC listUnidades ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
 
@@ -49,15 +41,7 @@ class UnidadCoordinacionPacController extends Controller
     public function listCoordinaciones(Request $request)
     {
         try {
-            $user = auth()->user();
-
-            if (!PacVisibility::canAddCourse($user)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Solo el administrador puede asignar coordinaciones.',
-                    'listCoordinaciones' => [],
-                ], 403);
-            }
+            $this->assertAdminCanAsignarUnidad();
 
             $validated = $request->validate([
                 'id_unidad' => 'required|integer',
@@ -76,6 +60,7 @@ class UnidadCoordinacionPacController extends Controller
                 'status' => true,
                 'listCoordinaciones' => $list,
             ], 200);
+
         } catch (\Throwable $th) {
             Log::error('PAC listCoordinaciones ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
 
@@ -87,101 +72,199 @@ class UnidadCoordinacionPacController extends Controller
         }
     }
 
-    public function saveAsignacion(Request $request)
-    {
-        try {
-            $user = auth()->user();
+    /**
+     * ✅ Precarga asignación actual (lee unidad/coordinacion desde a2_acciones_capacitacion)
+     * Retorna:
+     * - id_unidad, id_coordinacion
+     * - unidad_txt, coordinacion_txt
+     */
+   public function dataAsignacion(Request $request)
+{
+    try {
+        $this->assertAdminCanAsignarUnidad();
 
-            if (!PacVisibility::canAddCourse($user)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Solo el administrador puede asignar unidad.',
-                ], 403);
-            }
+        $validated = $request->validate([
+            'id' => 'required|integer', // ESTE id ES id_empl_accion
+        ]);
 
-            $validated = $request->validate([
-                'id'              => 'required|integer',
-                'id_unidad'       => 'required|integer',
-                'id_coordinacion' => 'required|integer',
-            ]);
+        // 1) Resolver empleado desde a2_acciones_empleados
+        $emp = DB::table('public.a2_acciones_empleados')
+            ->select('id_puesto', 'curp')
+            ->where('id_empl_accion', (int) $validated['id'])
+            ->first();
 
-            $relOk = DB::table('public.rel_unidad_coordinacion')
-                ->where('id_unidad', (int) $validated['id_unidad'])
-                ->where('id_coordinacion', (int) $validated['id_coordinacion'])
-                ->where('activo', true)
-                ->exists();
-
-            if (! $relOk) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'La coordinación seleccionada no pertenece a la unidad (o está inactiva).',
-                ], 200);
-            }
-
-            $unidadTxt = DB::table('public.cat_unidades')
-                ->where('id_unidad', (int) $validated['id_unidad'])
-                ->value('nombre_unidad');
-
-            $coordTxt = DB::table('public.cat_coordinaciones')
-                ->where('id_coordinacion', (int) $validated['id_coordinacion'])
-                ->value('nombre_coordinacion');
-
-            if (! $unidadTxt || ! $coordTxt) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'No se pudo resolver el nombre de unidad o coordinación.',
-                ], 200);
-            }
-
-            $cap = 'public.a2_acciones_capacitacion';
-            [$schemaCap, $tableCap] = $this->splitQualified($cap);
-
-            $colUnidad = $this->firstExistingColumn($schemaCap, $tableCap, ['unidad']);
-            $colCoord  = $this->firstExistingColumn($schemaCap, $tableCap, ['coordinacion']);
-
-            if (! $colUnidad || ! $colCoord) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'a2_acciones_capacitacion debe tener columnas: unidad y coordinacion.',
-                ], 200);
-            }
-
-            $idCol = $this->firstExistingColumn($schemaCap, $tableCap, ['id']);
-            if (! $idCol) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'a2_acciones_capacitacion no tiene columna id para actualizar.',
-                ], 200);
-            }
-
-            $updated = DB::table($cap)
-                ->where($idCol, (int) $validated['id'])
-                ->update([
-                    $colUnidad => (string) $unidadTxt,
-                    $colCoord  => (string) $coordTxt,
-                ]);
-
-            if (! $updated) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'No se actualizó el registro (verifica el ID).',
-                ], 200);
-            }
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Unidad y coordinación asignadas correctamente.',
-                'unidad'  => (string) $unidadTxt,
-                'coordinacion' => (string) $coordTxt,
-            ], 200);
-        } catch (\Throwable $th) {
-            Log::error('PAC saveAsignacion ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
-
+        if (! $emp) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Ocurrió un error al guardar la asignación.',
+                'message' => 'No se encontró el empleado (a2_acciones_empleados).',
             ], 200);
         }
+
+        // 2) Buscar fila en a2_acciones_capacitacion por id_puesto (y curp opcional)
+        $cap = DB::table('public.a2_acciones_capacitacion')
+            ->select('unidad as unidad_txt', 'coordinacion as coordinacion_txt')
+            ->where('id_puesto', (int) $emp->id_puesto)
+            // si quieres amarrarlo más, deja esta línea:
+            ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+            ->first();
+
+        if (! $cap) {
+            return response()->json([
+                'status'  => true,
+                'id_unidad' => null,
+                'id_coordinacion' => null,
+                'unidad_txt' => '',
+                'coordinacion_txt' => '',
+            ], 200);
+        }
+
+        // 3) Texto -> IDs (para precargar selects)
+        $idUnidad = null;
+        $idCoord  = null;
+
+        if (!empty($cap->unidad_txt)) {
+            $idUnidad = DB::table('public.cat_unidades')
+                ->whereRaw('TRIM(UPPER(nombre_unidad)) = TRIM(UPPER(?))', [$cap->unidad_txt])
+                ->value('id_unidad');
+        }
+
+        if (!empty($cap->coordinacion_txt)) {
+            $idCoord = DB::table('public.cat_coordinaciones')
+                ->whereRaw('TRIM(UPPER(nombre_coordinacion)) = TRIM(UPPER(?))', [$cap->coordinacion_txt])
+                ->value('id_coordinacion');
+        }
+
+        return response()->json([
+            'status' => true,
+            'id_unidad' => $idUnidad,
+            'id_coordinacion' => $idCoord,
+            'unidad_txt' => (string) ($cap->unidad_txt ?? ''),
+            'coordinacion_txt' => (string) ($cap->coordinacion_txt ?? ''),
+        ], 200);
+
+    } catch (\Throwable $th) {
+        Log::error('PAC dataAsignacion ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
+
+        return response()->json([
+            'status'  => false,
+            'message' => 'No se pudo cargar la asignación.',
+        ], 200);
+    }
+}
+
+    /**
+     * ✅ Guarda asignación (escribe texto) en a2_acciones_capacitacion.unidad / coordinacion
+     */
+   public function saveAsignacion(Request $request)
+{
+    try {
+        $this->assertAdminCanAsignarUnidad();
+
+        $validated = $request->validate([
+            'id'              => 'required|integer', // ESTE id ES id_empl_accion
+            'id_unidad'       => 'required|integer',
+            'id_coordinacion' => 'required|integer',
+        ]);
+
+        // valida relación activa
+        $relOk = DB::table('public.rel_unidad_coordinacion')
+            ->where('id_unidad', (int) $validated['id_unidad'])
+            ->where('id_coordinacion', (int) $validated['id_coordinacion'])
+            ->where('activo', true)
+            ->exists();
+
+        if (! $relOk) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'La coordinación seleccionada no pertenece a la unidad (o está inactiva).',
+            ], 200);
+        }
+
+        // nombres (texto)
+        $unidadTxt = DB::table('public.cat_unidades')
+            ->where('id_unidad', (int) $validated['id_unidad'])
+            ->value('nombre_unidad');
+
+        $coordTxt = DB::table('public.cat_coordinaciones')
+            ->where('id_coordinacion', (int) $validated['id_coordinacion'])
+            ->value('nombre_coordinacion');
+
+        if (! $unidadTxt || ! $coordTxt) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No se pudo resolver el nombre de unidad o coordinación.',
+            ], 200);
+        }
+
+        // 1) Resolver empleado desde a2_acciones_empleados
+        $emp = DB::table('public.a2_acciones_empleados')
+            ->select('id_puesto', 'curp')
+            ->where('id_empl_accion', (int) $validated['id'])
+            ->first();
+
+        if (! $emp) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No se encontró el empleado (a2_acciones_empleados).',
+            ], 200);
+        }
+
+        // 2) Actualizar a2_acciones_capacitacion por id_puesto (+curp)
+        $updated = DB::table('public.a2_acciones_capacitacion')
+            ->where('id_puesto', (int) $emp->id_puesto)
+            ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+            ->update([
+                'unidad' => (string) $unidadTxt,
+                'coordinacion' => (string) $coordTxt,
+            ]);
+
+        if (! $updated) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No se actualizó el registro (no se encontró coincidencia en capacitación por id_puesto/curp).',
+            ], 200);
+        }
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Unidad y coordinación asignadas correctamente.',
+            'unidad'  => (string) $unidadTxt,
+            'coordinacion' => (string) $coordTxt,
+        ], 200);
+
+    } catch (\Throwable $th) {
+        Log::error('PAC saveAsignacion ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
+
+        return response()->json([
+            'status'  => false,
+            'message' => 'Ocurrió un error al guardar la asignación.',
+        ], 200);
+    }
+}
+
+    /**
+     * ✅ Permiso: solo admin (mismo estilo que tu CoursePacController)
+     */
+    private function assertAdminCanAsignarUnidad(): void
+    {
+        $user = auth()->user();
+        if (! $user) abort(401, 'No autenticado');
+
+        // Spatie
+        if (method_exists($user, 'hasRole')) {
+            if ($user->hasRole('admin_oc')) return;
+        }
+
+        // isAdmin()
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) return;
+
+        // rol_id
+        if (isset($user->rol_id) && (int)$user->rol_id === 1) return;
+
+        // is_admin boolean
+        if (isset($user->is_admin) && (bool)$user->is_admin) return;
+
+        abort(403, 'Solo el administrador puede asignar unidad.');
     }
 
     private function splitQualified(string $qualified): array

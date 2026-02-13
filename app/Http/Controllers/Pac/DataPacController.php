@@ -21,8 +21,8 @@ class DataPacController extends Controller
 
             $dataPacModel = new DataPacModel;
 
-            // ✅ ahora pasa user para aplicar visibilidad
-            $data = $dataPacModel->dataPac($request->id, $request->user());
+            // ✅ FIX: tu modelo solo recibe ($id)
+            $data = $dataPacModel->dataPac($request->id);
 
             if (! $data) {
                 return response()->json([
