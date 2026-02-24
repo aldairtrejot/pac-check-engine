@@ -5,6 +5,7 @@ import vue_table_pac from './app/pac/table.vue'
 import vue_table_action from './app/action/table.vue'
 import vue_table_tematica from './app/tematica/table.vue'
 import vue_table_instancia from './app/instancia/table.vue'
+import vue_table_constancias from './app/constancias/table.vue'
 
 const components = [  
   // login
@@ -21,6 +22,10 @@ const components = [
 
   // instancias
   { selector: '#blade_table_instancia', component: vue_table_instancia },
+
+    // constancias
+  { selector: '#blade_table_constancias', component: vue_table_constancias },
+  
 ]
 
 // Mounting components if their div exists in the DOM

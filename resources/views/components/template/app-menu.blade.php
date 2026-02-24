@@ -68,6 +68,14 @@
                     title="Instancias"
                 />
 
+                {{-- ✅ NUEVO: CONSTANCIAS --}}
+                <x-button.button-nav-menu
+                    active="constancias"
+                    route="constancias"
+                    icon="fa fa-file-signature fa-lg"
+                    title="Constancias"
+                />
+
                 {{-- Ejemplo extra: si luego agregas "Usuarios", solo Admin OC --}}
                 {{--
                 @if($isAdminCentral)

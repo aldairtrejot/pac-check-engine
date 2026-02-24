@@ -17,6 +17,13 @@
             icon="fa fa-arrow-left me-sm-1"
             tittle="Regresar"
         />
+
+        {{-- ✅ NUEVO: Revisión de constancias --}}
+        <x-button.button-header-action
+            route="{{ route('constancias') }}"
+            icon="fa fa-file-pdf me-sm-1"
+            tittle="Revisión de constancias"
+        />
     </x-template.app-header>
 
     <x-template.app-card>
