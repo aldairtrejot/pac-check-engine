@@ -60,7 +60,6 @@
 
     <br />
 
-    <!-- Spinner -->
     <tableSpinner ref="spinnerRef" />
 
     <!-- Tabla -->
@@ -78,7 +77,7 @@
         <tbody>
           <tableEmpty v-if="item.length === 0" :colspan="4" />
 
-          <tr v-for="row in item" :key="row.id">
+          <tr v-for="row in item" :key="row.id_respuesta">
             <td class="text-center">
               <div class="button-container">
                 <tableButtonDefault
@@ -86,7 +85,7 @@
                   icon="fa fa-info-circle"
                   label="Detalles"
                   @click="openDetails"
-                  :clickEventPayload="row.id"
+                  :clickEventPayload="row.id_respuesta"
                 />
               </div>
             </td>
@@ -100,7 +99,7 @@
             </td>
 
             <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.estatus }}</span>
+              <span class="text-secondary text-xs font-weight-bold">{{ row.estatus_txt }}</span>
             </td>
           </tr>
         </tbody>
@@ -109,75 +108,272 @@
 
     <tableFooter :row="row" :rowsAll="rowsAll" />
 
-    <!-- MODAL: DETALLES -->
+    <!-- MODAL: DETALLES (sin fondo oscuro, estilo claro institucional) -->
     <div class="modal fade" id="modal_constancia_detalles" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content" style="border-radius: 14px;">
-          <div class="modal-header">
-            <h5 class="modal-title">Detalles de constancia</h5>
+        <div class="modal-content" style="border-radius: 16px; overflow:hidden;">
+
+          <!-- Header blanco, acento institucional -->
+          <div
+            class="modal-header"
+            style="
+              background:#ffffff;
+              border-bottom:1px solid #e9ecef;
+              position:relative;
+              padding:16px 16px 14px 16px;
+            "
+          >
+            <div
+              style="
+                position:absolute;
+                left:0; top:0; bottom:0;
+                width:6px;
+                background:#235B4E;
+              "
+            ></div>
+
+            <div class="d-flex align-items-center gap-3 w-100" style="padding-left: 8px;">
+              <span
+                class="d-inline-flex align-items-center justify-content-center"
+                style="
+                  width:42px; height:42px;
+                  border-radius:14px;
+                  background: rgba(16,49,43,.10);
+                  color:#10312B;
+                  flex:0 0 auto;
+                "
+              >
+                <i class="fa fa-certificate"></i>
+              </span>
+
+              <div class="flex-grow-1 min-w-0">
+                <h5 class="modal-title mb-1" style="font-weight:800; color:#10312B; letter-spacing:.2px;">
+                  Detalles de constancia
+                </h5>
+                <div class="text-xs text-muted" style="line-height:1.25;">
+                  Valida la constancia y actualiza el estatus del registro.
+                </div>
+              </div>
+
+              <span
+                class="badge"
+                :class="statusBadgeClass(d.estatus_txt)"
+                style="border-radius:999px; padding:8px 10px; font-weight:800; letter-spacing:.2px;"
+              >
+                {{ d.estatus_txt || 'SIN ESTATUS' }}
+              </span>
+            </div>
+
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
 
-          <div class="modal-body">
-            <div class="row g-2">
-              <div class="col-12 col-md-6">
-                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-                  <span class="text-xs text-secondary" style="min-width:120px;">CURP:</span>
-                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="overflow-wrap:anywhere;">
-                    {{ m_curp || '—' }}
-                  </span>
-                </div>
+          <!-- Body totalmente CLARO (sin fondo oscuro) -->
+          <div class="modal-body" style="background:#ffffff;">
+            <div class="row g-3">
+              <!-- Participante -->
+              <div class="col-12">
+                <div class="border" style="border-radius:14px; padding:14px;">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                      <span
+                        class="d-inline-flex align-items-center justify-content-center"
+                        style="width:34px;height:34px;border-radius:12px;background:rgba(16,49,43,.10);color:#10312B;"
+                      >
+                        <i class="fa fa-user"></i>
+                      </span>
+                      <div>
+                        <div class="text-sm" style="font-weight:800;color:#10312B;">Participante</div>
+                        <div class="text-xs text-muted">Datos de identificación</div>
+                      </div>
+                    </div>
 
-                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-                  <span class="text-xs text-secondary" style="min-width:120px;">Curso:</span>
-                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="overflow-wrap:anywhere;">
-                    {{ m_curso || '—' }}
-                  </span>
-                </div>
+                    <div class="text-xs text-muted d-none d-md-block" style="font-weight:700;">
+                      ID respuesta: <span style="color:#111;">{{ d.id_respuesta ?? '—' }}</span>
+                    </div>
+                  </div>
 
-                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-                  <span class="text-xs text-secondary" style="min-width:120px;">Año:</span>
-                  <span class="text-xs text-dark font-weight-bold flex-grow-1">
-                    {{ m_anio || '—' }}
-                  </span>
-                </div>
-              </div>
+                  <div class="row g-2">
+                    <div class="col-12 col-md-7">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Nombre</div>
+                      <div class="text-sm" style="font-weight:900; color:#111; overflow-wrap:anywhere;">
+                        {{ d.nombre_persona || '—' }}
+                      </div>
+                    </div>
 
-              <div class="col-12 col-md-6">
-                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-                  <span class="text-xs text-secondary" style="min-width:120px;">Estatus:</span>
-                  <span class="text-xs text-dark font-weight-bold flex-grow-1">
-                    {{ m_estatus || '—' }}
-                  </span>
-                </div>
+                    <div class="col-12 col-md-5">
+                      <div class="text-xs text-secondary" style="font-weight:800;">CURP</div>
+                      <div class="text-sm" style="font-weight:900; color:#111; overflow-wrap:anywhere;">
+                        {{ d.curp || '—' }}
+                      </div>
+                    </div>
 
-                <div class="mt-2">
-                  <a
-                    v-if="m_link_constancia"
-                    :href="m_link_constancia"
-                    target="_blank"
-                    class="btn btn-sm btn-outline-primary"
-                    style="border-radius: 10px;"
-                  >
-                    <i class="fa fa-eye me-1"></i> Ver constancia
-                  </a>
-                  <div v-else class="text-muted text-sm">
-                    Sin constancia ligada (pendiente BD).
+                    <div class="col-12 col-md-7">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Correo</div>
+                      <div class="text-sm" style="font-weight:800; color:#111; overflow-wrap:anywhere;">
+                        {{ d.correo_electronico || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-5">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Año</div>
+                      <div class="text-sm" style="font-weight:900; color:#111;">
+                        {{ d.anio ?? '—' }}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <hr />
+              <!-- Curso -->
+              <div class="col-12 col-lg-8">
+                <div class="border" style="border-radius:14px; padding:14px; height:100%;">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <span
+                      class="d-inline-flex align-items-center justify-content-center"
+                      style="width:34px;height:34px;border-radius:12px;background:rgba(16,49,43,.10);color:#10312B;"
+                    >
+                      <i class="fa fa-book"></i>
+                    </span>
+                    <div>
+                      <div class="text-sm" style="font-weight:800;color:#10312B;">Curso</div>
+                      <div class="text-xs text-muted">Información del curso y periodo</div>
+                    </div>
+                  </div>
 
-            <!-- Placeholder para los datos aún no definidos -->
-            <div class="alert alert-light border mb-0" style="border-radius: 12px;">
-              <div class="text-xs text-secondary fw-bold mb-1">Información adicional (pendiente de definición)</div>
-              <pre class="mb-0" style="white-space:pre-wrap;">{{ m_detalles_pretty }}</pre>
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Nombre del curso</div>
+                      <div class="text-sm" style="font-weight:900; color:#111; overflow-wrap:anywhere;">
+                        {{ d.nombre_curso || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Instancia</div>
+                      <div class="text-sm" style="font-weight:800; color:#111; overflow-wrap:anywhere;">
+                        {{ d.instancia || d.instancia_otro || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Fecha inicio</div>
+                      <div class="text-sm" style="font-weight:900; color:#111;">
+                        {{ d.fecha_inicio || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Fecha fin</div>
+                      <div class="text-sm" style="font-weight:900; color:#111;">
+                        {{ d.fecha_final || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Horas</div>
+                      <div class="text-sm" style="font-weight:900; color:#111;">
+                        {{ d.horas_realizadas || '—' }}
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="text-xs text-secondary" style="font-weight:800;">Calificación</div>
+                      <div class="text-sm" style="font-weight:900; color:#111;">
+                        {{ d.calificacion || '—' }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Evidencia -->
+              <div class="col-12 col-lg-4">
+                <div class="border" style="border-radius:14px; padding:14px; height:100%;">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <span
+                      class="d-inline-flex align-items-center justify-content-center"
+                      style="width:34px;height:34px;border-radius:12px;background:rgba(16,49,43,.10);color:#10312B;"
+                    >
+                      <i class="fa fa-file-pdf"></i>
+                    </span>
+                    <div>
+                      <div class="text-sm" style="font-weight:800;color:#10312B;">Evidencia</div>
+                      <div class="text-xs text-muted">Constancia asociada</div>
+                    </div>
+                  </div>
+
+                  <div class="text-xs text-muted mb-2" style="line-height:1.25;">
+                    Abre el documento para validar que corresponda al registro.
+                  </div>
+
+                  <a
+                    v-if="d.link_constancia"
+                    :href="d.link_constancia"
+                    target="_blank"
+                    rel="noopener"
+                    class="btn btn-sm text-white w-100 d-inline-flex align-items-center justify-content-center gap-2"
+                    style="
+                      background:#235B4E;
+                      border-color:#235B4E;
+                      border-radius:12px;
+                      padding:10px 12px;
+                      box-shadow: 0 10px 18px rgba(16, 49, 43, 0.18);
+                      font-weight:800;
+                      letter-spacing:.2px;
+                    "
+                  >
+                    <i class="fa fa-eye"></i>
+                    Ver constancia
+                    <i class="fa fa-external-link-alt ms-1" style="opacity:.9;"></i>
+                  </a>
+
+                  <button
+                    v-else
+                    type="button"
+                    class="btn btn-sm w-100"
+                    disabled
+                    style="
+                      background:#E9ECEF;
+                      border-color:#DEE2E6;
+                      color:#6c757d;
+                      border-radius:12px;
+                      padding:10px 12px;
+                      font-weight:800;
+                    "
+                  >
+                    Constancia no disponible
+                  </button>
+
+                  <div class="mt-2 text-xs text-muted">
+                    Si el link es incorrecto, se corregirá desde la base de datos.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Información adicional -->
+              <div class="col-12">
+                <div class="border" style="border-radius:14px; padding:14px;">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <span
+                      class="d-inline-flex align-items-center justify-content-center"
+                      style="width:34px;height:34px;border-radius:12px;background:rgba(16,49,43,.10);color:#10312B;"
+                    >
+                      <i class="fa fa-clipboard-list"></i>
+                    </span>
+                    <div>
+                      <div class="text-sm" style="font-weight:800;color:#10312B;">Información adicional</div>
+                      <div class="text-xs text-muted">Pendiente de definición por el equipo</div>
+                    </div>
+                  </div>
+
+                  <pre class="mb-0" style="white-space:pre-wrap; font-size: 12px; color:#444;">{{ extraPretty }}</pre>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="modal-footer">
+          <!-- Footer -->
+          <div class="modal-footer" style="background:#fff; border-top:1px solid #e9ecef;">
             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
               Cerrar
             </button>
@@ -185,8 +381,8 @@
             <button
               type="button"
               class="btn btn-sm text-white"
-              style="background:#8B0000;border-color:#8B0000;"
-              @click="updateStatus('RECHAZADA')"
+              style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
+              @click="updateStatus('RECHAZAR')"
             >
               <i class="fa fa-times me-1"></i> Rechazar
             </button>
@@ -194,8 +390,8 @@
             <button
               type="button"
               class="btn btn-sm text-white"
-              style="background:#235B4E;border-color:#235B4E;"
-              @click="updateStatus('ACEPTADA')"
+              style="background:#235B4E;border-color:#235B4E;border-radius:12px;"
+              @click="updateStatus('ACEPTAR')"
             >
               <i class="fa fa-check me-1"></i> Aceptar
             </button>
@@ -213,11 +409,9 @@ import axios from '@axios'
 import { notyf } from '@components/notyf.js'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
 
-// Helpers tabla
 import { setupTableEvents } from '@helpers/table/table-events.vue'
 import { handlePagination } from '@helpers/table/table-pagination.vue'
 
-// UI tabla
 import tableTittle from '@helpers/table/table-tittle.vue'
 import tableFooter from '@helpers/table/table-footer.vue'
 import tableSpinner from '@helpers/table/table-spinner.vue'
@@ -226,13 +420,14 @@ import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputField from '@helpers/form/input-field.vue'
 
-// Estado filtros
 const gridx3 = ref('col-12 col-md-6 mb-6')
+
+// filtros
 const f_curp = ref('')
 const f_curso = ref('')
 const f_anio = ref('')
 
-// Estado tabla
+// tabla
 const item = ref([])
 const rowsAll = ref(0)
 const row = ref(0)
@@ -241,16 +436,20 @@ const limit = ref(5)
 const searchTerm = ref('')
 const spinnerRef = ref(null)
 
-// Modal (datos base + placeholder)
+// modal
 const selectedId = ref(null)
-const m_curp = ref('')
-const m_curso = ref('')
-const m_anio = ref('')
-const m_estatus = ref('')
-const m_link_constancia = ref('')
-const m_detalles_pretty = ref('—')
+const d = ref({})
+const extraPretty = ref('Pendiente de definición por el equipo.')
 
-// Fetch tabla
+// Badge institucional por estatus
+function statusBadgeClass(statusTxt) {
+  const s = String(statusTxt || '').toUpperCase().trim()
+  if (s === 'ACEPTADA') return 'bg-success'
+  if (s === 'RECHAZADA') return 'bg-danger'
+  if (s === 'PENDIENTE') return 'bg-secondary'
+  return 'bg-dark'
+}
+
 const fetchTableData = async () => {
   const MIN_SPINNER_DURATION = 1000
   const startTime = Date.now()
@@ -273,7 +472,6 @@ const fetchTableData = async () => {
     rowsAll.value = data.allRow || 0
     row.value = data.row || 0
 
-    // Toast si no hay resultados y el usuario filtró
     const hasFilters = !!(f_curp.value || f_curso.value || f_anio.value || searchTerm.value)
     if (hasFilters && (data.allRow || 0) === 0) {
       notyf.error('No se encontraron constancias con los filtros seleccionados.')
@@ -311,51 +509,23 @@ function search_function() {
   fetchTableData()
 }
 
-// Abrir modal Detalles
-async function openDetails(id) {
-  if (!id) return
-  selectedId.value = id
-
-  // reset
-  m_curp.value = ''
-  m_curso.value = ''
-  m_anio.value = ''
-  m_estatus.value = ''
-  m_link_constancia.value = ''
-  m_detalles_pretty.value = '—'
+async function openDetails(id_respuesta) {
+  if (!id_respuesta) return
+  selectedId.value = id_respuesta
+  d.value = {}
+  extraPretty.value = 'Pendiente de definición por el equipo.'
 
   try {
     showSpinner()
+    const { data } = await axios.post('/constancias/data', { id_respuesta })
 
-    const { data } = await axios.post('/constancias/data', { id })
     if (!data.status) {
       notyf.error(data.message ?? 'No se pudo cargar el detalle.')
       return
     }
 
-    const d = data.data || {}
-
-    // ✅ Ajusta llaves según BD final:
-    m_curp.value = d.curp ?? ''
-    m_curso.value = d.nombre_curso ?? ''
-    m_anio.value = d.anio ?? ''
-    m_estatus.value = d.estatus ?? ''
-
-    // Link viene de BD (aún por definir):
-    // ejemplo: d.link_constancia (puede ser url completa o ruta)
-    m_link_constancia.value = d.link_constancia ?? ''
-
-    // Placeholder de “datos no definidos”: si luego guardan json, aquí lo pintas
-    // ejemplo: d.detalles_json
-    if (d.detalles_json) {
-      try {
-        m_detalles_pretty.value = JSON.stringify(d.detalles_json, null, 2)
-      } catch (e) {
-        m_detalles_pretty.value = String(d.detalles_json)
-      }
-    } else {
-      m_detalles_pretty.value = 'Pendiente de definición por el equipo.'
-    }
+    d.value = data.data || {}
+    extraPretty.value = 'Pendiente de definición por el equipo.'
 
     $('#modal_constancia_detalles').modal('show')
   } catch (e) {
@@ -365,16 +535,14 @@ async function openDetails(id) {
   }
 }
 
-// Aceptar / Rechazar
-async function updateStatus(estatus) {
+async function updateStatus(accion) {
   if (!selectedId.value) return
 
   try {
     showSpinner()
-
     const { data } = await axios.post('/constancias/estatus', {
-      id: selectedId.value,
-      estatus,
+      id_respuesta: selectedId.value,
+      accion, // ACEPTAR | RECHAZAR
     })
 
     if (!data.status) {
@@ -383,11 +551,9 @@ async function updateStatus(estatus) {
     }
 
     notyf.success(data.message ?? 'Estatus actualizado.')
-    m_estatus.value = data.estatus ?? estatus
 
-    // actualizar en la tabla local
-    const idx = item.value.findIndex(x => String(x.id) === String(selectedId.value))
-    if (idx >= 0) item.value[idx].estatus = m_estatus.value
+    // refrescar tabla
+    fetchTableData()
 
     $('#modal_constancia_detalles').modal('hide')
   } catch (e) {

@@ -8,6 +8,6 @@ class ViewConstanciasController extends Controller
 {
     public function view()
     {
-        return view('constancias.table');
+        return view('constancias.index');
     }
 }

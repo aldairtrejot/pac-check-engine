@@ -8,26 +8,31 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateEstatusConstanciasController extends Controller
 {
+    private const ESTATUS_ACEPTADA  = 2;
+    private const ESTATUS_RECHAZADA = 3;
+
     public function update(Request $request)
     {
-        $id = (int) $request->input('id', 0);
-        $estatus = trim((string) $request->input('estatus', ''));
+        $id = trim((string) $request->input('id_respuesta', ''));
+        $accion = strtoupper(trim((string) $request->input('accion', ''))); // ACEPTAR | RECHAZAR
 
-        $allowed = ['ACEPTADA', 'RECHAZADA'];
-
-        if ($id <= 0) {
-            return response()->json(['status' => false, 'message' => 'ID inválido.'], 422);
-        }
-        if (!in_array($estatus, $allowed, true)) {
-            return response()->json(['status' => false, 'message' => 'Estatus inválido.'], 422);
+        if ($id === '') {
+            return response()->json(['status' => false, 'message' => 'id_respuesta inválido.'], 422);
         }
 
-        // ✅ TODO: Cambiar a la tabla/columnas reales cuando BD quede definida
-        $updated = DB::table('pac_constancias')
-            ->where('id', $id)
+        if (!in_array($accion, ['ACEPTAR', 'RECHAZAR'], true)) {
+            return response()->json(['status' => false, 'message' => 'Acción inválida.'], 422);
+        }
+
+        $estatus = $accion === 'ACEPTAR' ? self::ESTATUS_ACEPTADA : self::ESTATUS_RECHAZADA;
+
+        // ✅ IMPORTANTE: forzamos schema public
+        $updated = DB::table('public.tbl_constancias')
+            ->where('id_respuesta', $id)
             ->update([
                 'estatus' => $estatus,
-                'updated_at' => now(),
+                'fecha_ini_accion' => DB::raw("COALESCE(fecha_ini_accion, CURRENT_DATE)"),
+                'fecha_ultima_accion' => DB::raw("CURRENT_DATE"),
             ]);
 
         if (!$updated) {
@@ -39,7 +44,7 @@ class UpdateEstatusConstanciasController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => "Estatus actualizado a {$estatus}.",
+            'message' => 'Estatus actualizado correctamente.',
             'estatus' => $estatus,
         ]);
     }
