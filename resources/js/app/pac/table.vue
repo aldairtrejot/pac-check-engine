@@ -80,6 +80,7 @@
         <tbody>
           <tableEmpty v-if="item.length === 0" :colspan="5" />
 
+          <!-- ✅ FIX: key por id (id_empl_accion) -->
           <tr v-for="row in item" :key="row.id">
             <td class="text-center">
               <div class="button-container">
@@ -129,136 +130,112 @@
   </div>
 
   <!-- Modal DATOS EMPLEADO -->
-  <modalTemplate
-    modalId="modal_password_user"
-    title="Datos de empleado"
-    :onConfirm="button_confirm"
-    size="lg"
-  >
-    <!-- ✅ un SOLO form -->
+  <modalTemplate modalId="modal_password_user" title="Datos de empleado" :onConfirm="button_confirm" size="lg">
     <form role="form" id="data_form_x" enctype="multipart/form-data">
       <div class="row">
         <li class="list-group-item border-0 p-3 mb-2 bg-gray-100 border-radius-lg">
           <div class="d-flex flex-column w-100">
-            <!-- Nombre -->
             <h6 class="text-sm mb-2" style="font-weight:600; letter-spacing:.2px;">
               {{ m_nombre }}
             </h6>
 
-<!-- ✅ 2 columnas ultra compactas (misma estructura, solo con ":" y alineación) -->
-<div class="row g-2">
-  <!-- Columna izquierda -->
-  <div class="col-12 col-md-6">
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">CURP:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_curp }}
-      </span>
-    </div>
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">CURP:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_curp }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">RFC:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_rfc }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">RFC:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_rfc }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Cod. Puesto:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_codigo_puesto }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Cod. Puesto:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_codigo_puesto }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Puesto:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_puesto }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Puesto:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_puesto }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Acción:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_accion }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Acción:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_accion }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-0" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Horas acum.:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_total_horas }}
-      </span>
-    </div>
-    <!-- ✅ NUEVO: Calificación debajo de Horas acum. -->
-<div class="d-flex align-items-start mb-0 mt-1" style="line-height:1.28;">
-  <span class="text-xs text-secondary" style="min-width:120px;">Calificación:</span>
-  <span class="text-xs text-dark font-weight-bold flex-grow-1"
-        style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-    {{ m_calificacion || '—' }}
-  </span>
-</div>
-  </div>
+                <div class="d-flex align-items-start mb-0" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Horas acum.:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_total_horas }}
+                  </span>
+                </div>
 
-  <!-- Columna derecha -->
-  <div class="col-12 col-md-6">
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Contratación:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_contratacion }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-0 mt-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Calificación:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_calificacion || '—' }}
+                  </span>
+                </div>
+              </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Nivel:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_nivel_salarial }}
-      </span>
-    </div>
+              <div class="col-12 col-md-6">
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Contratación:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_contratacion }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">CLUES:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_clave_clues }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Nivel:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_nivel_salarial }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Entidad:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_entidad }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">CLUES:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_clave_clues }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Unidad:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_unidad || '—' }}
-      </span>
-    </div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Entidad:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_entidad }}
+                  </span>
+                </div>
 
-    <div class="d-flex align-items-start mb-0" style="line-height:1.28;">
-      <span class="text-xs text-secondary" style="min-width:120px;">Coordinación:</span>
-      <span class="text-xs text-dark font-weight-bold flex-grow-1"
-            style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
-        {{ m_coordinacion || '—' }}
-      </span>
-    </div>
-  </div>
-</div>
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Unidad:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_unidad || '—' }}
+                  </span>
+                </div>
 
-            <!-- Botón -->
+                <div class="d-flex align-items-start mb-0" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Coordinación:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_coordinacion || '—' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div class="d-flex justify-content-end mt-2">
               <button
                 type="button"
@@ -293,36 +270,12 @@
         </div>
 
         <div class="row" style="margin-top: -70px !important;">
-          <inputSelect
-            v-model="listSelectStatus"
-            :options="listOptionStatus"
-            id="id_cat_estatus"
-            label="Estatus"
-            :multiple="false"
-            grid="col-md-6 col-sm-12"
-          />
-
-          <inputSelect
-            v-model="listSelectInstance"
-            :options="listOptionInstance"
-            id="id_instancia"
-            :multiple="false"
-            label="Instancia"
-            grid="col-md-6 col-sm-12"
-          />
+          <inputSelect v-model="listSelectStatus" :options="listOptionStatus" id="id_cat_estatus" label="Estatus" :multiple="false" grid="col-md-6 col-sm-12" />
+          <inputSelect v-model="listSelectInstance" :options="listOptionInstance" id="id_instancia" :multiple="false" label="Instancia" grid="col-md-6 col-sm-12" />
         </div>
 
-        <!-- ✅ Finalidad + Calificación -->
         <div class="row g-2 mt-2">
-          <inputSelect
-            v-model="listSelectFinalidad"
-            :options="listOptionFinalidad"
-            id="id_finalidad"
-            label="Finalidad"
-            :multiple="false"
-            grid="col-md-6 col-sm-12"
-          />
-
+          <inputSelect v-model="listSelectFinalidad" :options="listOptionFinalidad" id="id_finalidad" label="Finalidad" :multiple="false" grid="col-md-6 col-sm-12" />
           <inputField
             type="number"
             label="Calificación (70–100)"
@@ -337,66 +290,31 @@
         </div>
 
         <div class="row">
-          <inputSelect
-            v-model="listSelectTematica"
-            :options="listOptionTematica"
-            id="id_cat_tematica"
-            label="Temática"
-            :multiple="false"
-            grid="col-12"
-          />
+          <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica" label="Temática" :multiple="false" grid="col-12" />
         </div>
 
         <div class="row">
-          <inputField
-            grid="col-12"
-            label="Observaciones"
-            id="m_observaciones"
-            v-model="m_observaciones"
-            :uppercase="true"
-          />
+          <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones" :uppercase="true" />
         </div>
 
         <div class="row">
-          <inputCheckbox
-            v-model="m_eval_aprendizaje"
-            :label="'¿Realizó la evaluación de aprendizaje?'"
-            :id="'m_eval_aprendizaje'"
-          />
+          <inputCheckbox v-model="m_eval_aprendizaje" :label="'¿Realizó la evaluación de aprendizaje?'" :id="'m_eval_aprendizaje'" />
         </div>
       </div>
     </form>
   </modalTemplate>
 
   <!-- MODAL: AGREGAR CURSO AL EMPLEADO -->
-  <modalTemplate
-    modalId="modal_add_course"
-    title="Agregar curso al empleado"
-    :onConfirm="confirmAddCourse"
-    size="md"
-  >
+  <modalTemplate modalId="modal_add_course" title="Agregar curso al empleado" :onConfirm="confirmAddCourse" size="md">
     <form id="form_add_course">
       <div class="row">
-        <inputSelect
-          v-model="selectedCourse"
-          :options="courseOptions"
-          id="id_accion_add"
-          label="Curso"
-          :multiple="false"
-          grid="col-12"
-          :required="true"
-        />
+        <inputSelect v-model="selectedCourse" :options="courseOptions" id="id_accion_add" label="Curso" :multiple="false" grid="col-12" :required="true" />
       </div>
     </form>
   </modalTemplate>
 
-  <!-- ✅ MODAL: ASIGNACIÓN DE UNIDAD (PRECARGA BD) -->
-  <modalTemplate
-    modalId="modal_asignacion_unidad"
-    title="Asignación de unidad"
-    :onConfirm="confirmAsignacionUnidad"
-    size="md"
-  >
+  <!-- MODAL: ASIGNACIÓN DE UNIDAD -->
+  <modalTemplate modalId="modal_asignacion_unidad" title="Asignación de unidad" :onConfirm="confirmAsignacionUnidad" size="md">
     <form id="form_asignacion_unidad">
       <div class="p-2">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -406,41 +324,17 @@
 
         <div class="row g-2">
           <div class="col-12 col-md-6">
-            <inputSelect
-              v-model="selectedUnidad"
-              :options="unidadOptions"
-              id="id_unidad"
-              label="Unidad"
-              :multiple="false"
-              grid="col-12"
-              :required="true"
-            />
-            <small class="text-muted d-block mt-1">
-              Elige primero la unidad para cargar sus coordinaciones.
-            </small>
+            <inputSelect v-model="selectedUnidad" :options="unidadOptions" id="id_unidad" label="Unidad" :multiple="false" grid="col-12" :required="true" />
+            <small class="text-muted d-block mt-1">Elige primero la unidad para cargar sus coordinaciones.</small>
           </div>
 
           <div class="col-12 col-md-6">
-            <inputSelect
-              v-model="selectedCoordinacion"
-              :options="coordinacionOptions"
-              id="id_coordinacion"
-              label="Coordinación"
-              :multiple="false"
-              grid="col-12"
-              :required="true"
-            />
-            <small class="text-muted d-block mt-1">
-              Solo se muestran coordinaciones activas relacionadas.
-            </small>
+            <inputSelect v-model="selectedCoordinacion" :options="coordinacionOptions" id="id_coordinacion" label="Coordinación" :multiple="false" grid="col-12" :required="true" />
+            <small class="text-muted d-block mt-1">Solo se muestran coordinaciones activas relacionadas.</small>
           </div>
         </div>
 
-        <div
-          v-if="asignacionActual.unidad || asignacionActual.coordinacion"
-          class="alert alert-light border mt-3 mb-0"
-          style="border-radius: 12px;"
-        >
+        <div v-if="asignacionActual.unidad || asignacionActual.coordinacion" class="alert alert-light border mt-3 mb-0" style="border-radius: 12px;">
           <div class="text-xs text-secondary fw-bold mb-1">Asignación actual</div>
           <div class="text-sm">
             <div><span class="fw-bold">Unidad:</span> {{ asignacionActual.unidad || '—' }}</div>
@@ -517,7 +411,7 @@ const listOptionInstance = ref([])
 const listSelectTematica = ref([])
 const listOptionTematica = ref([])
 
-// ✅ mostrar en modal principal
+// mostrar en modal principal
 const m_unidad = ref('')
 const m_coordinacion = ref('')
 
@@ -525,7 +419,7 @@ const m_coordinacion = ref('')
 const listSelectFinalidad = ref([])
 const listOptionFinalidad = ref([])
 
-// ✅ calificación manual (70..100)
+// calificación manual (70..100)
 const m_calificacion = ref('100')
 const canEditCalificacion = ref(false)
 
@@ -537,13 +431,13 @@ const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
 const courseOptions = ref([])
 
-// ✅ estado para "Asignación de unidad"
+// estado para "Asignación de unidad"
 const selectedUnidad = ref(null)
 const selectedCoordinacion = ref(null)
 const unidadOptions = ref([])
 const coordinacionOptions = ref([])
 
-// ✅ asignación actual (precarga)
+// asignación actual (precarga)
 const asignacionActual = ref({
   unidad: '',
   coordinacion: '',
@@ -562,7 +456,15 @@ watch(m_calificacion, (val) => {
   if (fixed !== String(val)) m_calificacion.value = fixed
 })
 
-// ✅ cuando eligen unidad, cargar coordinaciones relacionadas
+// helper para warning aria-hidden (no afecta el fetch)
+function blurActiveElement() {
+  try {
+    const el = document.activeElement
+    if (el && typeof el.blur === 'function') el.blur()
+  } catch (e) {}
+}
+
+// cuando eligen unidad, cargar coordinaciones relacionadas
 watch(selectedUnidad, async (u) => {
   selectedCoordinacion.value = null
   coordinacionOptions.value = []
@@ -600,7 +502,7 @@ const fetchTableData = async () => {
     rowsAll.value = data.allRow
     row.value = data.row
   } catch (error) {
-    // opcional: notyf.error(...)
+    // opcional
   } finally {
     const elapsed = Date.now() - startTime
     const delay = elapsed < MIN_SPINNER_DURATION ? MIN_SPINNER_DURATION - elapsed : 0
@@ -650,7 +552,7 @@ async function button_confirm() {
   try {
     const form = document.querySelector('#data_form_x')
     const formData = new FormData(form)
-    const key = window._selectkybyemployee
+    const key = window._selectkybyemployee // este es id_empl_accion
 
     formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '')
     formData.append('id_instancia', listSelectInstance.value?.id ?? '')
@@ -662,6 +564,7 @@ async function button_confirm() {
     showSpinner()
     clearErrors()
 
+    // ✅ FIX: backend normalmente espera "id" (no id_respuesta)
     formData.append('id', key)
 
     const response = await axios.post('/pac/save', formData)
@@ -669,13 +572,13 @@ async function button_confirm() {
     if (!response.data.status) {
       clearErrors()
       notyf.error(response.data.message)
+      return
     }
 
-    if (response.data.status) {
-      $('#modal_password_user').modal('hide')
-      notyf.success(response.data.message)
-      fetchTableData()
-    }
+    blurActiveElement()
+    $('#modal_password_user').modal('hide')
+    notyf.success(response.data.message)
+    fetchTableData()
   } catch (error) {
     clearErrors()
     if (error.response && error.response.data.errors) {
@@ -689,13 +592,20 @@ async function button_confirm() {
 
 async function setOption(id) {
   clearErrors()
-  window._selectkybyemployee = id
+  window._selectkybyemployee = id // id_empl_accion
   canEditCalificacion.value = true
 
   showSpinner()
 
   try {
+    // ✅ FIX: backend DataPacController lee $request->id
     const request = await axios.post('/pac/data', { id })
+
+    if (!request.data?.status) {
+      notyf.error(request.data?.message ?? 'No se pudo cargar el empleado.')
+      return
+    }
+
     const data = request.data.data
     const selectx = request.data
 
@@ -714,8 +624,8 @@ async function setOption(id) {
     m_observaciones.value = data.observaciones
     m_duracion_hrs.value = data.duracion_hrs?.toString() || ''
     m_horas_real.value = data.horas_real?.toString() || ''
-    m_eval_aprendizaje.value = data.eval_aprendizaje === true
 
+    m_eval_aprendizaje.value = String(data.eval_aprendizaje ?? '0') === '1' || data.eval_aprendizaje === true
     m_total_horas.value = (selectx.totalHorasReal ?? 0).toString()
 
     listOptionStatus.value = selectx.listOptionStatus ?? []
@@ -730,7 +640,6 @@ async function setOption(id) {
 
     m_calificacion.value = clampCalificacion(data.calificacion ?? 100)
 
-    // ✅ traer unidad/coordinación actuales para mostrarlas en el modal principal
     try {
       const asg = await axios.post('/pac/asignacion-unidad/data', { id })
       m_unidad.value = asg.data?.unidad_txt ?? ''
@@ -739,7 +648,6 @@ async function setOption(id) {
       m_unidad.value = ''
       m_coordinacion.value = ''
     }
-
   } catch (error) {
     notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
@@ -747,7 +655,6 @@ async function setOption(id) {
   }
 }
 
-// Abrir modal "Agregar curso"
 async function openAddCourse(id) {
   selectedEmployeeId.value = id
   selectedCourse.value = null
@@ -761,7 +668,6 @@ async function openAddCourse(id) {
   }
 }
 
-// Confirmar alta de curso para el empleado
 async function confirmAddCourse() {
   if (!selectedEmployeeId.value || !selectedCourse.value?.id) {
     notyf.error('Selecciona un curso.')
@@ -779,6 +685,7 @@ async function confirmAddCourse() {
       return
     }
 
+    blurActiveElement()
     $('#modal_add_course').modal('hide')
     notyf.success(data.message ?? 'Curso agregado correctamente.')
     fetchTableData()
@@ -787,9 +694,6 @@ async function confirmAddCourse() {
   }
 }
 
-/**
- * ✅ Abrir "Asignación de unidad" (precarga BD)
- */
 async function openAsignacionUnidad() {
   const id = window._selectkybyemployee
   if (!id) {
@@ -804,7 +708,6 @@ async function openAsignacionUnidad() {
   coordinacionOptions.value = []
   asignacionActual.value = { unidad: '', coordinacion: '' }
 
-  // 1) unidades
   try {
     const { data } = await axios.post('/pac/unidades')
     unidadOptions.value = data.listUnidades ?? []
@@ -813,7 +716,6 @@ async function openAsignacionUnidad() {
     return
   }
 
-  // 2) precarga asignación actual
   try {
     const resp = await axios.post('/pac/asignacion-unidad/data', { id })
     const d = resp.data ?? {}
@@ -827,8 +729,7 @@ async function openAsignacionUnidad() {
     const idCoord = d.id_coordinacion ?? null
 
     if (idUnidad) {
-      selectedUnidad.value =
-        unidadOptions.value.find(u => String(u.id) === String(idUnidad)) ?? null
+      selectedUnidad.value = unidadOptions.value.find(u => String(u.id) === String(idUnidad)) ?? null
     }
 
     if (selectedUnidad.value?.id) {
@@ -836,15 +737,13 @@ async function openAsignacionUnidad() {
       coordinacionOptions.value = cx.data.listCoordinaciones ?? []
 
       if (idCoord) {
-        selectedCoordinacion.value =
-          coordinacionOptions.value.find(c => String(c.id) === String(idCoord)) ?? null
+        selectedCoordinacion.value = coordinacionOptions.value.find(c => String(c.id) === String(idCoord)) ?? null
       }
     }
   } catch (e) {
-    // si falla, solo no precarga
+    // no precarga
   }
 
-  // ✅ Siempre que se cierre el modal de asignación, regresamos a "Atender"
   $('#modal_asignacion_unidad')
     .off('hidden.bs.modal.unidad')
     .on('hidden.bs.modal.unidad', async function () {
@@ -854,18 +753,14 @@ async function openAsignacionUnidad() {
       }
     })
 
-  // cerrar Atender
+  blurActiveElement()
   $('#modal_password_user').modal('hide')
 
-  // abrir asignación con delay (evita el “abre y se cierra”)
   setTimeout(() => {
     $('#modal_asignacion_unidad').modal('show')
   }, 350)
 }
 
-/**
- * ✅ Guardar asignación en a2_acciones_capacitacion (unidad/coordinacion)
- */
 async function confirmAsignacionUnidad() {
   const id = selectedEmployeeId.value
 
@@ -897,11 +792,10 @@ async function confirmAsignacionUnidad() {
     notyf.success(data.message ?? 'Unidad y coordinación asignadas correctamente.')
     fetchTableData()
 
-    // refrescar lo visible en el modal principal
     m_unidad.value = data.unidad ?? m_unidad.value
     m_coordinacion.value = data.coordinacion ?? m_coordinacion.value
 
-    // cerrar modal (handler vuelve a "Atender")
+    blurActiveElement()
     $('#modal_asignacion_unidad').modal('hide')
   } catch (error) {
     notyf.error('Error al guardar la asignación.')

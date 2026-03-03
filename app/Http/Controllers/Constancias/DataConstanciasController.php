@@ -24,26 +24,28 @@ class DataConstanciasController extends Controller
         }
 
         /**
-         * ✅ Subconsulta: 1 registro “más reciente” por CURP desde ayo_ib_datos
-         * (por si hay varias filas para el mismo CURP)
+         * ✅ Subconsulta: 1 registro por CURP desde a2_acciones_capacitacion
+         * (evita duplicados si hay múltiples filas por la misma CURP)
+         * Aquí elegimos el "más reciente" por id_cat DESC (ajustable si tienes otra lógica)
          */
-        $ayoLast = DB::raw("
+        $capLast = DB::raw("
             (
                 SELECT DISTINCT ON (UPPER(TRIM(curp)))
                     curp,
-                    nombre_completo
-                FROM public.ayo_ib_datos
+                    nombre,
+                    apellido_paterno,
+                    apellido_materno
+                FROM public.a2_acciones_capacitacion
                 WHERE curp IS NOT NULL AND TRIM(curp) <> ''
                 ORDER BY UPPER(TRIM(curp)),
-                         anio DESC NULLS LAST,
-                         no  DESC NULLS LAST
-            ) as ayo
+                         id_cat DESC NULLS LAST
+            ) as cap
         ");
 
         $row = DB::table('public.tbl_constancias as c')
             ->leftJoin(
-                $ayoLast,
-                DB::raw("UPPER(TRIM(ayo.curp))"),
+                $capLast,
+                DB::raw("UPPER(TRIM(cap.curp))"),
                 '=',
                 DB::raw("UPPER(TRIM(c.curp))")
             )
@@ -61,8 +63,17 @@ class DataConstanciasController extends Controller
 
                 DB::raw("COALESCE(NULLIF(c.hipervinculo,''), NULLIF(c.subir_constancia,'')) AS link_constancia"),
 
-                // ✅ Nombre desde ayo_ib_datos
-                DB::raw("NULLIF(TRIM(ayo.nombre_completo), '') AS nombre_persona"),
+                // ✅ Nombre desde a2_acciones_capacitacion
+                DB::raw("
+                    NULLIF(
+                        TRIM(CONCAT_WS(' ',
+                            NULLIF(TRIM(cap.nombre), ''),
+                            NULLIF(TRIM(cap.apellido_paterno), ''),
+                            NULLIF(TRIM(cap.apellido_materno), '')
+                        )),
+                        ''
+                    ) AS nombre_persona
+                "),
             ])
             ->where('c.id_respuesta', $id)
             ->first();

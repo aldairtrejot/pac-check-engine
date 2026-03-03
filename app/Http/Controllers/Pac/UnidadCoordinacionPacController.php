@@ -78,13 +78,13 @@ class UnidadCoordinacionPacController extends Controller
      * - id_unidad, id_coordinacion
      * - unidad_txt, coordinacion_txt
      */
-   public function dataAsignacion(Request $request)
+ public function dataAsignacion(Request $request)
 {
     try {
         $this->assertAdminCanAsignarUnidad();
 
         $validated = $request->validate([
-            'id' => 'required|integer', // ESTE id ES id_empl_accion
+            'id' => 'required|integer', // id_empl_accion
         ]);
 
         // 1) Resolver empleado desde a2_acciones_empleados
@@ -100,68 +100,57 @@ class UnidadCoordinacionPacController extends Controller
             ], 200);
         }
 
-        // 2) Buscar fila en a2_acciones_capacitacion por id_puesto (y curp opcional)
+        // 2) Leer asignación actual desde a2_acciones_capacitacion (IDs reales)
         $cap = DB::table('public.a2_acciones_capacitacion')
-            ->select('unidad as unidad_txt', 'coordinacion as coordinacion_txt')
+            ->select('id_unidad', 'id_coordinacion')
             ->where('id_puesto', (int) $emp->id_puesto)
-            // si quieres amarrarlo más, deja esta línea:
             ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
             ->first();
 
-        if (! $cap) {
-            return response()->json([
-                'status'  => true,
-                'id_unidad' => null,
-                'id_coordinacion' => null,
-                'unidad_txt' => '',
-                'coordinacion_txt' => '',
-            ], 200);
+        $idUnidad = $cap->id_unidad ?? null;
+        $idCoord  = $cap->id_coordinacion ?? null;
+
+        $unidadTxt = '';
+        $coordTxt  = '';
+
+        if ($idUnidad) {
+            $unidadTxt = (string) DB::table('public.cat_unidades')
+                ->where('id_unidad', (int) $idUnidad)
+                ->value('nombre_unidad');
         }
 
-        // 3) Texto -> IDs (para precargar selects)
-        $idUnidad = null;
-        $idCoord  = null;
-
-        if (!empty($cap->unidad_txt)) {
-            $idUnidad = DB::table('public.cat_unidades')
-                ->whereRaw('TRIM(UPPER(nombre_unidad)) = TRIM(UPPER(?))', [$cap->unidad_txt])
-                ->value('id_unidad');
-        }
-
-        if (!empty($cap->coordinacion_txt)) {
-            $idCoord = DB::table('public.cat_coordinaciones')
-                ->whereRaw('TRIM(UPPER(nombre_coordinacion)) = TRIM(UPPER(?))', [$cap->coordinacion_txt])
-                ->value('id_coordinacion');
+        if ($idCoord) {
+            $coordTxt = (string) DB::table('public.cat_coordinaciones')
+                ->where('id_coordinacion', (int) $idCoord)
+                ->value('nombre_coordinacion');
         }
 
         return response()->json([
             'status' => true,
             'id_unidad' => $idUnidad,
             'id_coordinacion' => $idCoord,
-            'unidad_txt' => (string) ($cap->unidad_txt ?? ''),
-            'coordinacion_txt' => (string) ($cap->coordinacion_txt ?? ''),
+            'unidad_txt' => $unidadTxt,
+            'coordinacion_txt' => $coordTxt,
         ], 200);
 
     } catch (\Throwable $th) {
         Log::error('PAC dataAsignacion ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
-
         return response()->json([
             'status'  => false,
             'message' => 'No se pudo cargar la asignación.',
         ], 200);
     }
 }
-
     /**
      * ✅ Guarda asignación (escribe texto) en a2_acciones_capacitacion.unidad / coordinacion
      */
-   public function saveAsignacion(Request $request)
+public function saveAsignacion(Request $request)
 {
     try {
         $this->assertAdminCanAsignarUnidad();
 
         $validated = $request->validate([
-            'id'              => 'required|integer', // ESTE id ES id_empl_accion
+            'id'              => 'required|integer', // id_empl_accion
             'id_unidad'       => 'required|integer',
             'id_coordinacion' => 'required|integer',
         ]);
@@ -180,22 +169,6 @@ class UnidadCoordinacionPacController extends Controller
             ], 200);
         }
 
-        // nombres (texto)
-        $unidadTxt = DB::table('public.cat_unidades')
-            ->where('id_unidad', (int) $validated['id_unidad'])
-            ->value('nombre_unidad');
-
-        $coordTxt = DB::table('public.cat_coordinaciones')
-            ->where('id_coordinacion', (int) $validated['id_coordinacion'])
-            ->value('nombre_coordinacion');
-
-        if (! $unidadTxt || ! $coordTxt) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'No se pudo resolver el nombre de unidad o coordinación.',
-            ], 200);
-        }
-
         // 1) Resolver empleado desde a2_acciones_empleados
         $emp = DB::table('public.a2_acciones_empleados')
             ->select('id_puesto', 'curp')
@@ -209,39 +182,46 @@ class UnidadCoordinacionPacController extends Controller
             ], 200);
         }
 
-        // 2) Actualizar a2_acciones_capacitacion por id_puesto (+curp)
+        // 2) Actualizar IDs reales en a2_acciones_capacitacion
         $updated = DB::table('public.a2_acciones_capacitacion')
             ->where('id_puesto', (int) $emp->id_puesto)
             ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
             ->update([
-                'unidad' => (string) $unidadTxt,
-                'coordinacion' => (string) $coordTxt,
+                'id_unidad'       => (int) $validated['id_unidad'],
+                'id_coordinacion' => (int) $validated['id_coordinacion'],
             ]);
 
         if (! $updated) {
             return response()->json([
                 'status'  => false,
-                'message' => 'No se actualizó el registro (no se encontró coincidencia en capacitación por id_puesto/curp).',
+                'message' => 'No se actualizó (no se encontró coincidencia en capacitación por id_puesto/curp).',
             ], 200);
         }
+
+        // textos para refrescar modal
+        $unidadTxt = (string) DB::table('public.cat_unidades')
+            ->where('id_unidad', (int) $validated['id_unidad'])
+            ->value('nombre_unidad');
+
+        $coordTxt = (string) DB::table('public.cat_coordinaciones')
+            ->where('id_coordinacion', (int) $validated['id_coordinacion'])
+            ->value('nombre_coordinacion');
 
         return response()->json([
             'status'  => true,
             'message' => 'Unidad y coordinación asignadas correctamente.',
-            'unidad'  => (string) $unidadTxt,
-            'coordinacion' => (string) $coordTxt,
+            'unidad'  => $unidadTxt,
+            'coordinacion' => $coordTxt,
         ], 200);
 
     } catch (\Throwable $th) {
         Log::error('PAC saveAsignacion ERROR: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
-
         return response()->json([
             'status'  => false,
             'message' => 'Ocurrió un error al guardar la asignación.',
         ], 200);
     }
 }
-
     /**
      * ✅ Permiso: solo admin (mismo estilo que tu CoursePacController)
      */

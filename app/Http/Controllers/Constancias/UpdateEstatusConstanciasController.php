@@ -9,10 +9,14 @@ use Illuminate\Support\Facades\Log;
 
 class UpdateEstatusConstanciasController extends Controller
 {
-    /**
-     * ACEPTAR: procesa y carga en Mi plantilla (a2_acciones_empleados)
-     * RECHAZAR: por ahora NO toca mi plantilla (se puede definir luego)
-     */
+    // cat_constancia_estatus (ajusta si tu catálogo maneja otros IDs)
+    private const CONST_PENDIENTE = 1;
+    private const CONST_CONCLUIDO = 2;
+    private const CONST_RECHAZADO = 3; // si no existe en tu catálogo, cámbialo o quítalo
+
+    // cat_estatus (plantilla) -> solo para que no sea NULL
+    // tu lista: 1=VIGENTE, 2=ALTA, 3=BAJA, 4=NO VIGENTE
+    private const PLANTILLA_ID_CAT_ESTATUS_DEFAULT = 1;
 
     public function update(Request $request)
     {
@@ -26,22 +30,35 @@ class UpdateEstatusConstanciasController extends Controller
             $accion      = strtoupper(trim((string) $request->accion)); // ACEPTAR | RECHAZAR
 
             if (!in_array($accion, ['ACEPTAR', 'RECHAZAR'], true)) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Acción inválida.',
-                ], 200);
+                return response()->json(['status' => false, 'message' => 'Acción inválida.'], 200);
             }
 
+            // ✅ RECHAZAR: solo cambia estatus en constancias
             if ($accion === 'RECHAZAR') {
-                // ✅ aquí luego definimos si se guarda motivo o si impacta algo más
+                $updated = DB::table('public.tbl_constancias')
+                    ->where('id_respuesta', $idRespuesta)
+                    ->update([
+                        'estatus' => self::CONST_RECHAZADO,
+                        'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_DATE)"),
+                        'fecha_ultima_accion' => DB::raw("CURRENT_DATE"),
+                    ]);
+
                 return response()->json([
-                    'status'  => true,
-                    'message' => 'Registro rechazado (pendiente definir impacto en Mi plantilla).',
+                    'status'  => (bool) $updated,
+                    'message' => $updated ? 'Constancia rechazada.' : 'Registro no encontrado.',
                 ], 200);
             }
 
             // ✅ ACEPTAR
             return DB::transaction(function () use ($idRespuesta) {
+
+                // === columnas reales de a2_acciones_empleados (para no insertar columnas que no existen) ===
+                $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
+                $colSet  = array_flip($colsEmp);
+
+                $hasCalificacion = isset($colSet['calificacion']);         // ✅ tu BD actual: NO existe
+                $hasHorasProg    = isset($colSet['horas_progamadas']);     // ✅ sí existe en tu DDL
+                $hasEvalApr      = isset($colSet['eval_aprendizaje']);     // ✅ sí existe
 
                 // 1) Traer constancia
                 $c = DB::table('public.tbl_constancias as c')
@@ -62,178 +79,198 @@ class UpdateEstatusConstanciasController extends Controller
 
                 if (!$c) {
                     return response()->json([
-                        'status'  => false,
+                        'status' => false,
                         'message' => 'Registro de constancia no encontrado.',
                     ], 200);
                 }
 
-                $curp       = trim((string) ($c->curp ?? ''));
-                $nombreCurso = trim((string) ($c->nombre_curso ?? ''));
-                $idPuesto   = trim((string) ($c->id_puesto ?? ''));
+                $curp        = trim((string) ($c->curp ?? ''));
+                $cursoTxt    = trim((string) ($c->nombre_curso ?? ''));
+                $idPuestoTxt = trim((string) ($c->id_puesto ?? ''));
 
-                if ($curp === '' || $nombreCurso === '') {
+                if ($curp === '' || $cursoTxt === '' || $idPuestoTxt === '') {
                     return response()->json([
                         'status'  => false,
-                        'message' => 'El registro no tiene CURP o nombre de curso.',
+                        'message' => 'Faltan datos en la constancia (CURP, curso o id_puesto).',
                     ], 200);
                 }
 
-                // 2) Validar que el curso exista en catálogo (a1_cat_acciones)
+                // 2) Validar curso exista en catálogo (a1_cat_acciones)
                 $accionCat = DB::table('public.a1_cat_acciones')
-                    ->select(['id_accion', 'duracion_hrs', 'nombre_accion'])
-                    ->whereRaw('TRIM(UPPER(nombre_accion)) = TRIM(UPPER(?))', [$nombreCurso])
+                    ->select(['id_accion', 'duracion_hrs'])
+                    ->whereRaw('TRIM(UPPER(nombre_accion)) = TRIM(UPPER(?))', [$cursoTxt])
                     ->first();
 
                 if (!$accionCat) {
                     return response()->json([
                         'status'  => false,
-                        'message' => 'El curso NO existe en el catálogo. No se puede procesar.',
+                        'message' => 'El curso NO existe en el catálogo (a1_cat_acciones). No se puede procesar.',
                     ], 200);
                 }
 
                 $idAccion = (int) $accionCat->id_accion;
                 $horasProgramadas = $accionCat->duracion_hrs ?? null;
 
-                // 3) Resolver id_cat_estatus de "ATENDIDO" (Mi plantilla)
-                $idCatAtendido = DB::table('public.cat_estatus')
-                    ->whereRaw("TRIM(UPPER(descripcion)) = 'ATENDIDO'")
-                    ->value('id_cat_estatus');
+                // 3) Instancia -> id_instancia
+                $instTxt = trim((string) (($c->instancia ?? '') !== '' ? $c->instancia : ($c->instancia_otro ?? '')));
+                $idInstancia = $this->resolveIdInstanciaSafe($instTxt);
 
-                if (!$idCatAtendido) {
+                if (!$idInstancia) {
                     return response()->json([
                         'status'  => false,
-                        'message' => "No existe el estatus 'ATENDIDO' en cat_estatus. Créalo en BD y reintenta.",
+                        'message' => "No se pudo mapear la instancia '{$instTxt}' a un id_instancia del catálogo.",
                     ], 200);
                 }
 
-                // 4) Verificar duplicado (misma lógica que tu PAC):
-                //    mismo id_puesto + curp + id_accion
-                $existe = DB::table('public.a2_acciones_empleados')
-                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuesto])
-                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                    ->where('id_accion', $idAccion)
-                    ->exists();
+                // 4) Temática: a1_cat_acciones.tematica -> cat_tematica.id_tematica
+                $tematicaTxt = $this->resolveTematicaFromCursoSafe($idAccion);
+                if (!$tematicaTxt) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'No se pudo obtener la temática asociada al curso desde el catálogo.',
+                    ], 200);
+                }
 
-                // 5) Parse horas_realizadas (varchar -> float)
+                $idTematica = $this->resolveIdTematicaSafe($tematicaTxt);
+                if (!$idTematica) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => "No se pudo mapear la temática '{$tematicaTxt}' a cat_tematica.",
+                    ], 200);
+                }
+
+                // 5) Trimestre por fecha_inicio
+                $idTrimestre = null;
+                if (!empty($c->fecha_inicio)) {
+                    $m = (int) date('n', strtotime($c->fecha_inicio));
+                    $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
+                }
+
+                if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'La constancia no trae fechas suficientes (fecha_inicio/fecha_final).',
+                    ], 200);
+                }
+
+                // 6) horas_realizadas (varchar -> float)
                 $horasReal = null;
                 $hrsRaw = trim((string) ($c->horas_realizadas ?? ''));
                 if ($hrsRaw !== '') {
                     $hrsRaw = str_replace(',', '.', $hrsRaw);
-                    $n = floatval($hrsRaw);
-                    $horasReal = is_numeric($n) ? $n : null;
+                    $horasReal = (float) $hrsRaw;
                 }
 
-                // 6) Calificación (si viene)
+                // 7) calificación clamp 70..100 (solo si existe columna, si no: va a observaciones)
                 $cal = 100;
                 $calRaw = trim((string) ($c->calificacion ?? ''));
-                if ($calRaw !== '' && is_numeric($calRaw)) {
-                    $cal = (int) $calRaw;
-                }
+                if ($calRaw !== '' && is_numeric($calRaw)) $cal = (int) $calRaw;
                 if ($cal < 70) $cal = 70;
                 if ($cal > 100) $cal = 100;
 
-                // 7) Trimestre por fecha_inicio
-                $idTrimestre = null;
-                if (!empty($c->fecha_inicio)) {
-                    try {
-                        $m = (int) date('n', strtotime($c->fecha_inicio));
-                        $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
-                    } catch (\Throwable $e) {
-                        $idTrimestre = null;
-                    }
-                }
+                // 8) Duplicado: mismo id_puesto + curp + id_accion
+                $existe = DB::table('public.a2_acciones_empleados')
+                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+                    ->where('id_accion', $idAccion)
+                    ->exists();
 
-                // 8) Si existe, NO insertar: solo actualizar datos + ATENDIDO
-                if ($existe) {
-                    DB::table('public.a2_acciones_empleados')
-                        ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuesto])
-                        ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                        ->where('id_accion', $idAccion)
-                        ->update([
-                            'id_cat_estatus'   => $idCatAtendido,
-                            'id_finalidad'     => 6,
-                            'horas_real'       => $horasReal,
-                            'fecha_ini'        => $c->fecha_inicio ?? null,
-                            'fecha_fin'        => $c->fecha_final ?? null,
-                            'id_trimestre'     => $idTrimestre,
-                            'horas_progamadas' => DB::raw('COALESCE(horas_progamadas, '.($horasProgramadas === null ? 'NULL' : $horasProgramadas).')'),
-                            // si tu columna calificacion existe (en tu sistema sí), se actualiza:
-                            'calificacion'     => $cal,
-                            'observaciones'    => DB::raw("COALESCE(observaciones, 'Cargado desde Constancias (id_respuesta: {$c->id_respuesta})')"),
-                        ]);
-
-                    return response()->json([
-                        'status'  => true,
-                        'message' => 'Procesado correctamente. El curso ya existía; se actualizó el empleado a ATENDIDO.',
-                    ], 200);
-                }
-
-                // 9) Si NO existe: insertar NUEVO registro (misma lógica de tu addCourseToEmployee)
-
-                // 🔒 Locks para evitar colisiones en max+1
-                DB::select("SELECT pg_advisory_xact_lock(3001)");
+                // lock para max+1
+                DB::select("SELECT pg_advisory_xact_lock(5001)");
                 DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
 
-                $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
-                $newId = $maxId ? ((int)$maxId + 1) : 1;
+                // Observación base (y metemos calificación aquí si NO existe columna)
+                $obsBase = 'Cargado desde Constancias (id_respuesta: '.$c->id_respuesta.').';
+                if (!$hasCalificacion) {
+                    $obsBase .= ' Calificación: '.$cal.'.';
+                }
 
-                $maxNumCurso = DB::table('public.a2_acciones_empleados')
-                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuesto])
-                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                    ->max('id_num_curso');
+                if ($existe) {
+                    $upd = [
+                        'id_finalidad'     => 6,
+                        'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                        'fecha_ini'        => $c->fecha_inicio,
+                        'fecha_fin'        => $c->fecha_final,
+                        'id_trimestre'     => $idTrimestre,
+                        'id_instancia'     => (string) $idInstancia,
+                        'id_cat_tematica'  => (string) $idTematica,
+                        'horas_real'       => $horasReal,
+                        'observaciones'    => DB::raw("COALESCE(observaciones, '{$obsBase}')"),
+                    ];
 
-                $nextNumCurso = $maxNumCurso ? ((int)$maxNumCurso + 1) : 1;
+                    if ($hasHorasProg) {
+                        $upd['horas_progamadas'] = $horasProgramadas;
+                    }
+                    if ($hasCalificacion) {
+                        $upd['calificacion'] = $cal;
+                    }
 
-                // ✅ Buscar un "base" si existe, para copiar (misma filosofía que tú)
-                $base = DB::table('public.a2_acciones_empleados')
-                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuesto])
-                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                    ->orderBy('id_empl_accion', 'ASC')
-                    ->first();
+                    DB::table('public.a2_acciones_empleados')
+                        ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+                        ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+                        ->where('id_accion', $idAccion)
+                        ->update($upd);
 
-                $payload = $base ? (array) $base : [];
+                } else {
+                    // Insert NUEVO
+                    $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
+                    $newId = $maxId ? ((int)$maxId + 1) : 1;
 
-                // ✅ forzar campos clave
-                $payload['id_empl_accion']   = $newId;
-                $payload['id_puesto']        = $idPuesto !== '' ? $idPuesto : ($payload['id_puesto'] ?? null);
-                $payload['curp']             = $curp;
-                $payload['id_accion']        = $idAccion;
-                $payload['id_finalidad']     = 6;
-                $payload['id_num_curso']     = $nextNumCurso;
+                    $maxNumCurso = DB::table('public.a2_acciones_empleados')
+                        ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+                        ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+                        ->max('id_num_curso');
 
-                // datos desde constancia
-                $payload['horas_real']       = $horasReal;
-                $payload['fecha_ini']        = $c->fecha_inicio ?? null;
-                $payload['fecha_fin']        = $c->fecha_final ?? null;
-                $payload['id_trimestre']     = $idTrimestre;
+                    $nextNumCurso = $maxNumCurso ? ((int)$maxNumCurso + 1) : 1;
 
-                // catálogo
-                $payload['horas_progamadas'] = $horasProgramadas;
-                $payload['id_cat_estatus']   = $idCatAtendido;
+                    $ins = [
+                        'id_empl_accion'   => $newId,
+                        'id_puesto'        => $idPuestoTxt,
+                        'curp'             => $curp,
+                        'id_accion'        => $idAccion,
+                        'id_finalidad'     => 6,
+                        'horas_real'       => $horasReal,
+                        'id_instancia'     => (string) $idInstancia,
+                        'costo_unitario'   => null,
+                        'fecha_ini'        => $c->fecha_inicio,
+                        'fecha_fin'        => $c->fecha_final,
+                        'id_trimestre'     => $idTrimestre,
+                        'id_num_curso'     => $nextNumCurso,
+                        'observaciones'    => $obsBase,
+                        'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                        'id_cat_tematica'  => (string) $idTematica,
+                    ];
 
-                // si existe columna en tu tabla (en tu sistema sí)
-                $payload['calificacion']     = $cal;
+                    if ($hasEvalApr) {
+                        $ins['eval_aprendizaje'] = null;
+                    }
+                    if ($hasHorasProg) {
+                        $ins['horas_progamadas'] = $horasProgramadas;
+                    }
+                    if ($hasCalificacion) {
+                        $ins['calificacion'] = $cal;
+                    }
 
-                // limpia/normaliza campos que no queremos copiar “sucios”
-                $payload['id_instancia']     = $payload['id_instancia'] ?? null;
-                $payload['costo_unitario']   = $payload['costo_unitario'] ?? null;
-                $payload['eval_aprendizaje'] = $payload['eval_aprendizaje'] ?? null;
-                $payload['id_cat_tematica']  = $payload['id_cat_tematica'] ?? null;
+                    DB::table('public.a2_acciones_empleados')->insert($ins);
+                }
 
-                $payload['observaciones']    = 'Cargado desde Constancias (id_respuesta: '.$c->id_respuesta.')';
-
-                unset($payload['created_at'], $payload['updated_at']);
-
-                DB::table('public.a2_acciones_empleados')->insert($payload);
+                // 9) Cambiar estatus en constancias (cat_constancia_estatus)
+                DB::table('public.tbl_constancias')
+                    ->where('id_respuesta', $idRespuesta)
+                    ->update([
+                        'estatus' => self::CONST_CONCLUIDO,
+                        'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_DATE)"),
+                        'fecha_ultima_accion' => DB::raw("CURRENT_DATE"),
+                    ]);
 
                 return response()->json([
                     'status'  => true,
-                    'message' => 'Procesado correctamente. Se agregó el empleado a Mi plantilla como ATENDIDO.',
+                    'message' => 'Constancia aceptada y procesada correctamente.',
                 ], 200);
             });
 
         } catch (\Throwable $th) {
-            Log::error('Constancias update estatus error: '.$th->getMessage(), [
+            Log::error('Constancias ACEPTAR error: '.$th->getMessage(), [
                 'trace' => $th->getTraceAsString(),
             ]);
 
@@ -242,5 +279,100 @@ class UpdateEstatusConstanciasController extends Controller
                 'message' => 'Ocurrió un error al procesar el registro.',
             ], 200);
         }
+    }
+
+    /**
+     * ✅ Resolve seguro de id_instancia usando information_schema.
+     */
+    private function resolveIdInstanciaSafe(string $instTxt): ?string
+    {
+        $instTxt = trim($instTxt);
+        if ($instTxt === '') return null;
+
+        $tables = DB::table('information_schema.tables')
+            ->where('table_schema', 'public')
+            ->where(function ($q) {
+                $q->whereIn('table_name', ['cat_instancias', 'cat_instancia'])
+                  ->orWhereRaw("table_name ILIKE ?", ['%instanc%']);
+            })
+            ->orderBy('table_name')
+            ->pluck('table_name')
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($tables as $t) {
+            $cols = $this->columnsFor('public', $t);
+            $set  = array_flip($cols);
+
+            $idCol  = $this->firstExistingColumnFromSet($set, ['id_instancia', 'id']);
+            $txtCol = $this->firstExistingColumnFromSet($set, ['descripcion', 'instancia', 'nombre_instancia', 'nombre']);
+
+            if (!$idCol || !$txtCol) continue;
+
+            $existsById = DB::table("public.$t")->where($idCol, $instTxt)->exists();
+            if ($existsById) return (string) $instTxt;
+
+            $id = DB::table("public.$t")
+                ->whereRaw("TRIM(UPPER($txtCol)) = TRIM(UPPER(?))", [$instTxt])
+                ->value($idCol);
+
+            if (!empty($id)) return (string) $id;
+        }
+
+        return null;
+    }
+
+    /**
+     * ✅ Temática del curso desde a1_cat_acciones.tematica (si existe columna).
+     */
+    private function resolveTematicaFromCursoSafe(int $idAccion): ?string
+    {
+        $cols = $this->columnsFor('public', 'a1_cat_acciones');
+        if (!in_array('tematica', $cols, true)) return null;
+
+        $t = DB::table('public.a1_cat_acciones')
+            ->where('id_accion', $idAccion)
+            ->value('tematica');
+
+        $t = trim((string) $t);
+        return $t !== '' ? $t : null;
+    }
+
+    /**
+     * ✅ Mapea temática a id_tematica.
+     */
+    private function resolveIdTematicaSafe(string $tematicaTxt): ?string
+    {
+        $tematicaTxt = trim($tematicaTxt);
+        if ($tematicaTxt === '') return null;
+
+        $cols = $this->columnsFor('public', 'cat_tematica');
+        if (!in_array('id_tematica', $cols, true) || !in_array('tematica', $cols, true)) return null;
+
+        $id = DB::table('public.cat_tematica')
+            ->whereRaw("TRIM(UPPER(tematica)) = TRIM(UPPER(?))", [$tematicaTxt])
+            ->value('id_tematica');
+
+        return !empty($id) ? (string) $id : null;
+    }
+
+    private function columnsFor(string $schema, string $table): array
+    {
+        return DB::table('information_schema.columns')
+            ->where('table_schema', $schema)
+            ->where('table_name', $table)
+            ->orderBy('ordinal_position')
+            ->pluck('column_name')
+            ->map(fn ($c) => (string) $c)
+            ->all();
+    }
+
+    private function firstExistingColumnFromSet(array $set, array $candidates): ?string
+    {
+        foreach ($candidates as $c) {
+            if (isset($set[$c])) return $c;
+        }
+        return null;
     }
 }
