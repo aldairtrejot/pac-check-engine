@@ -23,11 +23,21 @@ class DataConstanciasController extends Controller
             ], 422);
         }
 
-        /**
-         * ✅ Subconsulta: 1 registro por CURP desde a2_acciones_capacitacion
-         * (evita duplicados si hay múltiples filas por la misma CURP)
-         * Aquí elegimos el "más reciente" por id_cat DESC (ajustable si tienes otra lógica)
-         */
+        $cols = $this->columnsFor('public', 'tbl_constancias');
+        $colSet = array_flip($cols);
+
+        $motivoColumn = $this->firstExistingColumnFromSet($colSet, [
+            'motivo_rechazo',
+            'motivo',
+            'observaciones',
+            'comentarios',
+        ]);
+
+        $fechaRechazoColumn = $this->firstExistingColumnFromSet($colSet, [
+            'fecha_rechazo',
+            'fecha_rechazo_at',
+        ]);
+
         $capLast = DB::raw("
             (
                 SELECT DISTINCT ON (UPPER(TRIM(curp)))
@@ -42,6 +52,44 @@ class DataConstanciasController extends Controller
             ) as cap
         ");
 
+        $selects = [
+            'c.*',
+
+            DB::raw("
+                CASE
+                    WHEN c.estatus = " . self::ESTATUS_PENDIENTE . " THEN 'PENDIENTE'
+                    WHEN c.estatus = " . self::ESTATUS_ACEPTADA  . " THEN 'ACEPTADO'
+                    WHEN c.estatus = " . self::ESTATUS_RECHAZADA . " THEN 'RECHAZADO'
+                    ELSE 'SIN ESTATUS'
+                END AS estatus_txt
+            "),
+
+            DB::raw("COALESCE(NULLIF(c.hipervinculo,''), NULLIF(c.subir_constancia,'')) AS link_constancia"),
+
+            DB::raw("
+                NULLIF(
+                    TRIM(CONCAT_WS(' ',
+                        NULLIF(TRIM(cap.nombre), ''),
+                        NULLIF(TRIM(cap.apellido_paterno), ''),
+                        NULLIF(TRIM(cap.apellido_materno), '')
+                    )),
+                    ''
+                ) AS nombre_persona
+            "),
+        ];
+
+        if ($motivoColumn) {
+            $selects[] = DB::raw("c.{$motivoColumn} AS motivo_rechazo_view");
+        } else {
+            $selects[] = DB::raw("NULL AS motivo_rechazo_view");
+        }
+
+        if ($fechaRechazoColumn) {
+            $selects[] = DB::raw("CAST(c.{$fechaRechazoColumn} AS TEXT) AS fecha_rechazo_view");
+        } else {
+            $selects[] = DB::raw("NULL AS fecha_rechazo_view");
+        }
+
         $row = DB::table('public.tbl_constancias as c')
             ->leftJoin(
                 $capLast,
@@ -49,32 +97,7 @@ class DataConstanciasController extends Controller
                 '=',
                 DB::raw("UPPER(TRIM(c.curp))")
             )
-            ->select([
-                'c.*',
-
-                DB::raw("
-                    CASE
-                        WHEN c.estatus = " . self::ESTATUS_PENDIENTE . " THEN 'PENDIENTE'
-                        WHEN c.estatus = " . self::ESTATUS_ACEPTADA  . " THEN 'ACEPTADA'
-                        WHEN c.estatus = " . self::ESTATUS_RECHAZADA . " THEN 'RECHAZADA'
-                        ELSE 'SIN ESTATUS'
-                    END AS estatus_txt
-                "),
-
-                DB::raw("COALESCE(NULLIF(c.hipervinculo,''), NULLIF(c.subir_constancia,'')) AS link_constancia"),
-
-                // ✅ Nombre desde a2_acciones_capacitacion
-                DB::raw("
-                    NULLIF(
-                        TRIM(CONCAT_WS(' ',
-                            NULLIF(TRIM(cap.nombre), ''),
-                            NULLIF(TRIM(cap.apellido_paterno), ''),
-                            NULLIF(TRIM(cap.apellido_materno), '')
-                        )),
-                        ''
-                    ) AS nombre_persona
-                "),
-            ])
+            ->select($selects)
             ->where('c.id_respuesta', $id)
             ->first();
 
@@ -89,5 +112,24 @@ class DataConstanciasController extends Controller
             'status' => true,
             'data' => $row,
         ]);
+    }
+
+    private function columnsFor(string $schema, string $table): array
+    {
+        return DB::table('information_schema.columns')
+            ->where('table_schema', $schema)
+            ->where('table_name', $table)
+            ->orderBy('ordinal_position')
+            ->pluck('column_name')
+            ->map(fn ($c) => (string) $c)
+            ->all();
+    }
+
+    private function firstExistingColumnFromSet(array $set, array $candidates): ?string
+    {
+        foreach ($candidates as $c) {
+            if (isset($set[$c])) return $c;
+        }
+        return null;
     }
 }

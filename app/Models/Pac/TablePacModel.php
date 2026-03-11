@@ -16,25 +16,25 @@ class TablePacModel extends Model
             ->selectRaw("
                 public.a2_acciones_empleados.id_empl_accion AS id,
                 public.a2_acciones_capacitacion.nombre AS nombre,
-                public.a2_acciones_capacitacion.apellido_paterno || ' ' || 
+                public.a2_acciones_capacitacion.apellido_paterno || ' ' ||
                 public.a2_acciones_capacitacion.apellido_materno AS apellido,
                 public.a2_acciones_empleados.curp AS curp,
                 public.a1_cat_acciones.nombre_accion AS accion,
-                CASE 
+                CASE
                     WHEN (
-                        public.a2_acciones_empleados.id_cat_estatus IS NOT NULL 
+                        public.a2_acciones_empleados.id_cat_estatus IS NOT NULL
                         AND public.a2_acciones_empleados.fecha_ini IS NOT NULL
                         AND public.a2_acciones_empleados.fecha_fin IS NOT NULL
                         AND public.a2_acciones_empleados.id_trimestre IS NOT NULL
                         AND (
-                            public.a2_acciones_empleados.id_instancia IS NOT NULL 
+                            public.a2_acciones_empleados.id_instancia IS NOT NULL
                             OR TRIM(public.a2_acciones_empleados.id_instancia) <> ''
                         )
                         AND (
-                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL 
+                            public.a2_acciones_empleados.id_cat_tematica IS NOT NULL
                             OR TRIM(public.a2_acciones_empleados.id_cat_tematica) <> ''
                         )
-                    ) 
+                    )
                     THEN 'CONCLUIDO'
                     ELSE 'PENDIENTE'
                 END AS atendido
@@ -50,6 +50,8 @@ class TablePacModel extends Model
                     DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
                     '=',
                     'public.a2_acciones_capacitacion.id_puesto'
+                )->whereRaw(
+                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) = UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.curp)))'
                 );
             });
 
@@ -59,10 +61,8 @@ class TablePacModel extends Model
               ->orWhereIn('public.a2_acciones_empleados.id_cat_estatus', [1, 2]);
         });
 
-        // ✅ FILTRO OPERATIVO: entidad + nómina (+clues)
         PacVisibility::apply($query, $user, 'public.a2_acciones_capacitacion');
 
-        // filtros normales
         $this->applySearch($query, $request);
 
         $countQuery = clone $query;
@@ -90,21 +90,21 @@ class TablePacModel extends Model
                 $searchTerm = '%'.$request->name.'%';
 
                 $query->whereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') 
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '')
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') 
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '')
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '')
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 )->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') || 
-                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') || 
-                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '') 
+                    "REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.nombre))), ' ', '') ||
+                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_paterno))), ' ', '') ||
+                     REPLACE(UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.apellido_materno))), ' ', '')
                      LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
                     [$searchTerm]
                 );
@@ -112,7 +112,7 @@ class TablePacModel extends Model
 
             if (! empty($request->curp)) {
                 $query->whereRaw(
-                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) 
+                    'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp)))
                      LIKE UPPER(TRIM(public.unaccent(?)))',
                     ['%'.$request->curp.'%']
                 );

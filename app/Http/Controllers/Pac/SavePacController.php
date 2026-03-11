@@ -35,13 +35,15 @@ class SavePacController extends Controller
                 'calificacion'    => 'nullable|integer|min:70|max:100',
             ]);
 
-            // ✅ chequeo de acceso (si no pertenece a su entidad/nomina/clues -> no existe)
+            // ✅ chequeo de acceso correcto: id_puesto + curp
             $allowed = DB::table('public.a2_acciones_empleados')
                 ->join('public.a2_acciones_capacitacion', function ($join) {
                     $join->on(
                         DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
                         '=',
                         'public.a2_acciones_capacitacion.id_puesto'
+                    )->whereRaw(
+                        'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) = UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.curp)))'
                     );
                 })
                 ->where('public.a2_acciones_empleados.id_empl_accion', (int) $validated['id']);
@@ -109,8 +111,6 @@ class SavePacController extends Controller
             $row->horas_real       = $horasReal;
             $row->observaciones    = $obs;
             $row->eval_aprendizaje = $eval;
-
-            // ✅ NUEVO
             $row->calificacion     = $cal;
 
             $row->save();

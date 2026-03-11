@@ -108,12 +108,11 @@
 
     <tableFooter :row="row" :rowsAll="rowsAll" />
 
-    <!-- MODAL: DETALLES (sin fondo oscuro, estilo claro institucional) -->
+    <!-- MODAL: DETALLES -->
     <div class="modal fade" id="modal_constancia_detalles" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content" style="border-radius: 16px; overflow:hidden;">
 
-          <!-- Header blanco, acento institucional -->
           <div
             class="modal-header"
             style="
@@ -167,7 +166,6 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
 
-          <!-- Body totalmente CLARO (sin fondo oscuro) -->
           <div class="modal-body" style="background:#ffffff;">
             <div class="row g-3">
               <!-- Participante -->
@@ -350,6 +348,39 @@
                 </div>
               </div>
 
+              <!-- Motivo de rechazo -->
+              <div
+                v-if="isRejectedStatus(d.estatus_txt) && (d.motivo_rechazo_view || d.motivo_rechazo)"
+                class="col-12"
+              >
+                <div
+                  class="border"
+                  style="border-radius:14px; padding:14px; background:#fff5f5; border-color:#f5c2c7 !important;"
+                >
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <span
+                      class="d-inline-flex align-items-center justify-content-center"
+                      style="width:34px;height:34px;border-radius:12px;background:rgba(139,0,0,.10);color:#8B0000;"
+                    >
+                      <i class="fa fa-times-circle"></i>
+                    </span>
+                    <div>
+                      <div class="text-sm" style="font-weight:800;color:#8B0000;">Motivo del rechazo</div>
+                      <div class="text-xs text-muted">
+                        {{ d.fecha_rechazo_view || d.fecha_ultima_accion || 'Sin fecha registrada' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="text-sm"
+                    style="white-space: pre-wrap; color:#111; font-weight:700;"
+                  >
+                    {{ d.motivo_rechazo_view || d.motivo_rechazo }}
+                  </div>
+                </div>
+              </div>
+
               <!-- Información adicional -->
               <div class="col-12">
                 <div class="border" style="border-radius:14px; padding:14px;">
@@ -378,22 +409,85 @@
               Cerrar
             </button>
 
+            <template v-if="canShowDecisionButtons(d.estatus_txt)">
+              <button
+                type="button"
+                class="btn btn-sm text-white"
+                style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
+                @click="openRejectModal"
+              >
+                <i class="fa fa-times me-1"></i> Rechazar
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-sm text-white"
+                style="background:#235B4E;border-color:#235B4E;border-radius:12px;"
+                @click="updateStatus('ACEPTAR')"
+              >
+                <i class="fa fa-check me-1"></i> Aceptar
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: RECHAZO -->
+    <div class="modal fade" id="modal_constancia_rechazo" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 16px; overflow:hidden;">
+          <div class="modal-header" style="background:#ffffff; border-bottom:1px solid #e9ecef;">
+            <h5 class="modal-title" style="font-weight:800; color:#8B0000;">
+              Rechazar constancia
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+
+          <div class="modal-body" style="background:#ffffff;">
+            <div class="mb-2 text-sm text-muted">
+              Captura el motivo del rechazo. Este campo es obligatorio y se enviará por correo al usuario.
+            </div>
+
+            <label class="form-label fw-bold">
+              Motivo del rechazo <span class="text-danger">*</span>
+            </label>
+
+            <textarea
+              v-model="rejectReason"
+              class="form-control"
+              rows="5"
+              maxlength="2000"
+              placeholder="Escribe aquí el motivo del rechazo..."
+              :class="{ 'is-invalid': rejectReasonTouched && !rejectReasonValid }"
+            ></textarea>
+
+            <div v-if="rejectReasonTouched && !rejectReasonValid" class="invalid-feedback d-block">
+              Debes capturar el motivo del rechazo.
+            </div>
+
+            <div class="text-end mt-1">
+              <small class="text-muted">{{ rejectReason.length }}/2000</small>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="background:#fff; border-top:1px solid #e9ecef;">
             <button
               type="button"
-              class="btn btn-sm text-white"
-              style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
-              @click="updateStatus('RECHAZAR')"
+              class="btn btn-sm btn-outline-secondary"
+              data-bs-dismiss="modal"
+              @click="resetRejectForm"
             >
-              <i class="fa fa-times me-1"></i> Rechazar
+              Cancelar
             </button>
 
             <button
               type="button"
               class="btn btn-sm text-white"
-              style="background:#235B4E;border-color:#235B4E;border-radius:12px;"
-              @click="updateStatus('ACEPTAR')"
+              style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
+              @click="confirmReject"
             >
-              <i class="fa fa-check me-1"></i> Aceptar
+              Confirmar rechazo
             </button>
           </div>
         </div>
@@ -404,7 +498,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import axios from '@axios'
 import { notyf } from '@components/notyf.js'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
@@ -436,16 +530,40 @@ const limit = ref(5)
 const searchTerm = ref('')
 const spinnerRef = ref(null)
 
-// modal
+// modal detalle
 const selectedId = ref(null)
 const d = ref({})
 const extraPretty = ref('Pendiente de definición por el equipo.')
 
+// modal rechazo
+const rejectReason = ref('')
+const rejectReasonTouched = ref(false)
+
+const rejectReasonValid = computed(() => rejectReason.value.trim().length > 0)
+
+function normalizeStatus(statusTxt) {
+  return String(statusTxt || '').toUpperCase().trim()
+}
+
+function isPendingStatus(statusTxt) {
+  const s = normalizeStatus(statusTxt)
+  return s === 'PENDIENTE'
+}
+
+function isRejectedStatus(statusTxt) {
+  const s = normalizeStatus(statusTxt)
+  return s === 'RECHAZADO' || s === 'RECHAZADA'
+}
+
+function canShowDecisionButtons(statusTxt) {
+  return isPendingStatus(statusTxt)
+}
+
 // Badge institucional por estatus
 function statusBadgeClass(statusTxt) {
-  const s = String(statusTxt || '').toUpperCase().trim()
-  if (s === 'ACEPTADA') return 'bg-success'
-  if (s === 'RECHAZADA') return 'bg-danger'
+  const s = normalizeStatus(statusTxt)
+  if (s === 'ACEPTADO' || s === 'ACEPTADA') return 'bg-success'
+  if (s === 'RECHAZADO' || s === 'RECHAZADA') return 'bg-danger'
   if (s === 'PENDIENTE') return 'bg-secondary'
   return 'bg-dark'
 }
@@ -509,8 +627,14 @@ function search_function() {
   fetchTableData()
 }
 
-async function openDetails(id_respuesta) {
+function resetRejectForm() {
+  rejectReason.value = ''
+  rejectReasonTouched.value = false
+}
+
+async function loadDetails(id_respuesta, openModal = false) {
   if (!id_respuesta) return
+
   selectedId.value = id_respuesta
   d.value = {}
   extraPretty.value = 'Pendiente de definición por el equipo.'
@@ -527,7 +651,9 @@ async function openDetails(id_respuesta) {
     d.value = data.data || {}
     extraPretty.value = 'Pendiente de definición por el equipo.'
 
-    $('#modal_constancia_detalles').modal('show')
+    if (openModal) {
+      $('#modal_constancia_detalles').modal('show')
+    }
   } catch (e) {
     notyf.error('No se pudo cargar el detalle. Intenta nuevamente.')
   } finally {
@@ -535,15 +661,42 @@ async function openDetails(id_respuesta) {
   }
 }
 
-async function updateStatus(accion) {
+async function openDetails(id_respuesta) {
+  await loadDetails(id_respuesta, true)
+}
+
+function openRejectModal() {
+  resetRejectForm()
+  $('#modal_constancia_rechazo').modal('show')
+}
+
+async function confirmReject() {
+  rejectReasonTouched.value = true
+
+  if (!rejectReasonValid.value) {
+    notyf.error('Debes capturar el motivo del rechazo.')
+    return
+  }
+
+  await updateStatus('RECHAZAR', rejectReason.value.trim())
+}
+
+async function updateStatus(accion, motivo = '') {
   if (!selectedId.value) return
 
   try {
     showSpinner()
-    const { data } = await axios.post('/constancias/estatus', {
+
+    const payload = {
       id_respuesta: selectedId.value,
-      accion, // ACEPTAR | RECHAZAR
-    })
+      accion,
+    }
+
+    if (accion === 'RECHAZAR') {
+      payload.motivo = motivo
+    }
+
+    const { data } = await axios.post('/constancias/estatus', payload)
 
     if (!data.status) {
       notyf.error(data.message ?? 'No se pudo actualizar el estatus.')
@@ -552,8 +705,14 @@ async function updateStatus(accion) {
 
     notyf.success(data.message ?? 'Estatus actualizado.')
 
-    // refrescar tabla
-    fetchTableData()
+    await fetchTableData()
+
+    if (accion === 'RECHAZAR') {
+      $('#modal_constancia_rechazo').modal('hide')
+      resetRejectForm()
+      await loadDetails(selectedId.value, false)
+      return
+    }
 
     $('#modal_constancia_detalles').modal('hide')
   } catch (e) {

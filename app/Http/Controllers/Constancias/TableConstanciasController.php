@@ -24,7 +24,6 @@ class TableConstanciasController extends Controller
 
         $anio = ($anioRaw !== '' && is_numeric($anioRaw)) ? (int) $anioRaw : null;
 
-        // ✅ Subconsulta 1 por CURP para evitar duplicados
         $capLast = DB::raw("
             (
                 SELECT DISTINCT ON (UPPER(TRIM(curp)))
@@ -56,8 +55,8 @@ class TableConstanciasController extends Controller
                 DB::raw("
                     CASE
                         WHEN c.estatus = " . self::ESTATUS_PENDIENTE . " THEN 'PENDIENTE'
-                        WHEN c.estatus = " . self::ESTATUS_ACEPTADA  . " THEN 'ACEPTADA'
-                        WHEN c.estatus = " . self::ESTATUS_RECHAZADA . " THEN 'RECHAZADA'
+                        WHEN c.estatus = " . self::ESTATUS_ACEPTADA  . " THEN 'ACEPTADO'
+                        WHEN c.estatus = " . self::ESTATUS_RECHAZADA . " THEN 'RECHAZADO'
                         ELSE 'SIN ESTATUS'
                     END AS estatus_txt
                 "),
