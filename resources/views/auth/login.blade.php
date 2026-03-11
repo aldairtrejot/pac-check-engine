@@ -1,3 +1,4 @@
 <x-page.page-auth>
-    <div id="blade_form_login"></div>
+    {{-- El formulario es renderizado por JavaScript en este div --}}
+<div id="blade_form_login"></div>
 </x-page.page-auth>
