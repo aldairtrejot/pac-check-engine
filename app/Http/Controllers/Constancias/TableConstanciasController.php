@@ -14,15 +14,17 @@ class TableConstanciasController extends Controller
 
     public function table(Request $request)
     {
-        $limit   = (int) ($request->input('limit', 5));
-        $offset  = (int) ($request->input('offset', 0));
+        $limit      = (int) ($request->input('limit', 5));
+        $offset     = (int) ($request->input('offset', 0));
 
-        $curp    = trim((string) $request->input('curp', ''));
-        $curso   = trim((string) $request->input('curso', ''));
-        $anioRaw = trim((string) $request->input('anio', ''));
-        $search  = trim((string) $request->input('search', ''));
+        $curp       = trim((string) $request->input('curp', ''));
+        $curso      = trim((string) $request->input('curso', ''));
+        $anioRaw    = trim((string) $request->input('anio', ''));
+        $estatusRaw = trim((string) $request->input('estatus', ''));
+        $search     = trim((string) $request->input('search', ''));
 
-        $anio = ($anioRaw !== '' && is_numeric($anioRaw)) ? (int) $anioRaw : null;
+        $anio    = ($anioRaw !== '' && is_numeric($anioRaw)) ? (int) $anioRaw : null;
+        $estatus = ($estatusRaw !== '' && is_numeric($estatusRaw)) ? (int) $estatusRaw : null;
 
         $capLast = DB::raw("
             (
@@ -78,11 +80,17 @@ class TableConstanciasController extends Controller
         if ($curp !== '') {
             $q->where('c.curp', 'ILIKE', "%{$curp}%");
         }
+
         if ($curso !== '') {
             $q->where('c.nombre_curso', 'ILIKE', "%{$curso}%");
         }
+
         if (!is_null($anio)) {
             $q->where('c.anio', $anio);
+        }
+
+        if (!is_null($estatus)) {
+            $q->where('c.estatus', $estatus);
         }
 
         if ($search !== '') {

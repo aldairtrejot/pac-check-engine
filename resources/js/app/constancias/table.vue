@@ -38,6 +38,16 @@
                 id="anio"
                 v-model="f_anio"
               />
+
+              <div class="col-12 col-md-6 mb-6">
+                <label class="form-label">Estatus</label>
+                <select v-model="f_estatus" class="form-select">
+                  <option value="">Todos</option>
+                  <option :value="1">Pendiente</option>
+                  <option :value="2">Aceptado</option>
+                  <option :value="3">Rechazado</option>
+                </select>
+              </div>
             </div>
 
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
@@ -520,6 +530,7 @@ const gridx3 = ref('col-12 col-md-6 mb-6')
 const f_curp = ref('')
 const f_curso = ref('')
 const f_anio = ref('')
+const f_estatus = ref('')
 
 // tabla
 const item = ref([])
@@ -559,7 +570,6 @@ function canShowDecisionButtons(statusTxt) {
   return isPendingStatus(statusTxt)
 }
 
-// Badge institucional por estatus
 function statusBadgeClass(statusTxt) {
   const s = normalizeStatus(statusTxt)
   if (s === 'ACEPTADO' || s === 'ACEPTADA') return 'bg-success'
@@ -583,6 +593,7 @@ const fetchTableData = async () => {
       curp: f_curp.value,
       curso: f_curso.value,
       anio: f_anio.value,
+      estatus: f_estatus.value,
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     })
 
@@ -590,7 +601,7 @@ const fetchTableData = async () => {
     rowsAll.value = data.allRow || 0
     row.value = data.row || 0
 
-    const hasFilters = !!(f_curp.value || f_curso.value || f_anio.value || searchTerm.value)
+    const hasFilters = !!(f_curp.value || f_curso.value || f_anio.value || f_estatus.value || searchTerm.value)
     if (hasFilters && (data.allRow || 0) === 0) {
       notyf.error('No se encontraron constancias con los filtros seleccionados.')
     }
@@ -619,6 +630,7 @@ function clear_search() {
   f_curp.value = ''
   f_curso.value = ''
   f_anio.value = ''
+  f_estatus.value = ''
   fetchTableData()
 }
 

@@ -92,32 +92,32 @@ class UpdateEstatusConstanciasController extends Controller
             ) as cap
         ");
 
-        $registro = DB::table('public.tbl_constancias as c')
-            ->leftJoin(
-                $capLast,
-                DB::raw("UPPER(TRIM(cap.curp))"),
-                '=',
-                DB::raw("UPPER(TRIM(c.curp))")
-            )
-            ->select([
-                'c.id_respuesta',
-                'c.curp',
-                'c.nombre_curso',
-                'c.correo_electronico',
-                'c.fecha_ultima_accion',
-                DB::raw("
-                    NULLIF(
-                        TRIM(CONCAT_WS(' ',
-                            NULLIF(TRIM(cap.nombre), ''),
-                            NULLIF(TRIM(cap.apellido_paterno), ''),
-                            NULLIF(TRIM(cap.apellido_materno), '')
-                        )),
-                        ''
-                    ) AS nombre_persona
-                "),
-            ])
-            ->where('c.id_respuesta', $idRespuesta)
-            ->first();
+       $registro = DB::table('public.tbl_constancias as c')
+    ->leftJoin(
+        $capLast,
+        DB::raw("UPPER(TRIM(cap.curp))"),
+        '=',
+        DB::raw("UPPER(TRIM(c.curp))")
+    )
+    ->select([
+        'c.id_respuesta',
+        'c.curp',
+        'c.nombre_curso',
+        'c.correo_electronico',
+        'c.fecha_ultima_accion',
+        DB::raw("
+            NULLIF(
+                TRIM(CONCAT_WS(' ',
+                    NULLIF(TRIM(cap.nombre), ''),
+                    NULLIF(TRIM(cap.apellido_paterno), ''),
+                    NULLIF(TRIM(cap.apellido_materno), '')
+                )),
+                ''
+            ) AS nombre_persona
+        "),
+    ])
+    ->where('c.id_respuesta', $idRespuesta)
+    ->first();
 
         if (!$registro) {
             return response()->json([
@@ -149,36 +149,39 @@ class UpdateEstatusConstanciasController extends Controller
         });
 
         $correoDestinatario = trim((string) ($registro->correo_electronico ?? ''));
-        $nombrePersona = trim((string) ($registro->nombre_persona ?? ''));
-        $nombrePersona = $nombrePersona !== '' ? $nombrePersona : 'Usuario';
-        $folio = (string) $registro->id_respuesta;
-        $fechaHora = $ahora->format('d/m/Y H:i:s');
+$nombrePersona = trim((string) ($registro->nombre_persona ?? ''));
+$nombrePersona = $nombrePersona !== '' ? $nombrePersona : 'Usuario';
+$nombreCurso = trim((string) ($registro->nombre_curso ?? ''));
+$nombreCurso = $nombreCurso !== '' ? $nombreCurso : 'No especificado';
+$folio = (string) $registro->id_respuesta;
+$fechaHora = $ahora->format('d/m/Y H:i:s');
 
-        $emailEnviado = false;
+$emailEnviado = false;
 
-        if ($correoDestinatario !== '' && filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
-            try {
-                $subject = 'Constancia rechazada - Folio '.$folio;
+if ($correoDestinatario !== '' && filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
+    try {
+        $subject = 'Constancia rechazada - '.$nombreCurso.' - Folio '.$folio;
 
-                $html = '
-                    <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
-                        <p>Hola <strong>'.e($nombrePersona).'</strong>,</p>
+        $html = '
+            <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
+                <p>Hola <strong>'.e($nombrePersona).'</strong>,</p>
 
-                        <p>Te informamos que tu trámite/constancia fue <strong>rechazado</strong>.</p>
+                <p>Te informamos que tu trámite/constancia fue <strong>rechazado</strong>.</p>
 
-                        <p><strong>Detalle del rechazo:</strong></p>
-                        <ul>
-                            <li><strong>Folio / ID:</strong> '.e($folio).'</li>
-                            <li><strong>Nombre del empleado:</strong> '.e($nombrePersona).'</li>
-                            <li><strong>Fecha y hora del rechazo:</strong> '.e($fechaHora).'</li>
-                            <li><strong>Motivo:</strong> '.nl2br(e($motivo)).'</li>
-                        </ul>
+                <p><strong>Detalle del rechazo:</strong></p>
+                <ul>
+                    <li><strong>Folio / ID:</strong> '.e($folio).'</li>
+                    <li><strong>Nombre del empleado:</strong> '.e($nombrePersona).'</li>
+                    <li><strong>Nombre del curso:</strong> '.e($nombreCurso).'</li>
+                    <li><strong>Fecha y hora del rechazo:</strong> '.e($fechaHora).'</li>
+                    <li><strong>Motivo:</strong> '.nl2br(e($motivo)).'</li>
+                </ul>
 
-                        <p>Por favor revisa la información y realiza las correcciones necesarias.</p>
+                <p>Por favor revisa la información y realiza las correcciones necesarias.</p>
 
-                        <p>Saludos.</p>
-                    </div>
-                ';
+                <p>Saludos.</p>
+            </div>
+        ';
 
                 Mail::send([], [], function ($message) use ($correoDestinatario, $subject, $html) {
                     $message->to($correoDestinatario)
