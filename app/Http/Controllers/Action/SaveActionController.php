@@ -36,8 +36,12 @@ class SaveActionController extends Controller
 
             // 👉 CREAR
             } else {
-                // siguiente id_accion: MAX + 1
-                $nextId = (EntityActionModel::max('id_accion') ?? 0) + 1;
+                // siguiente id_accion: MAX + 1, excluyendo 1000001 y 1000002
+                $maxId = EntityActionModel::query()
+                    ->whereNotIn('id_accion', [1000001, 1000002])
+                    ->max('id_accion');
+
+                $nextId = ($maxId ?? 0) + 1;
                 $validated['id_accion'] = $nextId;
 
                 // Si no viene finalidad, default F6-SENSIBILIZACION
