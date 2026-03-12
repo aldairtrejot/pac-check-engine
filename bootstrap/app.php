@@ -12,22 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
  
-        // 🔴 ESTA ES LA PARTE CLAVE: Ignorar el token CSRF en el login para evitar el error 419
-        $middleware->validateCsrfTokens(except: [
-            'login',
-            'auth/login',
-            'logout'
-        ]);
- 
-        // ✅ Aliases para middlewares personalizados
+        // Aliases para middlewares personalizados
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'require.state' => \App\Http\Middleware\RequireStateForOperatives::class,
         ]);
  
-        // ✅ Redirección cuando no hay sesión
+        // Redirección cuando no hay sesión
         $middleware->redirectGuestsTo(fn () => route('login'));
- 
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
