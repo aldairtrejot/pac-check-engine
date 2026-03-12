@@ -1,30 +1,38 @@
 <template>
-  <body style="margin:0; padding:0;">
+  <div style="margin:0; padding:0;">
     <main class="main-content" style="padding:0; margin:0;">
       <section style="padding:0; margin:0;">
-        <div class="page-header d-flex justify-content-center align-items-center"
-             style="padding:0; margin:0; min-height:100vh; overflow:visible;">
+        <div
+          class="page-header d-flex justify-content-center align-items-center"
+          style="padding:0; margin:0; min-height:100vh; overflow:visible;"
+        >
           <div class="col-xl-3 col-lg-4 col-md-5 col-sm-8 col-10" style="padding:0;">
-            <div class="card card-plain"
-                 style="background-color: transparent !important;
-                        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
-                        border-radius: 12px !important;">
+            <div
+              class="card card-plain"
+              style="
+                background-color: transparent !important;
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+                border-radius: 12px !important;
+              "
+            >
               <div class="card-header pb-0 text-left bg-transparent">
                 <h3 class="font-weight-bolder text-info text-gradient text-center">
                   Validación de Plantillas PAC
                 </h3>
-                <p class="mb-0 text-center">Introduce tu usuario y contraseña para iniciar sesión.</p>
+                <p class="mb-0 text-center">
+                  Introduce tu usuario y contraseña para iniciar sesión.
+                </p>
               </div>
 
               <div class="card-body">
-                <form role="form" id="data_form">
+                <form id="data_form" @submit.prevent="sendData">
                   <label for="email">Usuario</label>
                   <div class="mb-3">
                     <input
-                      type="email"
+                      type="text"
                       v-model="email"
                       class="form-control"
-                      placeholder="Email"
+                      placeholder="Usuario"
                       id="email"
                       name="email"
                       autocomplete="username"
@@ -47,7 +55,7 @@
                   </div>
 
                   <div class="text-center">
-                    <button type="button" @click="sendData" class="btn bg-gradient-info w-100 mt-4 mb-0">
+                    <button type="submit" class="btn bg-gradient-info w-100 mt-4 mb-0">
                       Ingresar
                     </button>
                   </div>
@@ -60,13 +68,12 @@
                   <a href="" class="text-info text-gradient font-weight-bold">accede aqui</a>
                 </p>
               </div>
-
             </div>
           </div>
         </div>
       </section>
     </main>
-  </body>
+  </div>
 </template>
 
 <script setup>
@@ -82,7 +89,6 @@ const email = ref('')
 const password = ref('')
 
 onMounted(() => {
-  showSpinner()
   hideSpinner()
 })
 
@@ -92,7 +98,7 @@ async function sendData() {
     clearErrors()
 
     const response = await axios.post('/auth/login', {
-      email: email.value,
+      email: email.value.trim(),
       password: password.value,
     })
 
@@ -110,12 +116,15 @@ async function sendData() {
       return
     }
 
-    if (error.response?.data?.errors) {
+    if (error.response?.status === 422 && error.response?.data?.errors) {
       handleErrors(error.response.data.errors)
       return
     }
 
-    notyf.error(error.response?.data?.message ?? 'No se pudo completar la acción. Por favor, vuelve a intentarlo.')
+    notyf.error(
+      error.response?.data?.message ??
+      'No se pudo completar la acción. Por favor, vuelve a intentarlo.'
+    )
   } finally {
     hideSpinner()
   }
