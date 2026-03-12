@@ -1,6 +1,5 @@
 <template>
   <div>
-    <!-- Component to display the table title -->
     <tableTittle value="Mi plantilla" />
 
     <div class="accordion accordion-flush shadow-sm rounded-3 border" id="accordionFilters">
@@ -62,11 +61,9 @@
 
     <br />
 
-    <!-- Spinner component shown while data is loading -->
     <tableSpinner ref="spinnerRef" />
 
     <div class="table-responsive">
-      <!-- Main responsive table -->
       <table class="table align-items-center mb-0" id="table-default">
         <thead>
           <tr>
@@ -80,46 +77,41 @@
         <tbody>
           <tableEmpty v-if="item.length === 0" :colspan="5" />
 
-          <!-- ✅ FIX: key por id (id_empl_accion) -->
-          <tr v-for="row in item" :key="row.id">
+          <tr v-for="rowx in item" :key="getRowId(rowx)">
             <td class="text-center">
               <div class="button-container">
-                <!-- Botón Atender -->
+                <!-- Atender -->
                 <tableButtonDefault
                   color="#081F5E"
                   icon="fa fa-external-link"
                   label="Atender"
                   @click="setOption"
-                  :clickEventPayload="row.id"
-                  modalToggle="modal"
-                  modalTarget="#modal_password_user"
+                  :clickEventPayload="getRowId(rowx)"
                 />
 
-                <!-- Botón: Agregar curso -->
+                <!-- Agregar curso -->
                 <tableButtonDefault
                   color="#0E5E08"
                   icon="fa fa-plus"
                   label="Agregar curso"
                   @click="openAddCourse"
-                  :clickEventPayload="row.id"
-                  modalToggle="modal"
-                  modalTarget="#modal_add_course"
+                  :clickEventPayload="getRowId(rowx)"
                 />
               </div>
             </td>
 
             <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.atendido }}</span>
+              <span class="text-secondary text-xs font-weight-bold">{{ rowx.atendido }}</span>
             </td>
             <td class="align-middle text-center">
-              <p class="text-xs font-weight-bold mb-0">{{ row.nombre }}</p>
-              <p class="text-xs text-secondary mb-0">{{ row.apellido }}</p>
+              <p class="text-xs font-weight-bold mb-0">{{ rowx.nombre }}</p>
+              <p class="text-xs text-secondary mb-0">{{ rowx.apellido }}</p>
             </td>
             <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.curp }}</span>
+              <span class="text-secondary text-xs font-weight-bold">{{ rowx.curp }}</span>
             </td>
             <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.accion }}</span>
+              <span class="text-secondary text-xs font-weight-bold">{{ rowx.accion }}</span>
             </td>
           </tr>
         </tbody>
@@ -131,7 +123,7 @@
 
   <!-- Modal DATOS EMPLEADO -->
   <modalTemplate modalId="modal_password_user" title="Datos de empleado" :onConfirm="button_confirm" size="lg">
-    <form role="form" id="data_form_x" enctype="multipart/form-data">
+    <form role="form" id="data_form_x" enctype="multipart/form-data" novalidate>
       <div class="row">
         <li class="list-group-item border-0 p-3 mb-2 bg-gray-100 border-radius-lg">
           <div class="d-flex flex-column w-100">
@@ -270,35 +262,70 @@
         </div>
 
         <div class="row" style="margin-top: -70px !important;">
-          <inputSelect v-model="listSelectStatus" :options="listOptionStatus" id="id_cat_estatus" label="Estatus" :multiple="false" grid="col-md-6 col-sm-12" />
-          <inputSelect v-model="listSelectInstance" :options="listOptionInstance" id="id_instancia" :multiple="false" label="Instancia" grid="col-md-6 col-sm-12" />
+          <inputSelect
+            v-model="listSelectStatus"
+            :options="listOptionStatus"
+            id="id_cat_estatus"
+            label="Estatus"
+            :multiple="false"
+            grid="col-md-6 col-sm-12"
+          />
+          <inputSelect
+            v-model="listSelectInstance"
+            :options="listOptionInstance"
+            id="id_instancia"
+            :multiple="false"
+            label="Instancia"
+            grid="col-md-6 col-sm-12"
+          />
         </div>
 
         <div class="row g-2 mt-2">
-          <inputSelect v-model="listSelectFinalidad" :options="listOptionFinalidad" id="id_finalidad" label="Finalidad" :multiple="false" grid="col-md-6 col-sm-12" />
+          <inputSelect
+            v-model="listSelectFinalidad"
+            :options="listOptionFinalidad"
+            id="id_finalidad"
+            label="Finalidad"
+            :multiple="false"
+            grid="col-md-6 col-sm-12"
+          />
           <inputField
-            type="number"
+            type="text"
             label="Calificación (70–100)"
             id="calificacion"
             v-model="m_calificacion"
             grid="col-md-6 col-sm-12"
             :disabled="!canEditCalificacion"
-            :min="70"
-            :max="100"
-            :step="1"
           />
         </div>
 
         <div class="row">
-          <inputSelect v-model="listSelectTematica" :options="listOptionTematica" id="id_cat_tematica" label="Temática" :multiple="false" grid="col-12" />
+          <inputSelect
+            v-model="listSelectTematica"
+            :options="listOptionTematica"
+            id="id_cat_tematica"
+            label="Temática"
+            :multiple="false"
+            grid="col-12"
+          />
         </div>
 
         <div class="row">
-          <inputField grid="col-12" label="Observaciones" id="m_observaciones" v-model="m_observaciones" :uppercase="true" />
+          <inputField
+            grid="col-12"
+            label="Observaciones"
+            id="m_observaciones"
+            v-model="m_observaciones"
+            :uppercase="true"
+          />
         </div>
 
         <div class="row">
-          <inputCheckbox v-model="m_eval_aprendizaje" :label="'¿Realizó la evaluación de aprendizaje?'" :id="'m_eval_aprendizaje'" />
+          <inputCheckbox
+            v-model="m_eval_aprendizaje"
+            :label="'¿Realizó la evaluación de aprendizaje?'"
+            :id="'m_eval_aprendizaje'"
+          />
         </div>
       </div>
     </form>
@@ -306,16 +333,29 @@
 
   <!-- MODAL: AGREGAR CURSO AL EMPLEADO -->
   <modalTemplate modalId="modal_add_course" title="Agregar curso al empleado" :onConfirm="confirmAddCourse" size="md">
-    <form id="form_add_course">
+    <form id="form_add_course" novalidate>
       <div class="row">
-        <inputSelect v-model="selectedCourse" :options="courseOptions" id="id_accion_add" label="Curso" :multiple="false" grid="col-12" :required="true" />
+        <inputSelect
+          v-model="selectedCourse"
+          :options="courseOptions"
+          id="id_accion_add"
+          label="Curso"
+          :multiple="false"
+          grid="col-12"
+          :required="true"
+        />
       </div>
     </form>
   </modalTemplate>
 
   <!-- MODAL: ASIGNACIÓN DE UNIDAD -->
-  <modalTemplate modalId="modal_asignacion_unidad" title="Asignación de unidad" :onConfirm="confirmAsignacionUnidad" size="md">
-    <form id="form_asignacion_unidad">
+  <modalTemplate
+    modalId="modal_asignacion_unidad"
+    title="Asignación de unidad"
+    :onConfirm="confirmAsignacionUnidad"
+    size="md"
+  >
+    <form id="form_asignacion_unidad" novalidate>
       <div class="p-2">
         <div class="d-flex align-items-center gap-2 mb-2">
           <i class="fa fa-sitemap text-secondary"></i>
@@ -324,17 +364,37 @@
 
         <div class="row g-2">
           <div class="col-12 col-md-6">
-            <inputSelect v-model="selectedUnidad" :options="unidadOptions" id="id_unidad" label="Unidad" :multiple="false" grid="col-12" :required="true" />
+            <inputSelect
+              v-model="selectedUnidad"
+              :options="unidadOptions"
+              id="id_unidad"
+              label="Unidad"
+              :multiple="false"
+              grid="col-12"
+              :required="true"
+            />
             <small class="text-muted d-block mt-1">Elige primero la unidad para cargar sus coordinaciones.</small>
           </div>
 
           <div class="col-12 col-md-6">
-            <inputSelect v-model="selectedCoordinacion" :options="coordinacionOptions" id="id_coordinacion" label="Coordinación" :multiple="false" grid="col-12" :required="true" />
+            <inputSelect
+              v-model="selectedCoordinacion"
+              :options="coordinacionOptions"
+              id="id_coordinacion"
+              label="Coordinación"
+              :multiple="false"
+              grid="col-12"
+              :required="true"
+            />
             <small class="text-muted d-block mt-1">Solo se muestran coordinaciones activas relacionadas.</small>
           </div>
         </div>
 
-        <div v-if="asignacionActual.unidad || asignacionActual.coordinacion" class="alert alert-light border mt-3 mb-0" style="border-radius: 12px;">
+        <div
+          v-if="asignacionActual.unidad || asignacionActual.coordinacion"
+          class="alert alert-light border mt-3 mb-0"
+          style="border-radius: 12px;"
+        >
           <div class="text-xs text-secondary fw-bold mb-1">Asignación actual</div>
           <div class="text-sm">
             <div><span class="fw-bold">Unidad:</span> {{ asignacionActual.unidad || '—' }}</div>
@@ -347,36 +407,31 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { notyf } from '@components/notyf.js'
-import { BASE_URL } from '@/components/url.js'
-
 import { setupTableEvents } from '@helpers/table/table-events.vue'
 import { handlePagination } from '@helpers/table/table-pagination.vue'
-import tableButtonEdit from '@helpers/table/table-button-edit.vue'
 import inputField from '@helpers/form/input-field.vue'
 import modalTemplate from '@helpers/modal/modal-template.vue'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
-
 import tableTittle from '@helpers/table/table-tittle.vue'
 import tableFooter from '@helpers/table/table-footer.vue'
 import tableSpinner from '@helpers/table/table-spinner.vue'
 import tableRow from '@helpers/table/table-row.vue'
-import tableItem from '@helpers/table/table-item.vue'
 import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputSelect from '@helpers/form/input-select.vue'
 import inputCheckbox from '@helpers/form/input-checkbox.vue'
 import { clearErrors } from '@components/clearErrors.js'
 import { handleErrors } from '@components/handleErrors.js'
-
 import axios from '@axios'
 
 const gridx3 = ref('col-12 col-md-6 mb-6')
+
 const name = ref('')
 const curp = ref('')
 const is_complete = ref(false)
-const listSelectAcction = ref([])
+const listSelectAcction = ref(null)
 const listOptionsAcction = ref([])
 
 const item = ref([])
@@ -387,7 +442,7 @@ const limit = ref(5)
 const searchTerm = ref('')
 const spinnerRef = ref(null)
 
-// data modal
+// modal principal
 const m_nivel_salarial = ref('')
 const m_rfc = ref('')
 const m_codigo_puesto = ref('')
@@ -404,44 +459,43 @@ const m_observaciones = ref('')
 const m_duracion_hrs = ref('')
 const m_horas_real = ref('')
 const m_eval_aprendizaje = ref(true)
-const listSelectStatus = ref([])
+const listSelectStatus = ref(null)
 const listOptionStatus = ref([])
-const listSelectInstance = ref([])
+const listSelectInstance = ref(null)
 const listOptionInstance = ref([])
-const listSelectTematica = ref([])
+const listSelectTematica = ref(null)
 const listOptionTematica = ref([])
-
-// mostrar en modal principal
+const listSelectFinalidad = ref(null)
+const listOptionFinalidad = ref([])
 const m_unidad = ref('')
 const m_coordinacion = ref('')
-
-// finalidad
-const listSelectFinalidad = ref([])
-const listOptionFinalidad = ref([])
-
-// calificación manual (70..100)
 const m_calificacion = ref('100')
 const canEditCalificacion = ref(false)
-
-// total horas acumuladas
 const m_total_horas = ref('')
 
-// estado para "Agregar curso"
+// bloqueos de envío
+const isSavingPac = ref(false)
+const isSavingCourse = ref(false)
+const isSavingAsignacion = ref(false)
+
+// agregar curso
 const selectedEmployeeId = ref(null)
 const selectedCourse = ref(null)
 const courseOptions = ref([])
 
-// estado para "Asignación de unidad"
+// asignación unidad
 const selectedUnidad = ref(null)
 const selectedCoordinacion = ref(null)
 const unidadOptions = ref([])
 const coordinacionOptions = ref([])
-
-// asignación actual (precarga)
 const asignacionActual = ref({
   unidad: '',
   coordinacion: '',
 })
+
+function getRowId(rowx) {
+  return rowx?.id ?? rowx?.id_empl_accion ?? null
+}
 
 function clampCalificacion(val) {
   let n = parseInt(val ?? '100', 10)
@@ -451,12 +505,27 @@ function clampCalificacion(val) {
   return String(n)
 }
 
+function normalizeCalificacionForSubmit() {
+  const raw = String(m_calificacion.value ?? '').replace(/[^\d]/g, '')
+  const normalized = clampCalificacion(raw === '' ? '100' : raw)
+  m_calificacion.value = normalized
+  return parseInt(normalized, 10)
+}
+
 watch(m_calificacion, (val) => {
-  const fixed = clampCalificacion(val)
-  if (fixed !== String(val)) m_calificacion.value = fixed
+  const raw = String(val ?? '').replace(/[^\d]/g, '')
+
+  if (raw === '') {
+    m_calificacion.value = ''
+    return
+  }
+
+  const fixed = clampCalificacion(raw)
+  if (fixed !== String(val)) {
+    m_calificacion.value = fixed
+  }
 })
 
-// helper para warning aria-hidden (no afecta el fetch)
 function blurActiveElement() {
   try {
     const el = document.activeElement
@@ -464,7 +533,37 @@ function blurActiveElement() {
   } catch (e) {}
 }
 
-// cuando eligen unidad, cargar coordinaciones relacionadas
+function resetEmployeeModalData() {
+  m_nivel_salarial.value = ''
+  m_rfc.value = ''
+  m_codigo_puesto.value = ''
+  m_puesto.value = ''
+  m_clave_clues.value = ''
+  m_nombre.value = ''
+  m_entidad.value = ''
+  m_contratacion.value = ''
+  m_curp.value = ''
+  m_accion.value = ''
+  m_fecha_ini.value = ''
+  m_fecha_fin.value = ''
+  m_observaciones.value = ''
+  m_duracion_hrs.value = ''
+  m_horas_real.value = ''
+  m_eval_aprendizaje.value = true
+  listSelectStatus.value = null
+  listOptionStatus.value = []
+  listSelectInstance.value = null
+  listOptionInstance.value = []
+  listSelectTematica.value = null
+  listOptionTematica.value = []
+  listSelectFinalidad.value = null
+  listOptionFinalidad.value = []
+  m_unidad.value = ''
+  m_coordinacion.value = ''
+  m_calificacion.value = '100'
+  m_total_horas.value = ''
+}
+
 watch(selectedUnidad, async (u) => {
   selectedCoordinacion.value = null
   coordinacionOptions.value = []
@@ -474,7 +573,8 @@ watch(selectedUnidad, async (u) => {
   try {
     const { data } = await axios.post('/pac/coordinaciones', { id_unidad: u.id })
     coordinacionOptions.value = data.listCoordinaciones ?? []
-  } catch (e) {
+  } catch (error) {
+    console.error('Error en /pac/coordinaciones:', error?.response?.data ?? error)
     notyf.error('No se pudieron cargar las coordinaciones.')
   }
 })
@@ -491,18 +591,25 @@ const fetchTableData = async () => {
       limit: limit.value,
       offset,
       search: searchTerm.value,
-      select: parseInt(document.getElementById('footer-filter')?.value || 5),
+      select: parseInt(document.getElementById('footer-filter')?.value || 5, 10),
       name: name.value,
       curp: curp.value,
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? '',
     })
 
-    item.value = data.list
-    rowsAll.value = data.allRow
-    row.value = data.row
+    item.value = (data.list ?? []).map((rowx) => ({
+      ...rowx,
+      id: rowx.id ?? rowx.id_empl_accion ?? null,
+    }))
+
+    rowsAll.value = data.allRow ?? 0
+    row.value = data.row ?? 0
   } catch (error) {
-    // opcional
+    console.error('Error en /pac/table:', error?.response?.data ?? error)
+    item.value = []
+    rowsAll.value = 0
+    row.value = 0
   } finally {
     const elapsed = Date.now() - startTime
     const delay = elapsed < MIN_SPINNER_DURATION ? MIN_SPINNER_DURATION - elapsed : 0
@@ -537,101 +644,127 @@ function search_function() {
   fetchTableData()
 }
 
-// catálogo de cursos (filtro principal)
 async function main() {
   try {
     const request = await axios.post('/pac/main')
     listOptionsAcction.value = request.data.listOptionsAcction ?? []
     listSelectAcction.value = (request.data.listSelectAcction ?? [])[0] ?? null
   } catch (error) {
+    console.error('Error en /pac/main:', error?.response?.data ?? error)
     notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   }
 }
 
 async function button_confirm() {
+  if (isSavingPac.value) return
+
   try {
-    const form = document.querySelector('#data_form_x')
-    const formData = new FormData(form)
-    const key = window._selectkybyemployee // este es id_empl_accion
-
-    formData.append('id_cat_estatus', listSelectStatus.value?.id ?? '')
-    formData.append('id_instancia', listSelectInstance.value?.id ?? '')
-    formData.append('id_cat_tematica', listSelectTematica.value?.id ?? '')
-    formData.append('id_finalidad', listSelectFinalidad.value?.id ?? '')
-    formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
-    formData.append('calificacion', parseInt(m_calificacion.value, 10))
-
-    showSpinner()
+    isSavingPac.value = true
     clearErrors()
 
-    // ✅ FIX: backend normalmente espera "id" (no id_respuesta)
-    formData.append('id', key)
+    const key = parseInt(window._selectkybyemployee ?? 0, 10)
+
+    if (!key) {
+      notyf.error('No se encontró el identificador del registro.')
+      return
+    }
+
+    const calificacionNormalizada = normalizeCalificacionForSubmit()
+    await nextTick()
+
+    const form = document.querySelector('#data_form_x')
+    const formData = new FormData(form)
+
+    formData.set('id_cat_estatus', String(listSelectStatus.value?.id ?? ''))
+    formData.set('id_instancia', String(listSelectInstance.value?.id ?? ''))
+    formData.set('id_cat_tematica', String(listSelectTematica.value?.id ?? ''))
+    formData.set('id_finalidad', String(listSelectFinalidad.value?.id ?? ''))
+    formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
+    formData.set('calificacion', String(calificacionNormalizada))
+    formData.set('id', String(key))
+
+    showSpinner()
 
     const response = await axios.post('/pac/save', formData)
 
     if (!response.data.status) {
       clearErrors()
-      notyf.error(response.data.message)
+      notyf.error(response.data.message ?? 'No se pudo guardar el registro.')
       return
     }
 
     blurActiveElement()
     $('#modal_password_user').modal('hide')
-    notyf.success(response.data.message)
+    notyf.success(response.data.message ?? 'Registro actualizado correctamente.')
     fetchTableData()
   } catch (error) {
     clearErrors()
-    if (error.response && error.response.data.errors) {
+    console.error('Error en /pac/save:', error?.response?.data ?? error)
+
+    if (error.response?.data?.errors) {
       handleErrors(error.response.data.errors)
+      return
     }
+
+    notyf.error(error?.response?.data?.message ?? 'No se pudo guardar la información.')
   } finally {
     hideSpinner()
-    canEditCalificacion.value = false
+    isSavingPac.value = false
   }
 }
 
 async function setOption(id) {
   clearErrors()
-  window._selectkybyemployee = id // id_empl_accion
+  resetEmployeeModalData()
+
+  const safeId = parseInt(id ?? 0, 10)
+
+  if (!safeId) {
+    notyf.error('No se encontró el identificador del registro.')
+    return
+  }
+
+  window._selectkybyemployee = safeId
   canEditCalificacion.value = true
 
   showSpinner()
 
   try {
-    // ✅ FIX: backend DataPacController lee $request->id
-    const request = await axios.post('/pac/data', { id })
+    const request = await axios.post('/pac/data', { id: safeId })
 
     if (!request.data?.status) {
       notyf.error(request.data?.message ?? 'No se pudo cargar el empleado.')
       return
     }
 
-    const data = request.data.data
-    const selectx = request.data
+    const data = request.data.data ?? {}
+    const selectx = request.data ?? {}
 
-    m_nivel_salarial.value = data.nivel_salarial
-    m_rfc.value = data.rfc
-    m_codigo_puesto.value = data.codigo_puesto
-    m_clave_clues.value = data.clave_clues
-    m_puesto.value = data.puesto
-    m_entidad.value = data.entidad
-    m_contratacion.value = data.contratacion
-    m_curp.value = data.curp
-    m_nombre.value = data.nombre
-    m_accion.value = data.accion
-    m_fecha_ini.value = data.fecha_ini
-    m_fecha_fin.value = data.fecha_fin
-    m_observaciones.value = data.observaciones
+    m_nivel_salarial.value = data.nivel_salarial ?? ''
+    m_rfc.value = data.rfc ?? ''
+    m_codigo_puesto.value = data.codigo_puesto ?? ''
+    m_clave_clues.value = data.clave_clues ?? ''
+    m_puesto.value = data.puesto ?? ''
+    m_entidad.value = data.entidad ?? ''
+    m_contratacion.value = data.contratacion ?? ''
+    m_curp.value = data.curp ?? ''
+    m_nombre.value = data.nombre ?? ''
+    m_accion.value = data.accion ?? ''
+    m_fecha_ini.value = data.fecha_ini ?? ''
+    m_fecha_fin.value = data.fecha_fin ?? ''
+    m_observaciones.value = data.observaciones ?? ''
     m_duracion_hrs.value = data.duracion_hrs?.toString() || ''
     m_horas_real.value = data.horas_real?.toString() || ''
-
-    m_eval_aprendizaje.value = String(data.eval_aprendizaje ?? '0') === '1' || data.eval_aprendizaje === true
-    m_total_horas.value = (selectx.totalHorasReal ?? 0).toString()
+    m_eval_aprendizaje.value =
+      String(data.eval_aprendizaje ?? '0') === '1' || data.eval_aprendizaje === true
+    m_total_horas.value = String(selectx.totalHorasReal ?? 0)
 
     listOptionStatus.value = selectx.listOptionStatus ?? []
     listSelectStatus.value = (selectx.listSelectStatus ?? [])[0] ?? null
+
     listOptionInstance.value = selectx.listOptionInstance ?? []
     listSelectInstance.value = (selectx.listSelectInstance ?? [])[0] ?? null
+
     listOptionTematica.value = selectx.listOptionTematica ?? []
     listSelectTematica.value = (selectx.listSelectTematica ?? [])[0] ?? null
 
@@ -641,40 +774,60 @@ async function setOption(id) {
     m_calificacion.value = clampCalificacion(data.calificacion ?? 100)
 
     try {
-      const asg = await axios.post('/pac/asignacion-unidad/data', { id })
+      const asg = await axios.post('/pac/asignacion-unidad/data', { id: safeId })
       m_unidad.value = asg.data?.unidad_txt ?? ''
       m_coordinacion.value = asg.data?.coordinacion_txt ?? ''
-    } catch (e) {
+    } catch (error) {
+      console.error('Error en /pac/asignacion-unidad/data:', error?.response?.data ?? error)
       m_unidad.value = ''
       m_coordinacion.value = ''
     }
+
+    blurActiveElement()
+    $('#modal_password_user').modal('show')
   } catch (error) {
-    notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
+    console.error('Error en /pac/data:', error?.response?.data ?? error)
+    notyf.error(error?.response?.data?.message ?? 'No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
     hideSpinner()
   }
 }
 
 async function openAddCourse(id) {
-  selectedEmployeeId.value = id
+  const safeId = parseInt(id ?? 0, 10)
+
+  if (!safeId) {
+    notyf.error('No se encontró el identificador del registro.')
+    return
+  }
+
+  selectedEmployeeId.value = safeId
   selectedCourse.value = null
   canEditCalificacion.value = false
 
   try {
     const { data } = await axios.post('/pac/courses')
     courseOptions.value = data.listCourses ?? []
+
+    blurActiveElement()
+    $('#modal_add_course').modal('show')
   } catch (error) {
+    console.error('Error en /pac/courses:', error?.response?.data ?? error)
     notyf.error('No se pudieron cargar los cursos.')
   }
 }
 
 async function confirmAddCourse() {
+  if (isSavingCourse.value) return
+
   if (!selectedEmployeeId.value || !selectedCourse.value?.id) {
     notyf.error('Selecciona un curso.')
     return
   }
 
   try {
+    isSavingCourse.value = true
+
     const { data } = await axios.post('/pac/employee/add-course', {
       id_empl_accion_base: selectedEmployeeId.value,
       id_accion: selectedCourse.value.id,
@@ -690,12 +843,16 @@ async function confirmAddCourse() {
     notyf.success(data.message ?? 'Curso agregado correctamente.')
     fetchTableData()
   } catch (error) {
+    console.error('Error en /pac/employee/add-course:', error?.response?.data ?? error)
     notyf.error('Error al agregar el curso.')
+  } finally {
+    isSavingCourse.value = false
   }
 }
 
 async function openAsignacionUnidad() {
-  const id = window._selectkybyemployee
+  const id = parseInt(window._selectkybyemployee ?? 0, 10)
+
   if (!id) {
     notyf.error('No se detectó el ID del registro.')
     return
@@ -712,6 +869,7 @@ async function openAsignacionUnidad() {
     const { data } = await axios.post('/pac/unidades')
     unidadOptions.value = data.listUnidades ?? []
   } catch (error) {
+    console.error('Error en /pac/unidades:', error?.response?.data ?? error)
     notyf.error('No se pudieron cargar las unidades.')
     return
   }
@@ -729,7 +887,7 @@ async function openAsignacionUnidad() {
     const idCoord = d.id_coordinacion ?? null
 
     if (idUnidad) {
-      selectedUnidad.value = unidadOptions.value.find(u => String(u.id) === String(idUnidad)) ?? null
+      selectedUnidad.value = unidadOptions.value.find((u) => String(u.id) === String(idUnidad)) ?? null
     }
 
     if (selectedUnidad.value?.id) {
@@ -737,11 +895,12 @@ async function openAsignacionUnidad() {
       coordinacionOptions.value = cx.data.listCoordinaciones ?? []
 
       if (idCoord) {
-        selectedCoordinacion.value = coordinacionOptions.value.find(c => String(c.id) === String(idCoord)) ?? null
+        selectedCoordinacion.value =
+          coordinacionOptions.value.find((c) => String(c.id) === String(idCoord)) ?? null
       }
     }
-  } catch (e) {
-    // no precarga
+  } catch (error) {
+    console.error('Error en precarga de asignación:', error?.response?.data ?? error)
   }
 
   $('#modal_asignacion_unidad')
@@ -762,6 +921,8 @@ async function openAsignacionUnidad() {
 }
 
 async function confirmAsignacionUnidad() {
+  if (isSavingAsignacion.value) return
+
   const id = selectedEmployeeId.value
 
   if (!id) {
@@ -778,6 +939,8 @@ async function confirmAsignacionUnidad() {
   }
 
   try {
+    isSavingAsignacion.value = true
+
     const { data } = await axios.post('/pac/asignacion-unidad/save', {
       id,
       id_unidad: selectedUnidad.value.id,
@@ -798,7 +961,10 @@ async function confirmAsignacionUnidad() {
     blurActiveElement()
     $('#modal_asignacion_unidad').modal('hide')
   } catch (error) {
+    console.error('Error en /pac/asignacion-unidad/save:', error?.response?.data ?? error)
     notyf.error('Error al guardar la asignación.')
+  } finally {
+    isSavingAsignacion.value = false
   }
 }
 </script>

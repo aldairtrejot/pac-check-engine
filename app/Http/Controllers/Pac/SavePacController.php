@@ -7,6 +7,8 @@ use App\Models\Pac\EntityPacModel;
 use App\Support\PacVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class SavePacController extends Controller
 {
@@ -25,17 +27,16 @@ class SavePacController extends Controller
                 'm_observaciones' => 'nullable|string|max:1000',
                 'm_eval_aprendizaje' => 'nullable|in:0,1',
 
-                // selects (vienen por append desde Vue)
+                // selects
                 'id_cat_estatus'  => 'nullable|integer',
                 'id_instancia'    => 'nullable|string|max:50',
                 'id_cat_tematica' => 'nullable|string|max:50',
                 'id_finalidad'    => 'nullable|integer',
 
-                // ✅ NUEVO
+                // calificación
                 'calificacion'    => 'nullable|integer|min:70|max:100',
             ]);
 
-            // ✅ chequeo de acceso correcto: id_puesto + curp
             $allowed = DB::table('public.a2_acciones_empleados')
                 ->join('public.a2_acciones_capacitacion', function ($join) {
                     $join->on(
@@ -59,32 +60,30 @@ class SavePacController extends Controller
 
             $row = EntityPacModel::findOrFail((int) $validated['id']);
 
-            // Normalizar vacíos a null
             $idEstatus   = ($validated['id_cat_estatus'] ?? '') !== '' ? (int) $validated['id_cat_estatus'] : null;
             $idFinalidad = ($validated['id_finalidad'] ?? '') !== '' ? (int) $validated['id_finalidad'] : null;
 
-            $idInstancia = trim((string)($validated['id_instancia'] ?? ''));
+            $idInstancia = trim((string) ($validated['id_instancia'] ?? ''));
             $idInstancia = $idInstancia !== '' ? $idInstancia : null;
 
-            $idTematica = trim((string)($validated['id_cat_tematica'] ?? ''));
+            $idTematica = trim((string) ($validated['id_cat_tematica'] ?? ''));
             $idTematica = $idTematica !== '' ? $idTematica : null;
 
             $fechaIni = $validated['m_fecha_ini'] ?? null;
             $fechaFin = $validated['m_fecha_fin'] ?? null;
 
-            // trimestre automático por fecha_ini
             $idTrimestre = $row->id_trimestre;
             if (! empty($fechaIni)) {
                 $m = (int) date('n', strtotime($fechaIni));
                 $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
             }
 
-            // horas_real: si viene vacío -> usar duración del curso
             $horasReal = $validated['m_horas_real'] ?? null;
             if ($horasReal === null || $horasReal === '') {
                 $dur = DB::table('public.a1_cat_acciones')
                     ->where('id_accion', $row->id_accion)
                     ->value('duracion_hrs');
+
                 $horasReal = $dur !== null ? (float) $dur : null;
             } else {
                 $horasReal = (float) $horasReal;
@@ -95,7 +94,6 @@ class SavePacController extends Controller
 
             $eval = ($validated['m_eval_aprendizaje'] ?? '0') === '1' ? 1 : 0;
 
-            // ✅ calificación: default 100, entero, clamp 70..100
             $cal = $validated['calificacion'] ?? 100;
             $cal = (int) $cal;
             if ($cal < 70) $cal = 70;
@@ -119,12 +117,20 @@ class SavePacController extends Controller
                 'status' => true,
                 'message' => 'Registro actualizado correctamente.',
             ], 200);
-
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $th) {
+            Log::error('Error al guardar PAC', [
+                'message' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+                'request' => $request->all(),
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => __('default.error_message'),
-            ], 200);
+            ], 500);
         }
     }
 }
