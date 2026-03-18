@@ -216,215 +216,215 @@ if ($correoDestinatario !== '' && filter_var($correoDestinatario, FILTER_VALIDAT
         ], 200);
     }
 
-    private function acceptConstancia(string $idRespuesta)
-    {
-        return DB::transaction(function () use ($idRespuesta) {
-            $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
-            $colSet  = array_flip($colsEmp);
+  private function acceptConstancia(string $idRespuesta)
+{
+    return DB::transaction(function () use ($idRespuesta) {
+        $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
+        $colSet  = array_flip($colsEmp);
 
-            $hasCalificacion = isset($colSet['calificacion']);
-            $hasHorasProg    = isset($colSet['horas_progamadas']);
-            $hasEvalApr      = isset($colSet['eval_aprendizaje']);
+        $hasCalificacion = isset($colSet['calificacion']);
+        $hasHorasProg    = isset($colSet['horas_progamadas']);
+        $hasEvalApr      = isset($colSet['eval_aprendizaje']);
 
-            $c = DB::table('public.tbl_constancias as c')
-                ->select([
-                    'c.id_respuesta',
-                    'c.curp',
-                    'c.nombre_curso',
-                    'c.id_puesto',
-                    'c.fecha_inicio',
-                    'c.fecha_final',
-                    'c.horas_realizadas',
-                    'c.calificacion',
-                    'c.instancia',
-                    'c.instancia_otro',
-                ])
-                ->where('c.id_respuesta', $idRespuesta)
-                ->first();
+        $c = DB::table('public.tbl_constancias as c')
+            ->select([
+                'c.id_respuesta',
+                'c.curp',
+                'c.nombre_curso',
+                'c.id_puesto',
+                'c.fecha_inicio',
+                'c.fecha_final',
+                'c.horas_realizadas',
+                'c.calificacion',
+                'c.instancia',
+                'c.instancia_otro',
+            ])
+            ->where('c.id_respuesta', $idRespuesta)
+            ->first();
 
-            if (!$c) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Registro de constancia no encontrado.',
-                ], 200);
+        if (!$c) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Registro de constancia no encontrado.',
+            ], 200);
+        }
+
+        $curp        = trim((string) ($c->curp ?? ''));
+        $cursoTxt    = trim((string) ($c->nombre_curso ?? ''));
+        $idPuestoTxt = trim((string) ($c->id_puesto ?? ''));
+
+        if ($curp === '' || $cursoTxt === '' || $idPuestoTxt === '') {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Faltan datos en la constancia (CURP, curso o id_puesto).',
+            ], 200);
+        }
+
+        $accionCat = DB::table('public.a1_cat_acciones')
+            ->select(['id_accion', 'duracion_hrs'])
+            ->whereRaw('TRIM(UPPER(nombre_accion)) = TRIM(UPPER(?))', [$cursoTxt])
+            ->first();
+
+        if (!$accionCat) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'El curso NO existe en el catálogo (a1_cat_acciones). No se puede procesar.',
+            ], 200);
+        }
+
+        $idAccion = (int) $accionCat->id_accion;
+        $horasProgramadas = $accionCat->duracion_hrs ?? null;
+
+        $instTxt = trim((string) (($c->instancia ?? '') !== '' ? $c->instancia : ($c->instancia_otro ?? '')));
+        $idInstancia = $this->resolveIdInstanciaSafe($instTxt);
+
+        if (!$idInstancia) {
+            return response()->json([
+                'status'  => false,
+                'message' => "No se pudo mapear la instancia '{$instTxt}' a un id_instancia del catálogo.",
+            ], 200);
+        }
+
+        $tematicaTxt = $this->resolveTematicaFromCursoSafe($idAccion);
+        if (!$tematicaTxt) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No se pudo obtener la temática asociada al curso desde el catálogo.',
+            ], 200);
+        }
+
+        $idTematica = $this->resolveIdTematicaSafe($tematicaTxt);
+        if (!$idTematica) {
+            return response()->json([
+                'status'  => false,
+                'message' => "No se pudo mapear la temática '{$tematicaTxt}' a cat_tematica.",
+            ], 200);
+        }
+
+        $idTrimestre = null;
+        if (!empty($c->fecha_inicio)) {
+            $m = (int) date('n', strtotime($c->fecha_inicio));
+            $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
+        }
+
+        if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'La constancia no trae fechas suficientes (fecha_inicio/fecha_final).',
+            ], 200);
+        }
+
+        $horasReal = null;
+        $hrsRaw = trim((string) ($c->horas_realizadas ?? ''));
+        if ($hrsRaw !== '') {
+            $hrsRaw = str_replace(',', '.', $hrsRaw);
+            $horasReal = (float) $hrsRaw;
+        }
+
+        $cal = 100;
+        $calRaw = trim((string) ($c->calificacion ?? ''));
+        if ($calRaw !== '' && is_numeric($calRaw)) {
+            $cal = (int) $calRaw;
+        }
+        if ($cal < 70) $cal = 70;
+        if ($cal > 100) $cal = 100;
+
+        $existe = DB::table('public.a2_acciones_empleados')
+            ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+            ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+            ->where('id_accion', $idAccion)
+            ->exists();
+
+        DB::select("SELECT pg_advisory_xact_lock(5001)");
+        DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
+
+        $obsBase = 'Curso Extra.';
+        if (!$hasCalificacion) {
+            $obsBase .= ' Calificación: '.$cal.'.';
+        }
+
+        if ($existe) {
+            $upd = [
+                'id_finalidad'     => 6,
+                'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                'fecha_ini'        => $c->fecha_inicio,
+                'fecha_fin'        => $c->fecha_final,
+                'id_trimestre'     => $idTrimestre,
+                'id_instancia'     => (string) $idInstancia,
+                'id_cat_tematica'  => (string) $idTematica,
+                'horas_real'       => $horasReal,
+                'observaciones'    => DB::raw("COALESCE(NULLIF(BTRIM(observaciones), ''), '{$obsBase}')"),
+            ];
+
+            if ($hasHorasProg) {
+                $upd['horas_progamadas'] = $horasProgramadas;
+            }
+            if ($hasCalificacion) {
+                $upd['calificacion'] = $cal;
             }
 
-            $curp        = trim((string) ($c->curp ?? ''));
-            $cursoTxt    = trim((string) ($c->nombre_curso ?? ''));
-            $idPuestoTxt = trim((string) ($c->id_puesto ?? ''));
-
-            if ($curp === '' || $cursoTxt === '' || $idPuestoTxt === '') {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Faltan datos en la constancia (CURP, curso o id_puesto).',
-                ], 200);
-            }
-
-            $accionCat = DB::table('public.a1_cat_acciones')
-                ->select(['id_accion', 'duracion_hrs'])
-                ->whereRaw('TRIM(UPPER(nombre_accion)) = TRIM(UPPER(?))', [$cursoTxt])
-                ->first();
-
-            if (!$accionCat) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'El curso NO existe en el catálogo (a1_cat_acciones). No se puede procesar.',
-                ], 200);
-            }
-
-            $idAccion = (int) $accionCat->id_accion;
-            $horasProgramadas = $accionCat->duracion_hrs ?? null;
-
-            $instTxt = trim((string) (($c->instancia ?? '') !== '' ? $c->instancia : ($c->instancia_otro ?? '')));
-            $idInstancia = $this->resolveIdInstanciaSafe($instTxt);
-
-            if (!$idInstancia) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => "No se pudo mapear la instancia '{$instTxt}' a un id_instancia del catálogo.",
-                ], 200);
-            }
-
-            $tematicaTxt = $this->resolveTematicaFromCursoSafe($idAccion);
-            if (!$tematicaTxt) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'No se pudo obtener la temática asociada al curso desde el catálogo.',
-                ], 200);
-            }
-
-            $idTematica = $this->resolveIdTematicaSafe($tematicaTxt);
-            if (!$idTematica) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => "No se pudo mapear la temática '{$tematicaTxt}' a cat_tematica.",
-                ], 200);
-            }
-
-            $idTrimestre = null;
-            if (!empty($c->fecha_inicio)) {
-                $m = (int) date('n', strtotime($c->fecha_inicio));
-                $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
-            }
-
-            if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'La constancia no trae fechas suficientes (fecha_inicio/fecha_final).',
-                ], 200);
-            }
-
-            $horasReal = null;
-            $hrsRaw = trim((string) ($c->horas_realizadas ?? ''));
-            if ($hrsRaw !== '') {
-                $hrsRaw = str_replace(',', '.', $hrsRaw);
-                $horasReal = (float) $hrsRaw;
-            }
-
-            $cal = 100;
-            $calRaw = trim((string) ($c->calificacion ?? ''));
-            if ($calRaw !== '' && is_numeric($calRaw)) {
-                $cal = (int) $calRaw;
-            }
-            if ($cal < 70) $cal = 70;
-            if ($cal > 100) $cal = 100;
-
-            $existe = DB::table('public.a2_acciones_empleados')
+            DB::table('public.a2_acciones_empleados')
                 ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
                 ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
                 ->where('id_accion', $idAccion)
-                ->exists();
+                ->update($upd);
 
-            DB::select("SELECT pg_advisory_xact_lock(5001)");
-            DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
+        } else {
+            $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
+            $newId = $maxId ? ((int) $maxId + 1) : 1;
 
-            $obsBase = 'Cargado desde Constancias (id_respuesta: '.$c->id_respuesta.').';
-            if (!$hasCalificacion) {
-                $obsBase .= ' Calificación: '.$cal.'.';
+            $maxNumCurso = DB::table('public.a2_acciones_empleados')
+                ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+                ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+                ->max('id_num_curso');
+
+            $nextNumCurso = $maxNumCurso ? ((int) $maxNumCurso + 1) : 1;
+
+            $ins = [
+                'id_empl_accion'   => $newId,
+                'id_puesto'        => $idPuestoTxt,
+                'curp'             => $curp,
+                'id_accion'        => $idAccion,
+                'id_finalidad'     => 6,
+                'horas_real'       => $horasReal,
+                'id_instancia'     => (string) $idInstancia,
+                'costo_unitario'   => null,
+                'fecha_ini'        => $c->fecha_inicio,
+                'fecha_fin'        => $c->fecha_final,
+                'id_trimestre'     => $idTrimestre,
+                'id_num_curso'     => $nextNumCurso,
+                'observaciones'    => $obsBase,
+                'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                'id_cat_tematica'  => (string) $idTematica,
+            ];
+
+            if ($hasEvalApr) {
+                $ins['eval_aprendizaje'] = null;
+            }
+            if ($hasHorasProg) {
+                $ins['horas_progamadas'] = $horasProgramadas;
+            }
+            if ($hasCalificacion) {
+                $ins['calificacion'] = $cal;
             }
 
-            if ($existe) {
-                $upd = [
-                    'id_finalidad'     => 6,
-                    'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
-                    'fecha_ini'        => $c->fecha_inicio,
-                    'fecha_fin'        => $c->fecha_final,
-                    'id_trimestre'     => $idTrimestre,
-                    'id_instancia'     => (string) $idInstancia,
-                    'id_cat_tematica'  => (string) $idTematica,
-                    'horas_real'       => $horasReal,
-                    'observaciones'    => DB::raw("COALESCE(observaciones, '{$obsBase}')"),
-                ];
+            DB::table('public.a2_acciones_empleados')->insert($ins);
+        }
 
-                if ($hasHorasProg) {
-                    $upd['horas_progamadas'] = $horasProgramadas;
-                }
-                if ($hasCalificacion) {
-                    $upd['calificacion'] = $cal;
-                }
+        DB::table('public.tbl_constancias')
+            ->where('id_respuesta', $idRespuesta)
+            ->update([
+                'estatus'             => self::CONST_CONCLUIDO,
+                'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
+                'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
+            ]);
 
-                DB::table('public.a2_acciones_empleados')
-                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
-                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                    ->where('id_accion', $idAccion)
-                    ->update($upd);
-
-            } else {
-                $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
-                $newId = $maxId ? ((int) $maxId + 1) : 1;
-
-                $maxNumCurso = DB::table('public.a2_acciones_empleados')
-                    ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
-                    ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
-                    ->max('id_num_curso');
-
-                $nextNumCurso = $maxNumCurso ? ((int) $maxNumCurso + 1) : 1;
-
-                $ins = [
-                    'id_empl_accion'   => $newId,
-                    'id_puesto'        => $idPuestoTxt,
-                    'curp'             => $curp,
-                    'id_accion'        => $idAccion,
-                    'id_finalidad'     => 6,
-                    'horas_real'       => $horasReal,
-                    'id_instancia'     => (string) $idInstancia,
-                    'costo_unitario'   => null,
-                    'fecha_ini'        => $c->fecha_inicio,
-                    'fecha_fin'        => $c->fecha_final,
-                    'id_trimestre'     => $idTrimestre,
-                    'id_num_curso'     => $nextNumCurso,
-                    'observaciones'    => $obsBase,
-                    'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
-                    'id_cat_tematica'  => (string) $idTematica,
-                ];
-
-                if ($hasEvalApr) {
-                    $ins['eval_aprendizaje'] = null;
-                }
-                if ($hasHorasProg) {
-                    $ins['horas_progamadas'] = $horasProgramadas;
-                }
-                if ($hasCalificacion) {
-                    $ins['calificacion'] = $cal;
-                }
-
-                DB::table('public.a2_acciones_empleados')->insert($ins);
-            }
-
-            DB::table('public.tbl_constancias')
-                ->where('id_respuesta', $idRespuesta)
-                ->update([
-                    'estatus'             => self::CONST_CONCLUIDO,
-                    'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
-                    'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
-                ]);
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Constancia aceptada y procesada correctamente.',
-            ], 200);
-        });
-    }
+        return response()->json([
+            'status'  => true,
+            'message' => 'Constancia aceptada y procesada correctamente.',
+        ], 200);
+    });
+}
 
     private function resolveIdInstanciaSafe(string $instTxt): ?string
     {
