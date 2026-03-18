@@ -55,10 +55,71 @@ class DataPacModel extends Model
             ->join('public.a1_cat_acciones as a', 'e.id_accion', '=', 'a.id_accion')
             ->leftJoin('public.cat_unidades as cu', 'cu.id_unidad', '=', 'c.id_unidad')
             ->leftJoin('public.cat_coordinaciones as cc', 'cc.id_coordinacion', '=', 'c.id_coordinacion')
-            ->where('e.id_empl_accion', $id);
+            ->where('e.id_empl_accion', (int) $id);
 
-        PacVisibility::apply($query, $user, 'c');
+        /**
+         * ✅ Admin / admin_oc / revisor_est ven igual que admin
+         * ✅ Los demás sí pasan por visibilidad normal
+         */
+        if (! $this->isAdminOrRevisorEst($user)) {
+            PacVisibility::apply($query, $user, 'c');
+        }
 
         return $query->first();
+    }
+
+    private function isAdminOrRevisorEst($user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        // Spatie
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            if (
+                $user->hasRole('admin_oc') ||
+                $user->hasRole('admin') ||
+                $user->hasRole('revisor_est')
+            ) {
+                return true;
+            }
+        }
+
+        // método auxiliar existente
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        // rol_id clásico
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
+            return true;
+        }
+
+        // booleano
+        if (isset($user->is_admin) && (bool) $user->is_admin) {
+            return true;
+        }
+
+        // nombres textuales posibles
+        $roleCandidates = [
+            $user->role ?? null,
+            $user->rol ?? null,
+            $user->rol_nombre ?? null,
+            $user->nombre_rol ?? null,
+            $user->perfil ?? null,
+        ];
+
+        foreach ($roleCandidates as $role) {
+            $role = strtolower(trim((string) $role));
+            if (in_array($role, ['admin_oc', 'admin', 'revisor_est'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

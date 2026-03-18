@@ -13,12 +13,12 @@ class CoursePacController extends Controller
      * Catálogo de cursos para el modal "Agregar curso".
      * ✅ Sin filtro: se puede agregar cualquiera.
      * ✅ Devuelve id + descripcion + text (por compatibilidad con tu inputSelect).
-     * ✅ SOLO ADMIN
+     * ✅ ADMIN / REVISOR_EST
      */
     public function listCourses(Request $request)
     {
         try {
-            $this->assertAdminCanAddCourses();
+            $this->assertCanManageCourses();
 
             $rows = DB::table('public.a1_cat_acciones')
                 ->selectRaw("
@@ -35,7 +35,9 @@ class CoursePacController extends Controller
             ], 200);
 
         } catch (\Throwable $th) {
-            Log::error('PAC listCourses error: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
+            Log::error('PAC listCourses error: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString()
+            ]);
 
             return response()->json([
                 'status'  => false,
@@ -51,19 +53,19 @@ class CoursePacController extends Controller
      * - ✅ id_finalidad SIEMPRE = 6
      * - ✅ Genera consecutivo id_num_curso para ese empleado
      * - ✅ Mantiene horas_programadas desde catálogo
-     * - ✅ SOLO ADMIN
+     * - ✅ ADMIN / REVISOR_EST
      */
     public function addCourseToEmployee(Request $request)
     {
         try {
-            $this->assertAdminCanAddCourses();
+            $this->assertCanManageCourses();
 
             $request->validate([
                 'id_empl_accion_base' => 'required|integer',
                 'id_accion'           => 'required|integer',
             ]);
 
-            $idBase  = (int) $request->id_empl_accion_base;
+            $idBase   = (int) $request->id_empl_accion_base;
             $idAccion = (int) $request->id_accion;
 
             return DB::transaction(function () use ($idBase, $idAccion) {
@@ -115,12 +117,11 @@ class CoursePacController extends Controller
                     ->where('curp', $base->curp)
                     ->max('id_num_curso');
 
-                $nextNumCurso = $maxNumCurso ? ((int)$maxNumCurso + 1) : 1;
+                $nextNumCurso = $maxNumCurso ? ((int) $maxNumCurso + 1) : 1;
 
                 // 5) Nuevo id_empl_accion (si tu PK NO es serial)
-                //    Si tu PK es serial/identity, podemos quitar esto y usar insertGetId().
                 $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
-                $newId = $maxId ? ((int)$maxId + 1) : 1;
+                $newId = $maxId ? ((int) $maxId + 1) : 1;
 
                 // 6) Construir payload copiando base para no romper NOT NULL
                 $payload = (array) $base;
@@ -128,10 +129,10 @@ class CoursePacController extends Controller
                 // Cambios obligatorios para “nuevo curso”
                 $payload['id_empl_accion']   = $newId;
                 $payload['id_accion']        = $idAccion;
-                $payload['id_finalidad']     = 6;               // ✅ regla
-                $payload['id_num_curso']     = $nextNumCurso;    // ✅ consecutivo
-                $payload['horas_progamadas'] = $horasProgramadas; // ✅ respeta tu nombre de columna
-                $payload['calificacion']     = 100;             // por default
+                $payload['id_finalidad']     = 6;
+                $payload['id_num_curso']     = $nextNumCurso;
+                $payload['horas_progamadas'] = $horasProgramadas; // respeta el nombre actual de tu columna
+                $payload['calificacion']     = 100;
 
                 // Limpiar campos que deben empezar vacíos
                 $payload['horas_real']       = null;
@@ -145,10 +146,8 @@ class CoursePacController extends Controller
                 $payload['id_cat_estatus']   = null;
                 $payload['id_cat_tematica']  = null;
 
-                // Si tu tabla tiene timestamps y NO quieres copiarlos:
                 unset($payload['created_at'], $payload['updated_at']);
 
-                // Insert
                 DB::table('public.a2_acciones_empleados')->insert($payload);
 
                 return response()->json([
@@ -158,7 +157,9 @@ class CoursePacController extends Controller
             });
 
         } catch (\Throwable $th) {
-            Log::error('PAC addCourseToEmployee error: '.$th->getMessage(), ['trace' => $th->getTraceAsString()]);
+            Log::error('PAC addCourseToEmployee error: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString()
+            ]);
 
             return response()->json([
                 'status'  => false,
@@ -168,28 +169,71 @@ class CoursePacController extends Controller
     }
 
     /**
-     * ✅ Solo admin puede agregar cursos.
-     * Ajusta si tu proyecto usa roles distintos.
+     * ✅ ADMIN / REVISOR_EST
      */
-    private function assertAdminCanAddCourses(): void
+    private function assertCanManageCourses(): void
     {
         $user = auth()->user();
-        if (! $user) abort(401, 'No autenticado');
 
-        // Spatie (si existe)
-        if (method_exists($user, 'hasRole')) {
-            if ($user->hasRole('admin_oc')) return;
+        if (! $user) {
+            abort(401, 'No autenticado');
         }
 
-        // Si tienes método isAdmin
-        if (method_exists($user, 'isAdmin') && $user->isAdmin()) return;
+        if ($this->isAdminOrRevisorEst($user)) {
+            return;
+        }
 
-        // Si tienes rol_id
-        if (isset($user->rol_id) && (int)$user->rol_id === 1) return;
+        abort(403, 'No tienes permisos para agregar cursos.');
+    }
 
-        // Si tienes is_admin boolean
-        if (isset($user->is_admin) && (bool)$user->is_admin) return;
+    private function isAdminOrRevisorEst($user): bool
+    {
+        // Spatie
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
+            return true;
+        }
 
-        abort(403, 'Solo el administrador puede agregar cursos.');
+        if (method_exists($user, 'hasRole')) {
+            if (
+                $user->hasRole('admin_oc') ||
+                $user->hasRole('admin') ||
+                $user->hasRole('revisor_est')
+            ) {
+                return true;
+            }
+        }
+
+        // Método auxiliar existente
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        // rol_id clásico
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
+            return true;
+        }
+
+        // booleano
+        if (isset($user->is_admin) && (bool) $user->is_admin) {
+            return true;
+        }
+
+        // nombre textual del rol/perfil
+        $roleCandidates = [
+            $user->role ?? null,
+            $user->rol ?? null,
+            $user->rol_nombre ?? null,
+            $user->nombre_rol ?? null,
+            $user->perfil ?? null,
+        ];
+
+        foreach ($roleCandidates as $role) {
+            $role = strtolower(trim((string) $role));
+            if (in_array($role, ['admin_oc', 'admin', 'revisor_est'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

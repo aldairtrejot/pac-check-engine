@@ -17,48 +17,69 @@ class SavePacController extends Controller
         try {
             $user = auth()->user();
 
+            if (! $user) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'No autenticado.',
+                ], 401);
+            }
+
             $validated = $request->validate([
                 'id' => 'required|integer',
 
                 // del form
-                'm_horas_real' => 'nullable|numeric',
-                'm_fecha_ini'  => 'nullable|date',
-                'm_fecha_fin'  => 'nullable|date',
-                'm_observaciones' => 'nullable|string|max:1000',
-                'm_eval_aprendizaje' => 'nullable|in:0,1',
+                'm_horas_real'        => 'nullable|numeric',
+                'm_fecha_ini'         => 'nullable|date',
+                'm_fecha_fin'         => 'nullable|date',
+                'm_observaciones'     => 'nullable|string|max:1000',
+                'm_eval_aprendizaje'  => 'nullable|in:0,1',
 
                 // selects
-                'id_cat_estatus'  => 'nullable|integer',
-                'id_instancia'    => 'nullable|string|max:50',
-                'id_cat_tematica' => 'nullable|string|max:50',
-                'id_finalidad'    => 'nullable|integer',
+                'id_cat_estatus'      => 'nullable|integer',
+                'id_instancia'        => 'nullable|string|max:50',
+                'id_cat_tematica'     => 'nullable|string|max:50',
+                'id_finalidad'        => 'nullable|integer',
 
                 // calificación
-                'calificacion'    => 'nullable|integer|min:70|max:100',
+                'calificacion'        => 'nullable|integer|min:70|max:100',
             ]);
 
-            $allowed = DB::table('public.a2_acciones_empleados')
-                ->join('public.a2_acciones_capacitacion', function ($join) {
-                    $join->on(
-                        DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
-                        '=',
-                        'public.a2_acciones_capacitacion.id_puesto'
-                    )->whereRaw(
-                        'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) = UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.curp)))'
-                    );
-                })
-                ->where('public.a2_acciones_empleados.id_empl_accion', (int) $validated['id']);
+            $id = (int) $validated['id'];
 
-            PacVisibility::apply($allowed, $user, 'public.a2_acciones_capacitacion');
+            /**
+             * Para admin/admin_oc/revisor_est:
+             * - acceso total al guardado en este módulo
+             *
+             * Para otros roles:
+             * - se mantiene PacVisibility
+             */
+            if ($this->isAdminOrRevisorEst($user)) {
+                $allowed = DB::table('public.a2_acciones_empleados')
+                    ->where('id_empl_accion', $id);
+            } else {
+                $allowed = DB::table('public.a2_acciones_empleados')
+                    ->join('public.a2_acciones_capacitacion', function ($join) {
+                        $join->on(
+                            DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
+                            '=',
+                            'public.a2_acciones_capacitacion.id_puesto'
+                        )->whereRaw(
+                            'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) = UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.curp)))'
+                        );
+                    })
+                    ->where('public.a2_acciones_empleados.id_empl_accion', $id);
+
+                PacVisibility::apply($allowed, $user, 'public.a2_acciones_capacitacion');
+            }
 
             if (! $allowed->exists()) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Acceso denegado o registro no encontrado.',
                 ], 200);
             }
 
-            $row = EntityPacModel::findOrFail((int) $validated['id']);
+            $row = EntityPacModel::findOrFail($id);
 
             $idEstatus   = ($validated['id_cat_estatus'] ?? '') !== '' ? (int) $validated['id_cat_estatus'] : null;
             $idFinalidad = ($validated['id_finalidad'] ?? '') !== '' ? (int) $validated['id_finalidad'] : null;
@@ -96,8 +117,12 @@ class SavePacController extends Controller
 
             $cal = $validated['calificacion'] ?? 100;
             $cal = (int) $cal;
-            if ($cal < 70) $cal = 70;
-            if ($cal > 100) $cal = 100;
+            if ($cal < 70) {
+                $cal = 70;
+            }
+            if ($cal > 100) {
+                $cal = 100;
+            }
 
             $row->id_cat_estatus   = $idEstatus;
             $row->id_finalidad     = $idFinalidad;
@@ -114,23 +139,78 @@ class SavePacController extends Controller
             $row->save();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Registro actualizado correctamente.',
             ], 200);
+
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $th) {
             Log::error('Error al guardar PAC', [
                 'message' => $th->getMessage(),
-                'file' => $th->getFile(),
-                'line' => $th->getLine(),
+                'file'    => $th->getFile(),
+                'line'    => $th->getLine(),
                 'request' => $request->all(),
             ]);
 
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => __('default.error_message'),
             ], 500);
         }
+    }
+
+    /**
+     * ✅ Admin y revisor_est se comportan igual en este módulo
+     */
+    private function isAdminOrRevisorEst($user): bool
+    {
+        // Spatie
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            if (
+                $user->hasRole('admin_oc') ||
+                $user->hasRole('admin') ||
+                $user->hasRole('revisor_est')
+            ) {
+                return true;
+            }
+        }
+
+        // método del modelo
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        // rol_id clásico
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
+            return true;
+        }
+
+        // booleano
+        if (isset($user->is_admin) && (bool) $user->is_admin) {
+            return true;
+        }
+
+        // nombres textuales posibles
+        $roleCandidates = [
+            $user->role ?? null,
+            $user->rol ?? null,
+            $user->rol_nombre ?? null,
+            $user->nombre_rol ?? null,
+            $user->perfil ?? null,
+        ];
+
+        foreach ($roleCandidates as $role) {
+            $role = strtolower(trim((string) $role));
+            if (in_array($role, ['admin_oc', 'admin', 'revisor_est'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

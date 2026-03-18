@@ -4,29 +4,35 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pac\CollectionPacModel;
+use Illuminate\Support\Facades\Log;
 
 class MainPacController extends Controller
 {
     public function mainPac()
     {
         try {
-            // Obtener los catalogos de cursos
             $collectionPacModel = new CollectionPacModel;
             $listOptionsAcction = $collectionPacModel->listCollection();
             $listSelectAcction = [];
 
             return response()->json([
-                'status' => true, // Return successful response
-                'listOptionsAcction' => $listOptionsAcction, // Send packaged data
-                'listSelectAcction' => $listSelectAcction, // Send packaged data
-            ], 200); // Respond with HTTP status 200
+                'status' => true,
+                'listOptionsAcction' => $listOptionsAcction,
+                'listSelectAcction' => $listSelectAcction,
+            ], 200);
         } catch (\Throwable $th) {
-            // \Log::info('erros: '.$th);
+            Log::error('PAC mainPac ERROR', [
+                'message' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+                'trace' => $th->getTraceAsString(),
+                'user_id' => auth()->id(),
+            ]);
 
             return response()->json([
-                'status' => false, // return a JSON response with status false on error
-                'message' => __('default.error_message'), // Default error message from config
-            ], 200); // Respond with HTTP status 200 even on error
+                'status' => false,
+                'message' => __('default.error_message'),
+            ], 200);
         }
     }
 }

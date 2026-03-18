@@ -497,6 +497,37 @@ function getRowId(rowx) {
   return rowx?.id ?? rowx?.id_empl_accion ?? null
 }
 
+function getApiErrorMessage(error, fallback = 'No se pudo completar la acción. Por favor, vuelve a intentarlo.') {
+  const status = error?.response?.status
+  const data = error?.response?.data
+
+  if (typeof data === 'string' && data.trim() !== '') {
+    return `HTTP ${status ?? ''}: ${data}`
+  }
+
+  if (data?.message) {
+    return data.message
+  }
+
+  if (data?.error) {
+    return data.error
+  }
+
+  if (status === 403) {
+    return 'No tienes permisos para realizar esta acción.'
+  }
+
+  if (status === 404) {
+    return 'La ruta solicitada no fue encontrada.'
+  }
+
+  if (status === 500) {
+    return 'Ocurrió un error interno en el servidor.'
+  }
+
+  return fallback
+}
+
 function clampCalificacion(val) {
   let n = parseInt(val ?? '100', 10)
   if (Number.isNaN(n)) n = 100
@@ -575,7 +606,7 @@ watch(selectedUnidad, async (u) => {
     coordinacionOptions.value = data.listCoordinaciones ?? []
   } catch (error) {
     console.error('Error en /pac/coordinaciones:', error?.response?.data ?? error)
-    notyf.error('No se pudieron cargar las coordinaciones.')
+    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar las coordinaciones.'))
   }
 })
 
@@ -647,11 +678,17 @@ function search_function() {
 async function main() {
   try {
     const request = await axios.post('/pac/main')
+
+    if (!request.data?.status) {
+      notyf.error(request.data?.message ?? 'No se pudieron cargar los catálogos.')
+      return
+    }
+
     listOptionsAcction.value = request.data.listOptionsAcction ?? []
     listSelectAcction.value = (request.data.listSelectAcction ?? [])[0] ?? null
   } catch (error) {
     console.error('Error en /pac/main:', error?.response?.data ?? error)
-    notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
+    notyf.error(getApiErrorMessage(error, 'No se pudo completar la acción. Por favor, vuelve a intentarlo.'))
   }
 }
 
@@ -706,7 +743,7 @@ async function button_confirm() {
       return
     }
 
-    notyf.error(error?.response?.data?.message ?? 'No se pudo guardar la información.')
+    notyf.error(getApiErrorMessage(error, 'No se pudo guardar la información.'))
   } finally {
     hideSpinner()
     isSavingPac.value = false
@@ -787,7 +824,7 @@ async function setOption(id) {
     $('#modal_password_user').modal('show')
   } catch (error) {
     console.error('Error en /pac/data:', error?.response?.data ?? error)
-    notyf.error(error?.response?.data?.message ?? 'No se pudo completar la acción. Por favor, vuelve a intentarlo.')
+    notyf.error(getApiErrorMessage(error, 'No se pudo completar la acción. Por favor, vuelve a intentarlo.'))
   } finally {
     hideSpinner()
   }
@@ -807,13 +844,19 @@ async function openAddCourse(id) {
 
   try {
     const { data } = await axios.post('/pac/courses')
+
+    if (!data?.status) {
+      notyf.error(data?.message ?? 'No se pudieron cargar los cursos.')
+      return
+    }
+
     courseOptions.value = data.listCourses ?? []
 
     blurActiveElement()
     $('#modal_add_course').modal('show')
   } catch (error) {
     console.error('Error en /pac/courses:', error?.response?.data ?? error)
-    notyf.error('No se pudieron cargar los cursos.')
+    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar los cursos.'))
   }
 }
 
@@ -844,7 +887,7 @@ async function confirmAddCourse() {
     fetchTableData()
   } catch (error) {
     console.error('Error en /pac/employee/add-course:', error?.response?.data ?? error)
-    notyf.error('Error al agregar el curso.')
+    notyf.error(getApiErrorMessage(error, 'Error al agregar el curso.'))
   } finally {
     isSavingCourse.value = false
   }
@@ -867,10 +910,16 @@ async function openAsignacionUnidad() {
 
   try {
     const { data } = await axios.post('/pac/unidades')
+
+    if (!data?.status) {
+      notyf.error(data?.message ?? 'No se pudieron cargar las unidades.')
+      return
+    }
+
     unidadOptions.value = data.listUnidades ?? []
   } catch (error) {
     console.error('Error en /pac/unidades:', error?.response?.data ?? error)
-    notyf.error('No se pudieron cargar las unidades.')
+    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar las unidades.'))
     return
   }
 
@@ -962,7 +1011,7 @@ async function confirmAsignacionUnidad() {
     $('#modal_asignacion_unidad').modal('hide')
   } catch (error) {
     console.error('Error en /pac/asignacion-unidad/save:', error?.response?.data ?? error)
-    notyf.error('Error al guardar la asignación.')
+    notyf.error(getApiErrorMessage(error, 'Error al guardar la asignación.'))
   } finally {
     isSavingAsignacion.value = false
   }
