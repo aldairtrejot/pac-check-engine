@@ -38,7 +38,7 @@ class SaveActionController extends Controller
             } else {
                 // siguiente id_accion: MAX + 1, excluyendo 1000001 y 1000002
                 $maxId = EntityActionModel::query()
-                    ->whereNotIn('id_accion', [1000001, 1000002])
+                    ->whereNotIn('id_accion', [1000001,1000002,1000003,1000004,1000005,1000006,1000007,1000008,1000009,1000010])
                     ->max('id_accion');
 
                 $nextId = ($maxId ?? 0) + 1;
