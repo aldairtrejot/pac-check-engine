@@ -11,22 +11,25 @@ class CoursePacController extends Controller
 {
     /**
      * Catálogo de cursos para el modal "Agregar curso".
-     * ✅ Sin filtro: se puede agregar cualquiera.
-     * ✅ Devuelve id + descripcion + text (por compatibilidad con tu inputSelect).
-     * ✅ ADMIN / REVISOR_EST
+     * Solo muestra cursos con estatus VIGENTE o ALTA.
      */
     public function listCourses(Request $request)
     {
         try {
             $this->assertCanManageCourses();
 
-            $rows = DB::table('public.a1_cat_acciones')
+            $rows = DB::table('public.a1_cat_acciones as a')
                 ->selectRaw("
-                    id_accion as id,
-                    nombre_accion as descripcion,
-                    nombre_accion as text
+                    a.id_accion as id,
+                    a.nombre_accion as descripcion,
+                    a.nombre_accion as text,
+                    a.estatus as estatus
                 ")
-                ->orderBy('nombre_accion', 'ASC')
+                ->where(function ($q) {
+                    $q->whereRaw("UPPER(TRIM(a.estatus)) = 'VIGENTE'")
+                      ->orWhereRaw("UPPER(TRIM(a.estatus)) = 'ALTA'");
+                })
+                ->orderBy('a.nombre_accion', 'ASC')
                 ->get();
 
             return response()->json([
@@ -35,25 +38,21 @@ class CoursePacController extends Controller
             ], 200);
 
         } catch (\Throwable $th) {
-            Log::error('PAC listCourses error: '.$th->getMessage(), [
+            Log::error('PAC listCourses error: ' . $th->getMessage(), [
                 'trace' => $th->getTraceAsString()
             ]);
 
             return response()->json([
-                'status'  => false,
-                'message' => 'No se pudieron cargar los cursos.',
+                'status'      => false,
+                'message'     => 'No se pudieron cargar los cursos.',
+                'listCourses' => [],
             ], 200);
         }
     }
 
     /**
      * Agrega un curso (acción) a un empleado.
-     * - ✅ Copia el registro base (evita NOT NULL)
-     * - ✅ Evita duplicados (mismo empleado + misma acción)
-     * - ✅ id_finalidad SIEMPRE = 6
-     * - ✅ Genera consecutivo id_num_curso para ese empleado
-     * - ✅ Mantiene horas_programadas desde catálogo
-     * - ✅ ADMIN / REVISOR_EST
+     * Solo permite cursos con estatus VIGENTE o ALTA.
      */
     public function addCourseToEmployee(Request $request)
     {
@@ -70,7 +69,6 @@ class CoursePacController extends Controller
 
             return DB::transaction(function () use ($idBase, $idAccion) {
 
-                // 1) Registro base del empleado
                 $base = DB::table('public.a2_acciones_empleados')
                     ->where('id_empl_accion', $idBase)
                     ->first();
@@ -82,10 +80,13 @@ class CoursePacController extends Controller
                     ], 200);
                 }
 
-                // 2) Datos de la acción (horas)
-                $accion = DB::table('public.a1_cat_acciones')
-                    ->select('duracion_hrs')
-                    ->where('id_accion', $idAccion)
+                $accion = DB::table('public.a1_cat_acciones as a')
+                    ->select(
+                        'a.id_accion',
+                        'a.duracion_hrs',
+                        'a.estatus'
+                    )
+                    ->where('a.id_accion', $idAccion)
                     ->first();
 
                 if (! $accion) {
@@ -95,12 +96,20 @@ class CoursePacController extends Controller
                     ], 200);
                 }
 
+                $estatusAccion = mb_strtoupper(trim((string) $accion->estatus), 'UTF-8');
+
+                if (! in_array($estatusAccion, ['VIGENTE', 'ALTA'], true)) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'Solo se pueden agregar cursos con estatus VIGENTE o ALTA.',
+                    ], 200);
+                }
+
                 $horasProgramadas = $accion->duracion_hrs ?? null;
 
-                // 3) Evitar duplicados: mismo empleado + misma acción
                 $existe = DB::table('public.a2_acciones_empleados')
                     ->where('id_puesto', $base->id_puesto)
-                    ->where('curp', $base->curp)
+                    ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$base->curp])
                     ->where('id_accion', $idAccion)
                     ->exists();
 
@@ -111,30 +120,25 @@ class CoursePacController extends Controller
                     ], 200);
                 }
 
-                // 4) Consecutivo id_num_curso para ese empleado
                 $maxNumCurso = DB::table('public.a2_acciones_empleados')
                     ->where('id_puesto', $base->id_puesto)
-                    ->where('curp', $base->curp)
+                    ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$base->curp])
                     ->max('id_num_curso');
 
                 $nextNumCurso = $maxNumCurso ? ((int) $maxNumCurso + 1) : 1;
 
-                // 5) Nuevo id_empl_accion (si tu PK NO es serial)
                 $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
                 $newId = $maxId ? ((int) $maxId + 1) : 1;
 
-                // 6) Construir payload copiando base para no romper NOT NULL
                 $payload = (array) $base;
 
-                // Cambios obligatorios para “nuevo curso”
                 $payload['id_empl_accion']   = $newId;
                 $payload['id_accion']        = $idAccion;
                 $payload['id_finalidad']     = 6;
                 $payload['id_num_curso']     = $nextNumCurso;
-                $payload['horas_progamadas'] = $horasProgramadas; // respeta el nombre actual de tu columna
+                $payload['horas_progamadas'] = $horasProgramadas;
                 $payload['calificacion']     = 100;
 
-                // Limpiar campos que deben empezar vacíos
                 $payload['horas_real']       = null;
                 $payload['id_instancia']     = null;
                 $payload['costo_unitario']   = null;
@@ -152,12 +156,12 @@ class CoursePacController extends Controller
 
                 return response()->json([
                     'status'  => true,
-                    'message' => 'Curso agregado correctamente con finalidad 6 y número de curso consecutivo.',
+                    'message' => 'Curso agregado correctamente.',
                 ], 200);
             });
 
         } catch (\Throwable $th) {
-            Log::error('PAC addCourseToEmployee error: '.$th->getMessage(), [
+            Log::error('PAC addCourseToEmployee error: ' . $th->getMessage(), [
                 'trace' => $th->getTraceAsString()
             ]);
 
@@ -168,9 +172,6 @@ class CoursePacController extends Controller
         }
     }
 
-    /**
-     * ✅ ADMIN / REVISOR_EST
-     */
     private function assertCanManageCourses(): void
     {
         $user = auth()->user();
@@ -188,7 +189,6 @@ class CoursePacController extends Controller
 
     private function isAdminOrRevisorEst($user): bool
     {
-        // Spatie
         if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
             return true;
         }
@@ -203,22 +203,18 @@ class CoursePacController extends Controller
             }
         }
 
-        // Método auxiliar existente
         if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
             return true;
         }
 
-        // rol_id clásico
         if (isset($user->rol_id) && (int) $user->rol_id === 1) {
             return true;
         }
 
-        // booleano
         if (isset($user->is_admin) && (bool) $user->is_admin) {
             return true;
         }
 
-        // nombre textual del rol/perfil
         $roleCandidates = [
             $user->role ?? null,
             $user->rol ?? null,

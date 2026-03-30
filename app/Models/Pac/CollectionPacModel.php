@@ -14,13 +14,16 @@ class CollectionPacModel extends Model
      */
     public function listCollection()
     {
-        return DB::table('public.a1_cat_acciones')
+        return DB::table('public.a1_cat_acciones as a')
             ->select(
-                'public.a1_cat_acciones.id_accion AS id',
-                'public.a1_cat_acciones.nombre_accion AS descripcion'
+                'a.id_accion as id',
+                'a.nombre_accion as descripcion'
             )
-            // ->where('ublic.a1_cat_acciones.estatus', '=', 'VIGENTE')
-            ->orderBy('public.a1_cat_acciones.nombre_accion', 'ASC')
+            ->where(function ($q) {
+                $q->whereRaw("UPPER(TRIM(a.estatus)) = 'VIGENTE'")
+                  ->orWhereRaw("UPPER(TRIM(a.estatus)) = 'ALTA'");
+            })
+            ->orderBy('a.nombre_accion', 'ASC')
             ->get();
     }
 }

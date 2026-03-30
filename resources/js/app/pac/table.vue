@@ -850,7 +850,16 @@ async function openAddCourse(id) {
       return
     }
 
-    courseOptions.value = data.listCourses ?? []
+    courseOptions.value = (data.listCourses ?? []).filter((course) => {
+      const estatus = String(
+        course.estatus ??
+        course.status ??
+        course.descripcion_estatus ??
+        ''
+      ).toUpperCase().trim()
+
+      return estatus === 'VIGENTE' || estatus === 'ALTA'
+    })
 
     blurActiveElement()
     $('#modal_add_course').modal('show')
