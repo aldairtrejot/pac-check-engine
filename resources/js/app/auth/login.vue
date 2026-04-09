@@ -42,21 +42,39 @@
 
                   <label for="password">Contraseña</label>
                   <div class="mb-3">
-                    <input
-                      type="password"
-                      v-model="password"
-                      class="form-control"
-                      placeholder="Password"
-                      id="password"
-                      name="password"
-                      autocomplete="current-password"
-                    >
+                    <div class="input-group">
+                      <input
+                        :type="showPassword ? 'text' : 'password'"
+                        v-model="password"
+                        class="form-control"
+                        placeholder="Password"
+                        id="password"
+                        name="password"
+                        autocomplete="current-password"
+                      >
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary mb-0"
+                        @click="togglePassword"
+                      >
+                        <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                      </button>
+                    </div>
                     <div id="error-password" class="text-danger text-error" style="margin-top: 5px;"></div>
                   </div>
 
+                  <div class="mb-3">
+                    <div id="recaptcha-container" class="d-flex justify-content-center"></div>
+                    <div id="error-captcha_token" class="text-danger text-error text-center" style="margin-top: 5px;"></div>
+                  </div>
+
                   <div class="text-center">
-                    <button type="submit" class="btn bg-gradient-info w-100 mt-4 mb-0">
-                      Ingresar
+                    <button
+                      type="submit"
+                      class="btn bg-gradient-info w-100 mt-4 mb-0"
+                      :disabled="isSubmitting"
+                    >
+                      {{ isSubmitting ? 'Validando...' : 'Ingresar' }}
                     </button>
                   </div>
                 </form>
@@ -77,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { clearErrors } from '@components/clearErrors.js'
 import { handleErrors } from '@components/handleErrors.js'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
@@ -87,23 +105,140 @@ import { BASE_URL } from '@/components/url.js'
 
 const email = ref('')
 const password = ref('')
+const showPassword = ref(false)
+const isSubmitting = ref(false)
 
-onMounted(() => {
+const captchaToken = ref('')
+const captchaWidgetId = ref(null)
+const recaptchaSiteKey = ref('')
+
+function togglePassword() {
+  showPassword.value = !showPassword.value
+}
+
+function onCaptchaSuccess(token) {
+  captchaToken.value = token
+}
+
+function onCaptchaExpired() {
+  captchaToken.value = ''
+  notyf.error('El captcha expiró. Vuelve a validarlo.')
+  resetCaptcha()
+}
+
+function onCaptchaError() {
+  captchaToken.value = ''
+  notyf.error('El captcha tuvo un problema de red. Inténtalo de nuevo.')
+}
+
+function renderRecaptcha() {
+  const container = document.getElementById('recaptcha-container')
+
+  if (!container) {
+    notyf.error('No se encontró el contenedor del captcha.')
+    return
+  }
+
+  if (!window.grecaptcha) {
+    notyf.error('reCAPTCHA no está disponible todavía.')
+    return
+  }
+
+  if (!recaptchaSiteKey.value) {
+    notyf.error('La clave pública de reCAPTCHA no está configurada.')
+    return
+  }
+
+  if (captchaWidgetId.value !== null) {
+    return
+  }
+
+  captchaWidgetId.value = window.grecaptcha.render(container, {
+    sitekey: recaptchaSiteKey.value,
+    callback: onCaptchaSuccess,
+    'expired-callback': onCaptchaExpired,
+    'error-callback': onCaptchaError,
+    theme: 'light',
+  })
+}
+
+function loadRecaptchaScript() {
+  return new Promise((resolve, reject) => {
+    if (window.grecaptcha && window.grecaptcha.render) {
+      resolve()
+      return
+    }
+
+    window.onRecaptchaLoaded = () => {
+      resolve()
+    }
+
+    const existing = document.getElementById('google-recaptcha-script')
+    if (existing) {
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = 'google-recaptcha-script'
+    script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit&hl=es'
+    script.async = true
+    script.defer = true
+    script.onerror = () => {
+      reject(new Error('No se pudo cargar el script de Google reCAPTCHA.'))
+    }
+
+    document.head.appendChild(script)
+  })
+}
+
+function resetCaptcha() {
+  captchaToken.value = ''
+
+  if (window.grecaptcha && captchaWidgetId.value !== null) {
+    window.grecaptcha.reset(captchaWidgetId.value)
+  }
+}
+
+onMounted(async () => {
   hideSpinner()
+
+  const mountEl = document.querySelector('#blade_form_login')
+  recaptchaSiteKey.value = mountEl?.dataset?.recaptchaSiteKey ?? ''
+
+  try {
+    await loadRecaptchaScript()
+    renderRecaptcha()
+  } catch (error) {
+    notyf.error(error.message ?? 'No se pudo cargar el captcha.')
+  }
+})
+
+onBeforeUnmount(() => {
+  if (window.onRecaptchaLoaded) {
+    delete window.onRecaptchaLoaded
+  }
 })
 
 async function sendData() {
   try {
+    isSubmitting.value = true
     showSpinner()
     clearErrors()
+
+    if (!captchaToken.value) {
+      notyf.error('Debes completar el captcha antes de ingresar.')
+      return
+    }
 
     const response = await axios.post('/auth/login', {
       email: email.value.trim(),
       password: password.value,
+      captcha_token: captchaToken.value,
     })
 
     if (!response.data.status) {
       notyf.error(response.data.message ?? 'No se pudo completar la acción.')
+      resetCaptcha()
       return
     }
 
@@ -113,11 +248,13 @@ async function sendData() {
 
     if (error.response?.status === 419) {
       notyf.error('Sesión/CSRF inválido. Recarga la página e intenta de nuevo.')
+      resetCaptcha()
       return
     }
 
     if (error.response?.status === 422 && error.response?.data?.errors) {
       handleErrors(error.response.data.errors)
+      resetCaptcha()
       return
     }
 
@@ -125,7 +262,10 @@ async function sendData() {
       error.response?.data?.message ??
       'No se pudo completar la acción. Por favor, vuelve a intentarlo.'
     )
+
+    resetCaptcha()
   } finally {
+    isSubmitting.value = false
     hideSpinner()
   }
 }
