@@ -8,9 +8,11 @@ class ViewLoginController extends Controller
 {
     /**
      * El metodo retorna la vista para login
+     *
      * @return \Illuminate\Contracts\View\View
      */
-    public function viewLogin(){
-        return view ('auth.login');
+    public function viewLogin()
+    {
+        return view('auth.login');
     }
 }

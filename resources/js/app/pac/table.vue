@@ -332,18 +332,20 @@
   </modalTemplate>
 
   <!-- MODAL: AGREGAR CURSO AL EMPLEADO -->
-  <modalTemplate modalId="modal_add_course" title="Agregar curso al empleado" :onConfirm="confirmAddCourse" size="md">
+  <modalTemplate modalId="modal_add_course" title="Agregar curso al empleado" :onConfirm="confirmAddCourse" size="xl">
     <form id="form_add_course" novalidate>
       <div class="row">
-        <inputSelect
-          v-model="selectedCourse"
-          :options="courseOptions"
-          id="id_accion_add"
-          label="Curso"
-          :multiple="false"
-          grid="col-12"
-          :required="true"
-        />
+        <div class="col-12 course-select-container">
+          <inputSelect
+            v-model="selectedCourse"
+            :options="courseOptions"
+            id="id_accion_add"
+            label="Curso"
+            :multiple="false"
+            grid="col-12"
+            :required="true"
+          />
+        </div>
       </div>
     </form>
   </modalTemplate>
@@ -1026,3 +1028,31 @@ async function confirmAsignacionUnidad() {
   }
 }
 </script>
+
+<style scoped>
+:deep(#modal_add_course .modal-dialog) {
+  max-width: 1100px !important;
+  width: calc(100% - 2rem) !important;
+}
+
+:deep(#modal_add_course .modal-body) {
+  overflow: visible !important;
+}
+
+:deep(#modal_add_course .course-select-container) {
+  width: 100%;
+}
+
+:deep(#modal_add_course .form-select),
+:deep(#modal_add_course select) {
+  width: 100% !important;
+  white-space: normal !important;
+  height: auto !important;
+  min-height: 38px !important;
+}
+
+:deep(#modal_add_course .form-select option),
+:deep(#modal_add_course select option) {
+  white-space: normal !important;
+}
+</style>
