@@ -70,7 +70,7 @@
                       v-if="captchaSrc"
                       :src="captchaSrc"
                       alt="Captcha"
-                      style="height:46px; border-radius:8px; border:1px solid #dcdcdc; max-width:100%;"
+                      style="height:80px; border-radius:8px; border:1px solid #dcdcdc; max-width:100%;"
                     >
                   </div>
 
