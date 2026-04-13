@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
+use App\Support\ConstanciaVisibilityByName;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,11 +15,20 @@ class DataConstanciasController extends Controller
 
     public function data(Request $request)
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No autenticado.',
+            ], 401);
+        }
+
         $id = trim((string) $request->input('id_respuesta', ''));
 
         if ($id === '') {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'id_respuesta inválido.',
             ], 422);
         }
@@ -98,19 +108,22 @@ class DataConstanciasController extends Controller
                 DB::raw("UPPER(TRIM(c.curp))")
             )
             ->select($selects)
-            ->where('c.id_respuesta', $id)
-            ->first();
+            ->where('c.id_respuesta', $id);
 
-        if (!$row) {
+        ConstanciaVisibilityByName::apply($row, $user, 'c');
+
+        $row = $row->first();
+
+        if (! $row) {
             return response()->json([
-                'status' => false,
-                'message' => 'Registro no encontrado.',
+                'status'  => false,
+                'message' => 'Registro no encontrado o fuera de tu alcance.',
             ], 404);
         }
 
         return response()->json([
             'status' => true,
-            'data' => $row,
+            'data'   => $row,
         ]);
     }
 
@@ -128,8 +141,11 @@ class DataConstanciasController extends Controller
     private function firstExistingColumnFromSet(array $set, array $candidates): ?string
     {
         foreach ($candidates as $c) {
-            if (isset($set[$c])) return $c;
+            if (isset($set[$c])) {
+                return $c;
+            }
         }
+
         return null;
     }
 }

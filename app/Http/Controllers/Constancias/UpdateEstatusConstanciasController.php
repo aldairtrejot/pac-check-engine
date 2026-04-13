@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
+use App\Support\ConstanciaVisibilityByName;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +21,15 @@ class UpdateEstatusConstanciasController extends Controller
     public function update(Request $request)
     {
         try {
+            $user = auth()->user();
+
+            if (! $user) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'No autenticado.',
+                ], 401);
+            }
+
             $request->validate([
                 'id_respuesta' => 'required',
                 'accion'       => 'required|string',
@@ -45,10 +55,10 @@ class UpdateEstatusConstanciasController extends Controller
             }
 
             if ($accion === 'RECHAZAR') {
-                return $this->rejectConstancia($idRespuesta, $motivo);
+                return $this->rejectConstancia($idRespuesta, $motivo, $user);
             }
 
-            return $this->acceptConstancia($idRespuesta);
+            return $this->acceptConstancia($idRespuesta, $user);
 
         } catch (\Throwable $th) {
             Log::error('Constancias update error: '.$th->getMessage(), [
@@ -62,7 +72,7 @@ class UpdateEstatusConstanciasController extends Controller
         }
     }
 
-    private function rejectConstancia(string $idRespuesta, string $motivo)
+    private function rejectConstancia(string $idRespuesta, string $motivo, $user)
     {
         $colsConstancias = $this->columnsFor('public', 'tbl_constancias');
         $colSetConst = array_flip($colsConstancias);
@@ -79,26 +89,7 @@ class UpdateEstatusConstanciasController extends Controller
             'fecha_rechazo_at',
         ]);
 
-        $capLast = DB::raw("
-            (
-                SELECT DISTINCT ON (UPPER(TRIM(curp)))
-                    curp,
-                    nombre,
-                    apellido_paterno,
-                    apellido_materno
-                FROM public.a2_acciones_capacitacion
-                WHERE curp IS NOT NULL AND TRIM(curp) <> ''
-                ORDER BY UPPER(TRIM(curp)), id_cat DESC NULLS LAST
-            ) as cap
-        ");
-
-        $registro = DB::table('public.tbl_constancias as c')
-            ->leftJoin(
-                $capLast,
-                DB::raw("UPPER(TRIM(cap.curp))"),
-                '=',
-                DB::raw("UPPER(TRIM(c.curp))")
-            )
+        $registro = $this->baseConstanciaQuery($user)
             ->select([
                 'c.id_respuesta',
                 'c.curp',
@@ -122,7 +113,7 @@ class UpdateEstatusConstanciasController extends Controller
         if (!$registro) {
             return response()->json([
                 'status' => false,
-                'message' => 'Registro no encontrado.',
+                'message' => 'Registro no encontrado o fuera de tu alcance.',
             ], 200);
         }
 
@@ -166,9 +157,9 @@ class UpdateEstatusConstanciasController extends Controller
         ], 200);
     }
 
-    private function acceptConstancia(string $idRespuesta)
+    private function acceptConstancia(string $idRespuesta, $user)
     {
-        $resultado = DB::transaction(function () use ($idRespuesta) {
+        $resultado = DB::transaction(function () use ($idRespuesta, $user) {
             $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
             $colSet  = array_flip($colsEmp);
 
@@ -176,26 +167,7 @@ class UpdateEstatusConstanciasController extends Controller
             $hasHorasProg    = isset($colSet['horas_progamadas']);
             $hasEvalApr      = isset($colSet['eval_aprendizaje']);
 
-            $capLast = DB::raw("
-                (
-                    SELECT DISTINCT ON (UPPER(TRIM(curp)))
-                        curp,
-                        nombre,
-                        apellido_paterno,
-                        apellido_materno
-                    FROM public.a2_acciones_capacitacion
-                    WHERE curp IS NOT NULL AND TRIM(curp) <> ''
-                    ORDER BY UPPER(TRIM(curp)), id_cat DESC NULLS LAST
-                ) as cap
-            ");
-
-            $c = DB::table('public.tbl_constancias as c')
-                ->leftJoin(
-                    $capLast,
-                    DB::raw("UPPER(TRIM(cap.curp))"),
-                    '=',
-                    DB::raw("UPPER(TRIM(c.curp))")
-                )
+            $c = $this->baseConstanciaQuery($user)
                 ->select([
                     'c.id_respuesta',
                     'c.curp',
@@ -225,7 +197,7 @@ class UpdateEstatusConstanciasController extends Controller
             if (!$c) {
                 return [
                     'status' => false,
-                    'message' => 'Registro de constancia no encontrado.',
+                    'message' => 'Registro de constancia no encontrado o fuera de tu alcance.',
                 ];
             }
 
@@ -301,23 +273,19 @@ class UpdateEstatusConstanciasController extends Controller
                 $horasReal = (float) $hrsRaw;
             }
 
-            $cal = 100.00;
+            $cal = 100;
             $calRaw = trim((string) ($c->calificacion ?? ''));
-
             if ($calRaw !== '') {
                 $calRaw = str_replace(',', '.', $calRaw);
-
                 if (is_numeric($calRaw)) {
-                    $cal = round((float) $calRaw, 2);
+                    $cal = (int) round((float) $calRaw);
                 }
             }
-
             if ($cal < 70) {
-                $cal = 70.00;
+                $cal = 70;
             }
-
             if ($cal > 100) {
-                $cal = 100.00;
+                $cal = 100;
             }
 
             $existe = DB::table('public.a2_acciones_empleados')
@@ -445,6 +413,34 @@ class UpdateEstatusConstanciasController extends Controller
                 ? 'Constancia aceptada, procesada y correo enviado correctamente.'
                 : 'Constancia aceptada y procesada correctamente. No fue posible enviar el correo.',
         ], 200);
+    }
+
+    private function baseConstanciaQuery($user)
+    {
+        $capLast = DB::raw("
+            (
+                SELECT DISTINCT ON (UPPER(TRIM(curp)))
+                    curp,
+                    nombre,
+                    apellido_paterno,
+                    apellido_materno
+                FROM public.a2_acciones_capacitacion
+                WHERE curp IS NOT NULL AND TRIM(curp) <> ''
+                ORDER BY UPPER(TRIM(curp)), id_cat DESC NULLS LAST
+            ) as cap
+        ");
+
+        $q = DB::table('public.tbl_constancias as c')
+            ->leftJoin(
+                $capLast,
+                DB::raw("UPPER(TRIM(cap.curp))"),
+                '=',
+                DB::raw("UPPER(TRIM(c.curp))")
+            );
+
+        ConstanciaVisibilityByName::apply($q, $user, 'c');
+
+        return $q;
     }
 
     private function sendConstanciaDecisionEmail(

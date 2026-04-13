@@ -20,10 +20,15 @@
             && method_exists($user, 'hasAnyRole')
             && $user->hasAnyRole(['admin_oc', 'supervisor_oc']);
 
-        // (Opcional) Solo Admin OC
+        // Solo Admin OC
         $isAdminCentral = auth()->check()
             && method_exists($user, 'hasRole')
             && $user->hasRole('admin_oc');
+
+        // ✅ Usuarios que pueden ver y operar constancias
+        $canAccessConstancias = auth()->check()
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['admin_oc', 'supervisor_oc', 'revisor_est']);
     @endphp
 
     <div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
@@ -68,14 +73,6 @@
                     title="Instancias"
                 />
 
-                {{-- ✅ NUEVO: CONSTANCIAS --}}
-                <x-button.button-nav-menu
-                    active="constancias"
-                    route="constancias"
-                    icon="fa fa-file-signature fa-lg"
-                    title="Constancias"
-                />
-
                 {{-- Ejemplo extra: si luego agregas "Usuarios", solo Admin OC --}}
                 {{--
                 @if($isAdminCentral)
@@ -88,6 +85,16 @@
                 @endif
                 --}}
 
+            @endif
+
+            {{-- ✅ CONSTANCIAS: Admin OC + Supervisor OC + Revisor EST --}}
+            @if($canAccessConstancias)
+                <x-button.button-nav-menu
+                    active="constancias"
+                    route="constancias"
+                    icon="fa fa-file-signature fa-lg"
+                    title="Constancias"
+                />
             @endif
 
             {{-- Siempre visible --}}

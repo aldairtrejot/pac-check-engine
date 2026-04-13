@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
+use App\Support\ConstanciaVisibilityByName;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,18 @@ class TableConstanciasController extends Controller
 
     public function table(Request $request)
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            return response()->json([
+                'list'    => [],
+                'allRow'  => 0,
+                'row'     => 0,
+                'status'  => false,
+                'message' => 'No autenticado.',
+            ], 401);
+        }
+
         $limit      = (int) ($request->input('limit', 5));
         $offset     = (int) ($request->input('offset', 0));
 
@@ -77,6 +90,8 @@ class TableConstanciasController extends Controller
                 "),
             ]);
 
+        ConstanciaVisibilityByName::apply($q, $user, 'c');
+
         if ($curp !== '') {
             $q->where('c.curp', 'ILIKE', "%{$curp}%");
         }
@@ -85,11 +100,11 @@ class TableConstanciasController extends Controller
             $q->where('c.nombre_curso', 'ILIKE', "%{$curso}%");
         }
 
-        if (!is_null($anio)) {
+        if (! is_null($anio)) {
             $q->where('c.anio', $anio);
         }
 
-        if (!is_null($estatus)) {
+        if (! is_null($estatus)) {
             $q->where('c.estatus', $estatus);
         }
 

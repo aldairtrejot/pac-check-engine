@@ -7,7 +7,7 @@ use App\Http\Controllers\Constancias\TableConstanciasController;
 use App\Http\Controllers\Constancias\DataConstanciasController;
 use App\Http\Controllers\Constancias\UpdateEstatusConstanciasController;
 
-Route::middleware(['auth', 'role:admin_oc,supervisor_oc'])->group(function () {
+Route::middleware(['auth', 'role:admin_oc,supervisor_oc,revisor_est'])->group(function () {
 
     Route::get('/constancias', [ViewConstanciasController::class, 'view'])
         ->name('constancias');
