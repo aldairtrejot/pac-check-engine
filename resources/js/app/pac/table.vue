@@ -291,12 +291,17 @@
           />
           <inputField
             type="text"
-            label="Calificación (70–100)"
+            label="Calificación (70 a 100)"
             id="calificacion"
             v-model="m_calificacion"
             grid="col-md-6 col-sm-12"
             :disabled="!canEditCalificacion"
           />
+          <div class="col-12 mt-1">
+            <small class="text-muted">
+              Captura un valor entre 70 y 100. Se permiten hasta 2 decimales. Ejemplo: 89.5
+            </small>
+          </div>
         </div>
 
         <div class="row">
@@ -530,32 +535,68 @@ function getApiErrorMessage(error, fallback = 'No se pudo completar la acción. 
   return fallback
 }
 
-function clampCalificacion(val) {
-  let n = parseInt(val ?? '100', 10)
-  if (Number.isNaN(n)) n = 100
-  if (n < 70) n = 70
-  if (n > 100) n = 100
-  return String(n)
+function sanitizeCalificacionInput(value) {
+  let raw = String(value ?? '').trim()
+
+  raw = raw.replace(/,/g, '.')
+  raw = raw.replace(/[^\d.]/g, '')
+
+  const firstDot = raw.indexOf('.')
+  if (firstDot !== -1) {
+    const intPart = raw.slice(0, firstDot + 1)
+    const decPart = raw.slice(firstDot + 1).replace(/\./g, '')
+    raw = intPart + decPart
+  }
+
+  if (raw.includes('.')) {
+    const [entero, decimal = ''] = raw.split('.')
+    raw = `${entero}.${decimal.slice(0, 2)}`
+  }
+
+  return raw
+}
+
+function formatCalificacionForInput(value) {
+  if (value === null || value === undefined || value === '') {
+    return '100'
+  }
+
+  const n = Number(String(value).replace(',', '.'))
+  if (Number.isNaN(n)) {
+    return '100'
+  }
+
+  const safe = Math.min(100, Math.max(70, n))
+  return safe.toFixed(2).replace(/\.?0+$/, '')
 }
 
 function normalizeCalificacionForSubmit() {
-  const raw = String(m_calificacion.value ?? '').replace(/[^\d]/g, '')
-  const normalized = clampCalificacion(raw === '' ? '100' : raw)
-  m_calificacion.value = normalized
-  return parseInt(normalized, 10)
+  const sanitized = sanitizeCalificacionInput(m_calificacion.value)
+
+  if (sanitized === '' || sanitized === '.') {
+    throw new Error('Debes capturar una calificación.')
+  }
+
+  const n = Number(sanitized)
+
+  if (Number.isNaN(n)) {
+    throw new Error('La calificación debe ser numérica.')
+  }
+
+  if (n < 70 || n > 100) {
+    throw new Error('La calificación debe estar entre 70 y 100.')
+  }
+
+  const normalized = Number(n.toFixed(2))
+  m_calificacion.value = normalized.toFixed(2).replace(/\.?0+$/, '')
+  return normalized
 }
 
 watch(m_calificacion, (val) => {
-  const raw = String(val ?? '').replace(/[^\d]/g, '')
+  const sanitized = sanitizeCalificacionInput(val)
 
-  if (raw === '') {
-    m_calificacion.value = ''
-    return
-  }
-
-  const fixed = clampCalificacion(raw)
-  if (fixed !== String(val)) {
-    m_calificacion.value = fixed
+  if (sanitized !== String(val ?? '')) {
+    m_calificacion.value = sanitized
   }
 })
 
@@ -708,7 +749,15 @@ async function button_confirm() {
       return
     }
 
-    const calificacionNormalizada = normalizeCalificacionForSubmit()
+    let calificacionNormalizada = null
+
+    try {
+      calificacionNormalizada = normalizeCalificacionForSubmit()
+    } catch (e) {
+      notyf.error(e.message || 'La calificación no es válida.')
+      return
+    }
+
     await nextTick()
 
     const form = document.querySelector('#data_form_x')
@@ -810,7 +859,7 @@ async function setOption(id) {
     listOptionFinalidad.value = selectx.listOptionFinalidad ?? []
     listSelectFinalidad.value = (selectx.listSelectFinalidad ?? [])[0] ?? null
 
-    m_calificacion.value = clampCalificacion(data.calificacion ?? 100)
+    m_calificacion.value = formatCalificacionForInput(data.calificacion ?? 100)
 
     try {
       const asg = await axios.post('/pac/asignacion-unidad/data', { id: safeId })

@@ -137,7 +137,7 @@ class CoursePacController extends Controller
                 $payload['id_finalidad']     = 6;
                 $payload['id_num_curso']     = $nextNumCurso;
                 $payload['horas_progamadas'] = $horasProgramadas;
-                $payload['calificacion']     = 100;
+                $payload['calificacion']     = 100.00;
 
                 $payload['horas_real']       = null;
                 $payload['id_instancia']     = null;

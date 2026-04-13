@@ -24,6 +24,10 @@ class SavePacController extends Controller
                 ], 401);
             }
 
+            $request->merge([
+                'calificacion' => $this->normalizeDecimalInput($request->input('calificacion')),
+            ]);
+
             $validated = $request->validate([
                 'id' => 'required|integer',
 
@@ -41,7 +45,12 @@ class SavePacController extends Controller
                 'id_finalidad'        => 'nullable|integer',
 
                 // calificación
-                'calificacion'        => 'nullable|integer|min:70|max:100',
+                'calificacion'        => [
+                    'required',
+                    'numeric',
+                    'between:70,100',
+                    'regex:/^\d{1,3}(\.\d{1,2})?$/',
+                ],
             ]);
 
             $id = (int) $validated['id'];
@@ -115,13 +124,12 @@ class SavePacController extends Controller
 
             $eval = ($validated['m_eval_aprendizaje'] ?? '0') === '1' ? 1 : 0;
 
-            $cal = $validated['calificacion'] ?? 100;
-            $cal = (int) $cal;
-            if ($cal < 70) {
-                $cal = 70;
-            }
-            if ($cal > 100) {
-                $cal = 100;
+            $cal = round((float) $validated['calificacion'], 2);
+
+            if ($cal < 70 || $cal > 100) {
+                throw ValidationException::withMessages([
+                    'calificacion' => 'La calificación debe estar entre 70 y 100.',
+                ]);
             }
 
             $row->id_cat_estatus   = $idEstatus;
@@ -158,6 +166,37 @@ class SavePacController extends Controller
                 'message' => __('default.error_message'),
             ], 500);
         }
+    }
+
+    private function normalizeDecimalInput($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $value = str_replace(',', '.', $value);
+        $value = preg_replace('/[^0-9.]/', '', $value);
+
+        $firstDot = strpos($value, '.');
+        if ($firstDot !== false) {
+            $before = substr($value, 0, $firstDot + 1);
+            $after  = substr($value, $firstDot + 1);
+            $after  = str_replace('.', '', $after);
+            $value  = $before.$after;
+        }
+
+        if (str_contains($value, '.')) {
+            [$entero, $decimal] = array_pad(explode('.', $value, 2), 2, '');
+            $value = $entero.'.'.substr($decimal, 0, 2);
+        }
+
+        return $value;
     }
 
     /**

@@ -301,13 +301,24 @@ class UpdateEstatusConstanciasController extends Controller
                 $horasReal = (float) $hrsRaw;
             }
 
-            $cal = 100;
+            $cal = 100.00;
             $calRaw = trim((string) ($c->calificacion ?? ''));
-            if ($calRaw !== '' && is_numeric($calRaw)) {
-                $cal = (int) $calRaw;
+
+            if ($calRaw !== '') {
+                $calRaw = str_replace(',', '.', $calRaw);
+
+                if (is_numeric($calRaw)) {
+                    $cal = round((float) $calRaw, 2);
+                }
             }
-            if ($cal < 70) $cal = 70;
-            if ($cal > 100) $cal = 100;
+
+            if ($cal < 70) {
+                $cal = 70.00;
+            }
+
+            if ($cal > 100) {
+                $cal = 100.00;
+            }
 
             $existe = DB::table('public.a2_acciones_empleados')
                 ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
