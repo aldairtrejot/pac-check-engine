@@ -315,6 +315,9 @@ class UpdateEstatusConstanciasController extends Controller
                     'observaciones'    => DB::raw("COALESCE(NULLIF(BTRIM(observaciones), ''), '{$obsBase}')"),
                 ];
 
+                if ($hasEvalApr) {
+                    $upd['eval_aprendizaje'] = true;
+                }
                 if ($hasHorasProg) {
                     $upd['horas_progamadas'] = $horasProgramadas;
                 }
@@ -358,7 +361,7 @@ class UpdateEstatusConstanciasController extends Controller
                 ];
 
                 if ($hasEvalApr) {
-                    $ins['eval_aprendizaje'] = null;
+                    $ins['eval_aprendizaje'] = true;
                 }
                 if ($hasHorasProg) {
                     $ins['horas_progamadas'] = $horasProgramadas;
