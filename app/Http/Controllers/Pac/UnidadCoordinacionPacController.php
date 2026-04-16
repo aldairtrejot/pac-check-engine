@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 class UnidadCoordinacionPacController extends Controller
 {
     private static array $columnsCache = [];
+    private static ?bool $eventLogTableExists = null;
 
     public function listUnidades(Request $request)
     {
@@ -152,6 +153,8 @@ class UnidadCoordinacionPacController extends Controller
         try {
             $this->assertCanManageAsignacionUnidad();
 
+            $user = auth()->user();
+
             $validated = $request->validate([
                 'id'              => 'required|integer',
                 'id_unidad'       => 'required|integer',
@@ -206,6 +209,21 @@ class UnidadCoordinacionPacController extends Controller
                 ->where('id_coordinacion', (int) $validated['id_coordinacion'])
                 ->value('nombre_coordinacion');
 
+            $this->safeLogUserAction(
+                userId: (int) $user->id,
+                modulo: 'PAC',
+                accion: 'ASIGNAR_UNIDAD_COORDINACION',
+                descripcion: 'Se actualizó la unidad y coordinación del empleado',
+                idReferencia: (string) $validated['id'],
+                payload: [
+                    'id_empl_accion'  => (int) $validated['id'],
+                    'id_unidad'       => (int) $validated['id_unidad'],
+                    'unidad'          => $unidadTxt,
+                    'id_coordinacion' => (int) $validated['id_coordinacion'],
+                    'coordinacion'    => $coordTxt,
+                ]
+            );
+
             return response()->json([
                 'status'       => true,
                 'message'      => 'Unidad y coordinación asignadas correctamente.',
@@ -223,6 +241,63 @@ class UnidadCoordinacionPacController extends Controller
                 'message' => 'Ocurrió un error al guardar la asignación.',
             ], 200);
         }
+    }
+
+    private function safeLogUserAction(
+        int $userId,
+        string $modulo,
+        string $accion,
+        ?string $descripcion = null,
+        ?string $idReferencia = null,
+        ?array $payload = null
+    ): void {
+        try {
+            if ($this->eventLogTableExists()) {
+                DB::table('log.log_eventos_usuario')->insert([
+                    'modulo'        => $modulo,
+                    'accion'        => $accion,
+                    'descripcion'   => $descripcion,
+                    'id_usuario'    => $userId,
+                    'id_referencia' => $idReferencia,
+                    'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+                    'creado_en'     => now(),
+                ]);
+                return;
+            }
+
+            Log::info('AUDITORIA_USUARIO', [
+                'modulo'        => $modulo,
+                'accion'        => $accion,
+                'descripcion'   => $descripcion,
+                'id_usuario'    => $userId,
+                'id_referencia' => $idReferencia,
+                'payload'       => $payload,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar log_eventos_usuario', [
+                'message' => $e->getMessage(),
+                'modulo'  => $modulo,
+                'accion'  => $accion,
+            ]);
+        }
+    }
+
+    private function eventLogTableExists(): bool
+    {
+        if (self::$eventLogTableExists !== null) {
+            return self::$eventLogTableExists;
+        }
+
+        try {
+            self::$eventLogTableExists = DB::table('information_schema.tables')
+                ->where('table_schema', 'log')
+                ->where('table_name', 'log_eventos_usuario')
+                ->exists();
+        } catch (\Throwable $e) {
+            self::$eventLogTableExists = false;
+        }
+
+        return self::$eventLogTableExists;
     }
 
     /**
@@ -245,7 +320,6 @@ class UnidadCoordinacionPacController extends Controller
 
     private function isAdminOrRevisorEst($user): bool
     {
-        // Spatie
         if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
             return true;
         }
@@ -260,22 +334,18 @@ class UnidadCoordinacionPacController extends Controller
             }
         }
 
-        // Método auxiliar existente
         if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
             return true;
         }
 
-        // rol_id clásico
         if (isset($user->rol_id) && (int) $user->rol_id === 1) {
             return true;
         }
 
-        // booleano
         if (isset($user->is_admin) && (bool) $user->is_admin) {
             return true;
         }
 
-        // nombre textual del rol/perfil
         $roleCandidates = [
             $user->role ?? null,
             $user->rol ?? null,

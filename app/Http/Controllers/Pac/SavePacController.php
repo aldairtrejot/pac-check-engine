@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class SavePacController extends Controller
 {
+    private static ?bool $eventLogTableExists = null;
+
     public function save(Request $request)
     {
         try {
@@ -29,23 +31,23 @@ class SavePacController extends Controller
             ]);
 
             $validated = $request->validate([
-                'id' => 'required|integer',
+                'id' => ['required', 'integer'],
 
                 // del form
-                'm_horas_real'        => 'nullable|numeric',
-                'm_fecha_ini'         => 'nullable|date',
-                'm_fecha_fin'         => 'nullable|date',
-                'm_observaciones'     => 'nullable|string|max:1000',
-                'm_eval_aprendizaje'  => 'nullable|in:0,1',
+                'm_horas_real'       => ['nullable', 'numeric', 'min:0'],
+                'm_fecha_ini'        => ['nullable', 'date', 'before_or_equal:today'],
+                'm_fecha_fin'        => ['nullable', 'date', 'after_or_equal:m_fecha_ini', 'before_or_equal:today'],
+                'm_observaciones'    => ['nullable', 'string', 'max:1000'],
+                'm_eval_aprendizaje' => ['nullable', 'in:0,1'],
 
                 // selects
-                'id_cat_estatus'      => 'nullable|integer',
-                'id_instancia'        => 'nullable|string|max:50',
-                'id_cat_tematica'     => 'nullable|string|max:50',
-                'id_finalidad'        => 'nullable|integer',
+                'id_cat_estatus'  => ['nullable', 'integer'],
+                'id_instancia'    => ['nullable', 'string', 'max:50'],
+                'id_cat_tematica' => ['nullable', 'string', 'max:50'],
+                'id_finalidad'    => ['nullable', 'integer'],
 
                 // calificación
-                'calificacion'        => [
+                'calificacion' => [
                     'required',
                     'numeric',
                     'between:70,100',
@@ -55,13 +57,6 @@ class SavePacController extends Controller
 
             $id = (int) $validated['id'];
 
-            /**
-             * Para admin/admin_oc/revisor_est:
-             * - acceso total al guardado en este módulo
-             *
-             * Para otros roles:
-             * - se mantiene PacVisibility
-             */
             if ($this->isAdminOrRevisorEst($user)) {
                 $allowed = DB::table('public.a2_acciones_empleados')
                     ->where('id_empl_accion', $id);
@@ -99,8 +94,42 @@ class SavePacController extends Controller
             $idTematica = trim((string) ($validated['id_cat_tematica'] ?? ''));
             $idTematica = $idTematica !== '' ? $idTematica : null;
 
+            $this->assertExistsInCatalog(
+                'public.cat_estatus',
+                'id_cat_estatus',
+                $idEstatus,
+                'id_cat_estatus',
+                'El estatus seleccionado no existe.'
+            );
+
+            $this->assertExistsInCatalog(
+                'public.cat_instancias',
+                'id_instancia',
+                $idInstancia,
+                'id_instancia',
+                'La instancia seleccionada no existe.'
+            );
+
+            $this->assertExistsInCatalog(
+                'public.cat_tematica',
+                'id_tematica',
+                $idTematica,
+                'id_cat_tematica',
+                'La temática seleccionada no existe.'
+            );
+
+            $this->assertExistsInCatalog(
+                'public.cat_finalidad',
+                'id_finalidad',
+                $idFinalidad,
+                'id_finalidad',
+                'La finalidad seleccionada no existe.'
+            );
+
             $fechaIni = $validated['m_fecha_ini'] ?? null;
             $fechaFin = $validated['m_fecha_fin'] ?? null;
+
+            $horasRealInput = $validated['m_horas_real'] ?? null;
 
             $idTrimestre = $row->id_trimestre;
             if (! empty($fechaIni)) {
@@ -108,7 +137,7 @@ class SavePacController extends Controller
                 $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
             }
 
-            $horasReal = $validated['m_horas_real'] ?? null;
+            $horasReal = $horasRealInput;
             if ($horasReal === null || $horasReal === '') {
                 $dur = DB::table('public.a1_cat_acciones')
                     ->where('id_accion', $row->id_accion)
@@ -132,6 +161,46 @@ class SavePacController extends Controller
                 ]);
             }
 
+            if ($idEstatus !== null) {
+                $errors = [];
+
+                if (empty($fechaIni)) {
+                    $errors['m_fecha_ini'] = 'La fecha de inicio es obligatoria para avanzar el registro.';
+                }
+
+                if (empty($fechaFin)) {
+                    $errors['m_fecha_fin'] = 'La fecha de fin es obligatoria para avanzar el registro.';
+                }
+
+                if ($horasRealInput === null || $horasRealInput === '') {
+                    $errors['m_horas_real'] = 'Las horas realizadas son obligatorias para avanzar el registro.';
+                }
+
+                if (empty($idInstancia)) {
+                    $errors['id_instancia'] = 'La instancia es obligatoria para avanzar el registro.';
+                }
+
+                if (empty($idTematica)) {
+                    $errors['id_cat_tematica'] = 'La temática es obligatoria para avanzar el registro.';
+                }
+
+                if ($idFinalidad === null) {
+                    $errors['id_finalidad'] = 'La finalidad es obligatoria para avanzar el registro.';
+                }
+
+                if (! in_array((string) ($validated['m_eval_aprendizaje'] ?? ''), ['0', '1'], true)) {
+                    $errors['m_eval_aprendizaje'] = 'Debes indicar si realizó la evaluación de aprendizaje.';
+                }
+
+                if ($cal === null || $cal === '') {
+                    $errors['calificacion'] = 'La calificación es obligatoria para avanzar el registro.';
+                }
+
+                if (! empty($errors)) {
+                    throw ValidationException::withMessages($errors);
+                }
+            }
+
             $row->id_cat_estatus   = $idEstatus;
             $row->id_finalidad     = $idFinalidad;
             $row->id_instancia     = $idInstancia;
@@ -145,6 +214,40 @@ class SavePacController extends Controller
             $row->calificacion     = $cal;
 
             $row->save();
+
+            $this->safeWritePacLog(
+                userId: (int) $user->id,
+                idEstatus: $idEstatus,
+                fechaIni: $fechaIni,
+                fechaFin: $fechaFin,
+                idInstancia: $idInstancia,
+                idTematica: $idTematica,
+                idEmplAccion: (int) $row->id_empl_accion,
+                horasReal: $horasReal,
+                observaciones: $obs
+            );
+
+            $this->safeLogUserAction(
+                userId: (int) $user->id,
+                modulo: 'PAC',
+                accion: 'ACTUALIZAR_REGISTRO',
+                descripcion: 'Actualización de registro PAC',
+                idReferencia: (string) $row->id_empl_accion,
+                payload: [
+                    'id_empl_accion'   => (int) $row->id_empl_accion,
+                    'id_cat_estatus'   => $idEstatus,
+                    'id_finalidad'     => $idFinalidad,
+                    'id_instancia'     => $idInstancia,
+                    'id_cat_tematica'  => $idTematica,
+                    'fecha_ini'        => $fechaIni,
+                    'fecha_fin'        => $fechaFin,
+                    'id_trimestre'     => $idTrimestre,
+                    'horas_real'       => $horasReal,
+                    'eval_aprendizaje' => $eval,
+                    'calificacion'     => $cal,
+                    'observaciones'    => $obs,
+                ]
+            );
 
             return response()->json([
                 'status'  => true,
@@ -168,6 +271,128 @@ class SavePacController extends Controller
         }
     }
 
+    private function safeWritePacLog(
+        int $userId,
+        ?int $idEstatus,
+        ?string $fechaIni,
+        ?string $fechaFin,
+        ?string $idInstancia,
+        ?string $idTematica,
+        int $idEmplAccion,
+        ?float $horasReal,
+        ?string $observaciones
+    ): void {
+        if (
+            $idEstatus === null ||
+            empty($fechaIni) ||
+            empty($fechaFin) ||
+            empty($idInstancia) ||
+            empty($idTematica) ||
+            $horasReal === null
+        ) {
+            return;
+        }
+
+        try {
+            DB::table('log.log_info')->insert([
+                'observaciones'   => mb_substr((string) ($observaciones ?: 'ACTUALIZACIÓN DE REGISTRO PAC'), 0, 280),
+                'id_usuario'      => $userId,
+                'id_cat_estatus'  => $idEstatus,
+                'fecha_ini'       => $fechaIni,
+                'fecha_fin'       => $fechaFin,
+                'id_instancia'    => $idInstancia,
+                'id_cat_tematica' => $idTematica,
+                'creado_en'       => now(),
+                'id_empl_accion'  => $idEmplAccion,
+                'horas_real'      => $horasReal,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar log.log_info para PAC', [
+                'message' => $e->getMessage(),
+                'id_empl_accion' => $idEmplAccion,
+            ]);
+        }
+    }
+
+    private function safeLogUserAction(
+        int $userId,
+        string $modulo,
+        string $accion,
+        ?string $descripcion = null,
+        ?string $idReferencia = null,
+        ?array $payload = null
+    ): void {
+        try {
+            if ($this->eventLogTableExists()) {
+                DB::table('log.log_eventos_usuario')->insert([
+                    'modulo'        => $modulo,
+                    'accion'        => $accion,
+                    'descripcion'   => $descripcion,
+                    'id_usuario'    => $userId,
+                    'id_referencia' => $idReferencia,
+                    'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+                    'creado_en'     => now(),
+                ]);
+                return;
+            }
+
+            Log::info('AUDITORIA_USUARIO', [
+                'modulo'        => $modulo,
+                'accion'        => $accion,
+                'descripcion'   => $descripcion,
+                'id_usuario'    => $userId,
+                'id_referencia' => $idReferencia,
+                'payload'       => $payload,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar log_eventos_usuario', [
+                'message' => $e->getMessage(),
+                'modulo'  => $modulo,
+                'accion'  => $accion,
+            ]);
+        }
+    }
+
+    private function eventLogTableExists(): bool
+    {
+        if (self::$eventLogTableExists !== null) {
+            return self::$eventLogTableExists;
+        }
+
+        try {
+            self::$eventLogTableExists = DB::table('information_schema.tables')
+                ->where('table_schema', 'log')
+                ->where('table_name', 'log_eventos_usuario')
+                ->exists();
+        } catch (\Throwable $e) {
+            self::$eventLogTableExists = false;
+        }
+
+        return self::$eventLogTableExists;
+    }
+
+    private function assertExistsInCatalog(
+        string $table,
+        string $column,
+        $value,
+        string $field,
+        string $message
+    ): void {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $exists = DB::table($table)
+            ->where($column, $value)
+            ->exists();
+
+        if (! $exists) {
+            throw ValidationException::withMessages([
+                $field => $message,
+            ]);
+        }
+    }
+
     private function normalizeDecimalInput($value): ?string
     {
         if ($value === null) {
@@ -188,23 +413,23 @@ class SavePacController extends Controller
             $before = substr($value, 0, $firstDot + 1);
             $after  = substr($value, $firstDot + 1);
             $after  = str_replace('.', '', $after);
-            $value  = $before.$after;
+            $value  = $before . $after;
         }
 
         if (str_contains($value, '.')) {
             [$entero, $decimal] = array_pad(explode('.', $value, 2), 2, '');
-            $value = $entero.'.'.substr($decimal, 0, 2);
+            $value = $entero . '.' . substr($decimal, 0, 2);
         }
 
         return $value;
     }
 
-    /**
-     * ✅ Admin y revisor_est se comportan igual en este módulo
-     */
     private function isAdminOrRevisorEst($user): bool
     {
-        // Spatie
+        if (! $user) {
+            return false;
+        }
+
         if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
             return true;
         }
@@ -219,22 +444,18 @@ class SavePacController extends Controller
             }
         }
 
-        // método del modelo
         if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
             return true;
         }
 
-        // rol_id clásico
         if (isset($user->rol_id) && (int) $user->rol_id === 1) {
             return true;
         }
 
-        // booleano
         if (isset($user->is_admin) && (bool) $user->is_admin) {
             return true;
         }
 
-        // nombres textuales posibles
         $roleCandidates = [
             $user->role ?? null,
             $user->rol ?? null,

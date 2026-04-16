@@ -13,6 +13,9 @@ class TableConstanciasController extends Controller
     private const ESTATUS_ACEPTADA  = 2;
     private const ESTATUS_RECHAZADA = 3;
 
+    private const DEFAULT_LIMIT = 5;
+    private const MAX_LIMIT     = 100;
+
     public function table(Request $request)
     {
         $user = auth()->user();
@@ -27,8 +30,21 @@ class TableConstanciasController extends Controller
             ], 401);
         }
 
-        $limit      = (int) ($request->input('limit', 5));
-        $offset     = (int) ($request->input('offset', 0));
+        $request->validate([
+            'limit'   => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'offset'  => 'nullable|integer|min:0',
+            'curp'    => 'nullable|string|max:255',
+            'curso'   => 'nullable|string|max:255',
+            'anio'    => 'nullable',
+            'estatus' => 'nullable',
+            'search'  => 'nullable|string|max:255',
+        ]);
+
+        $limit  = (int) $request->input('limit', self::DEFAULT_LIMIT);
+        $offset = (int) $request->input('offset', 0);
+
+        $limit  = max(1, min($limit, self::MAX_LIMIT));
+        $offset = max(0, $offset);
 
         $curp       = trim((string) $request->input('curp', ''));
         $curso      = trim((string) $request->input('curso', ''));
@@ -47,7 +63,8 @@ class TableConstanciasController extends Controller
                     apellido_paterno,
                     apellido_materno
                 FROM public.a2_acciones_capacitacion
-                WHERE curp IS NOT NULL AND TRIM(curp) <> ''
+                WHERE curp IS NOT NULL
+                  AND TRIM(curp) <> ''
                 ORDER BY UPPER(TRIM(curp)),
                          id_cat DESC NULLS LAST
             ) as cap
@@ -92,6 +109,13 @@ class TableConstanciasController extends Controller
 
         ConstanciaVisibilityByName::apply($q, $user, 'c');
 
+        // No mostrar constancias inválidas para revisión:
+        // - sin id_puesto
+        // - sin estatus
+        $q->whereNotNull('c.id_puesto')
+          ->whereRaw("BTRIM(COALESCE(c.id_puesto, '')) <> ''")
+          ->whereNotNull('c.estatus');
+
         if ($curp !== '') {
             $q->where('c.curp', 'ILIKE', "%{$curp}%");
         }
@@ -113,7 +137,14 @@ class TableConstanciasController extends Controller
                 $w->where('c.curp', 'ILIKE', "%{$search}%")
                   ->orWhere('c.nombre_curso', 'ILIKE', "%{$search}%")
                   ->orWhereRaw("CAST(c.anio AS TEXT) ILIKE ?", ["%{$search}%"])
-                  ->orWhereRaw("CAST(c.estatus AS TEXT) ILIKE ?", ["%{$search}%"]);
+                  ->orWhereRaw("CAST(c.estatus AS TEXT) ILIKE ?", ["%{$search}%"])
+                  ->orWhereRaw("
+                        TRIM(CONCAT_WS(' ',
+                            NULLIF(TRIM(cap.nombre), ''),
+                            NULLIF(TRIM(cap.apellido_paterno), ''),
+                            NULLIF(TRIM(cap.apellido_materno), '')
+                        )) ILIKE ?
+                    ", ["%{$search}%"]);
             });
         }
 

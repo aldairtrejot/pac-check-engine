@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
 use App\Support\ConstanciaVisibilityByName;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -36,22 +37,29 @@ class UpdateEstatusConstanciasController extends Controller
                 'motivo'       => 'nullable|string|max:2000',
             ]);
 
-            $idRespuesta = trim((string) $request->id_respuesta);
-            $accion      = strtoupper(trim((string) $request->accion));
+            $idRespuesta = trim((string) $request->input('id_respuesta'));
+            $accion      = strtoupper(trim((string) $request->input('accion')));
             $motivo      = trim((string) $request->input('motivo', ''));
 
-            if (!in_array($accion, ['ACEPTAR', 'RECHAZAR'], true)) {
+            if ($idRespuesta === '') {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
+                    'message' => 'id_respuesta inválido.',
+                ], 422);
+            }
+
+            if (! in_array($accion, ['ACEPTAR', 'RECHAZAR'], true)) {
+                return response()->json([
+                    'status'  => false,
                     'message' => 'Acción inválida.',
-                ], 200);
+                ], 422);
             }
 
             if ($accion === 'RECHAZAR' && $motivo === '') {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Debes capturar el motivo del rechazo.',
-                ], 200);
+                ], 422);
             }
 
             if ($accion === 'RECHAZAR') {
@@ -61,14 +69,14 @@ class UpdateEstatusConstanciasController extends Controller
             return $this->acceptConstancia($idRespuesta, $user);
 
         } catch (\Throwable $th) {
-            Log::error('Constancias update error: '.$th->getMessage(), [
+            Log::error('Constancias update error: ' . $th->getMessage(), [
                 'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
                 'status'  => false,
                 'message' => 'Ocurrió un error al procesar el registro.',
-            ], 200);
+            ], 500);
         }
     }
 
@@ -89,37 +97,37 @@ class UpdateEstatusConstanciasController extends Controller
             'fecha_rechazo_at',
         ]);
 
-        $registro = $this->baseConstanciaQuery($user)
-            ->select([
-                'c.id_respuesta',
-                'c.curp',
-                'c.nombre_curso',
-                'c.correo_electronico',
-                'c.fecha_ultima_accion',
-                DB::raw("
-                    NULLIF(
-                        TRIM(CONCAT_WS(' ',
-                            NULLIF(TRIM(cap.nombre), ''),
-                            NULLIF(TRIM(cap.apellido_paterno), ''),
-                            NULLIF(TRIM(cap.apellido_materno), '')
-                        )),
-                        ''
-                    ) AS nombre_persona
-                "),
-            ])
-            ->where('c.id_respuesta', $idRespuesta)
-            ->first();
+        $resultado = DB::transaction(function () use ($idRespuesta, $motivo, $motivoColumn, $fechaRechazoColumn, $user) {
+            $registro = $this->baseConstanciaOnlyQuery($user)
+                ->select([
+                    'c.id_respuesta',
+                    'c.curp',
+                    'c.nombre_curso',
+                    'c.correo_electronico',
+                    'c.fecha_ultima_accion',
+                    'c.estatus',
+                    'c.id_puesto',
+                ])
+                ->where('c.id_respuesta', $idRespuesta)
+                ->lockForUpdate()
+                ->first();
 
-        if (!$registro) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Registro no encontrado o fuera de tu alcance.',
-            ], 200);
-        }
+            if (! $registro) {
+                return [
+                    'status'  => false,
+                    'code'    => 404,
+                    'message' => 'Registro no encontrado, fuera de tu alcance o no válido para revisión.',
+                ];
+            }
 
-        $ahora = Carbon::now('America/Mexico_City');
+            if ((int) $registro->estatus !== self::CONST_PENDIENTE) {
+                return [
+                    'status'  => false,
+                    'code'    => 409,
+                    'message' => 'La constancia ya fue procesada previamente con estatus: ' . $this->statusLabel((int) $registro->estatus) . '.',
+                ];
+            }
 
-        DB::transaction(function () use ($idRespuesta, $motivo, $motivoColumn, $fechaRechazoColumn) {
             $updateData = [
                 'estatus'             => self::CONST_RECHAZADO,
                 'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
@@ -134,16 +142,44 @@ class UpdateEstatusConstanciasController extends Controller
                 $updateData[$fechaRechazoColumn] = DB::raw("CURRENT_TIMESTAMP");
             }
 
-            DB::table('public.tbl_constancias')
+            $updated = DB::table('public.tbl_constancias')
                 ->where('id_respuesta', $idRespuesta)
+                ->where('estatus', self::CONST_PENDIENTE)
                 ->update($updateData);
+
+            if ($updated < 1) {
+                return [
+                    'status'  => false,
+                    'code'    => 409,
+                    'message' => 'La constancia cambió de estatus mientras se procesaba. Intenta recargar la tabla.',
+                ];
+            }
+
+            $notify = $this->notificationDataForConstancia($idRespuesta, $user);
+
+            return [
+                'status'            => true,
+                'correo_electronico'=> (string) ($notify['correo_electronico'] ?? ''),
+                'nombre_persona'    => (string) ($notify['nombre_persona'] ?? ''),
+                'nombre_curso'      => (string) ($notify['nombre_curso'] ?? ''),
+                'folio'             => (string) ($notify['folio'] ?? $idRespuesta),
+            ];
         });
 
+        if (! $resultado['status']) {
+            return response()->json([
+                'status'  => false,
+                'message' => $resultado['message'],
+            ], $resultado['code'] ?? 422);
+        }
+
+        $ahora = Carbon::now('America/Mexico_City');
+
         $emailEnviado = $this->sendConstanciaDecisionEmail(
-            correoDestinatario: (string) ($registro->correo_electronico ?? ''),
-            nombrePersona: (string) ($registro->nombre_persona ?? ''),
-            nombreCurso: (string) ($registro->nombre_curso ?? ''),
-            folio: (string) $registro->id_respuesta,
+            correoDestinatario: (string) ($resultado['correo_electronico'] ?? ''),
+            nombrePersona: (string) ($resultado['nombre_persona'] ?? ''),
+            nombreCurso: (string) ($resultado['nombre_curso'] ?? ''),
+            folio: (string) ($resultado['folio'] ?? ''),
             fechaHora: $ahora->format('d/m/Y H:i:s'),
             tipo: 'rechazo',
             motivo: $motivo
@@ -167,7 +203,7 @@ class UpdateEstatusConstanciasController extends Controller
             $hasHorasProg    = isset($colSet['horas_progamadas']);
             $hasEvalApr      = isset($colSet['eval_aprendizaje']);
 
-            $c = $this->baseConstanciaQuery($user)
+            $c = $this->baseConstanciaOnlyQuery($user)
                 ->select([
                     'c.id_respuesta',
                     'c.curp',
@@ -180,24 +216,25 @@ class UpdateEstatusConstanciasController extends Controller
                     'c.instancia',
                     'c.instancia_otro',
                     'c.correo_electronico',
-                    DB::raw("
-                        NULLIF(
-                            TRIM(CONCAT_WS(' ',
-                                NULLIF(TRIM(cap.nombre), ''),
-                                NULLIF(TRIM(cap.apellido_paterno), ''),
-                                NULLIF(TRIM(cap.apellido_materno), '')
-                            )),
-                            ''
-                        ) AS nombre_persona
-                    "),
+                    'c.estatus',
                 ])
                 ->where('c.id_respuesta', $idRespuesta)
+                ->lockForUpdate()
                 ->first();
 
-            if (!$c) {
+            if (! $c) {
                 return [
-                    'status' => false,
-                    'message' => 'Registro de constancia no encontrado o fuera de tu alcance.',
+                    'status'  => false,
+                    'code'    => 404,
+                    'message' => 'Registro de constancia no encontrado, fuera de tu alcance o no válido para revisión.',
+                ];
+            }
+
+            if ((int) $c->estatus !== self::CONST_PENDIENTE) {
+                return [
+                    'status'  => false,
+                    'code'    => 409,
+                    'message' => 'La constancia ya fue procesada previamente con estatus: ' . $this->statusLabel((int) $c->estatus) . '.',
                 ];
             }
 
@@ -208,6 +245,7 @@ class UpdateEstatusConstanciasController extends Controller
             if ($curp === '' || $cursoTxt === '' || $idPuestoTxt === '') {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => 'Faltan datos en la constancia (CURP, curso o id_puesto).',
                 ];
             }
@@ -217,51 +255,56 @@ class UpdateEstatusConstanciasController extends Controller
                 ->whereRaw('TRIM(UPPER(nombre_accion)) = TRIM(UPPER(?))', [$cursoTxt])
                 ->first();
 
-            if (!$accionCat) {
+            if (! $accionCat) {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => 'El curso NO existe en el catálogo (a1_cat_acciones). No se puede procesar.',
                 ];
             }
 
-            $idAccion = (int) $accionCat->id_accion;
+            $idAccion         = (int) $accionCat->id_accion;
             $horasProgramadas = $accionCat->duracion_hrs ?? null;
 
             $instTxt = trim((string) (($c->instancia ?? '') !== '' ? $c->instancia : ($c->instancia_otro ?? '')));
             $idInstancia = $this->resolveIdInstanciaSafe($instTxt);
 
-            if (!$idInstancia) {
+            if (! $idInstancia) {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => "No se pudo mapear la instancia '{$instTxt}' a un id_instancia del catálogo.",
                 ];
             }
 
             $tematicaTxt = $this->resolveTematicaFromCursoSafe($idAccion);
-            if (!$tematicaTxt) {
+            if (! $tematicaTxt) {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => 'No se pudo obtener la temática asociada al curso desde el catálogo.',
                 ];
             }
 
             $idTematica = $this->resolveIdTematicaSafe($tematicaTxt);
-            if (!$idTematica) {
+            if (! $idTematica) {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => "No se pudo mapear la temática '{$tematicaTxt}' a cat_tematica.",
                 ];
             }
 
             $idTrimestre = null;
-            if (!empty($c->fecha_inicio)) {
-                $m = (int) date('n', strtotime($c->fecha_inicio));
+            if (! empty($c->fecha_inicio)) {
+                $m = (int) date('n', strtotime((string) $c->fecha_inicio));
                 $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
             }
 
             if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
                 return [
                     'status'  => false,
+                    'code'    => 422,
                     'message' => 'La constancia no trae fechas suficientes (fecha_inicio/fecha_final).',
                 ];
             }
@@ -281,12 +324,17 @@ class UpdateEstatusConstanciasController extends Controller
                     $cal = (int) round((float) $calRaw);
                 }
             }
+
             if ($cal < 70) {
                 $cal = 70;
             }
+
             if ($cal > 100) {
                 $cal = 100;
             }
+
+            DB::select("SELECT pg_advisory_xact_lock(5001)");
+            DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
 
             $existe = DB::table('public.a2_acciones_empleados')
                 ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
@@ -294,12 +342,9 @@ class UpdateEstatusConstanciasController extends Controller
                 ->where('id_accion', $idAccion)
                 ->exists();
 
-            DB::select("SELECT pg_advisory_xact_lock(5001)");
-            DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
-
             $obsBase = 'Curso Extra.';
-            if (!$hasCalificacion) {
-                $obsBase .= ' Calificación: '.$cal.'.';
+            if (! $hasCalificacion) {
+                $obsBase .= ' Calificación: ' . $cal . '.';
             }
 
             if ($existe) {
@@ -318,9 +363,11 @@ class UpdateEstatusConstanciasController extends Controller
                 if ($hasEvalApr) {
                     $upd['eval_aprendizaje'] = true;
                 }
+
                 if ($hasHorasProg) {
                     $upd['horas_progamadas'] = $horasProgramadas;
                 }
+
                 if ($hasCalificacion) {
                     $upd['calificacion'] = $cal;
                 }
@@ -363,9 +410,11 @@ class UpdateEstatusConstanciasController extends Controller
                 if ($hasEvalApr) {
                     $ins['eval_aprendizaje'] = true;
                 }
+
                 if ($hasHorasProg) {
                     $ins['horas_progamadas'] = $horasProgramadas;
                 }
+
                 if ($hasCalificacion) {
                     $ins['calificacion'] = $cal;
                 }
@@ -373,29 +422,40 @@ class UpdateEstatusConstanciasController extends Controller
                 DB::table('public.a2_acciones_empleados')->insert($ins);
             }
 
-            DB::table('public.tbl_constancias')
+            $updated = DB::table('public.tbl_constancias')
                 ->where('id_respuesta', $idRespuesta)
+                ->where('estatus', self::CONST_PENDIENTE)
                 ->update([
                     'estatus'             => self::CONST_CONCLUIDO,
                     'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
                     'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
                 ]);
 
+            if ($updated < 1) {
+                return [
+                    'status'  => false,
+                    'code'    => 409,
+                    'message' => 'La constancia cambió de estatus mientras se procesaba. Intenta recargar la tabla.',
+                ];
+            }
+
+            $notify = $this->notificationDataForConstancia($idRespuesta, $user);
+
             return [
-                'status' => true,
-                'message' => 'Constancia aceptada y procesada correctamente.',
-                'correo_electronico' => (string) ($c->correo_electronico ?? ''),
-                'nombre_persona' => (string) ($c->nombre_persona ?? ''),
-                'nombre_curso' => (string) ($c->nombre_curso ?? ''),
-                'folio' => (string) ($c->id_respuesta ?? ''),
+                'status'            => true,
+                'message'           => 'Constancia aceptada y procesada correctamente.',
+                'correo_electronico'=> (string) ($notify['correo_electronico'] ?? ''),
+                'nombre_persona'    => (string) ($notify['nombre_persona'] ?? ''),
+                'nombre_curso'      => (string) ($notify['nombre_curso'] ?? ''),
+                'folio'             => (string) ($notify['folio'] ?? $idRespuesta),
             ];
         });
 
-        if (!$resultado['status']) {
+        if (! $resultado['status']) {
             return response()->json([
                 'status'  => false,
                 'message' => $resultado['message'],
-            ], 200);
+            ], $resultado['code'] ?? 422);
         }
 
         $ahora = Carbon::now('America/Mexico_City');
@@ -418,7 +478,46 @@ class UpdateEstatusConstanciasController extends Controller
         ], 200);
     }
 
-    private function baseConstanciaQuery($user)
+    private function notificationDataForConstancia(string $idRespuesta, $user): array
+    {
+        $row = $this->baseConstanciaQuery($user)
+            ->select([
+                'c.id_respuesta',
+                'c.nombre_curso',
+                'c.correo_electronico',
+                DB::raw("
+                    NULLIF(
+                        TRIM(CONCAT_WS(' ',
+                            NULLIF(TRIM(cap.nombre), ''),
+                            NULLIF(TRIM(cap.apellido_paterno), ''),
+                            NULLIF(TRIM(cap.apellido_materno), '')
+                        )),
+                        ''
+                    ) AS nombre_persona
+                "),
+            ])
+            ->where('c.id_respuesta', $idRespuesta)
+            ->first();
+
+        return [
+            'folio'             => (string) ($row->id_respuesta ?? $idRespuesta),
+            'nombre_curso'      => (string) ($row->nombre_curso ?? ''),
+            'correo_electronico'=> (string) ($row->correo_electronico ?? ''),
+            'nombre_persona'    => (string) ($row->nombre_persona ?? ''),
+        ];
+    }
+
+    private function baseConstanciaOnlyQuery($user): Builder
+    {
+        $q = DB::table('public.tbl_constancias as c');
+
+        ConstanciaVisibilityByName::apply($q, $user, 'c');
+        $this->applyValidConstanciaFilters($q);
+
+        return $q;
+    }
+
+    private function baseConstanciaQuery($user): Builder
     {
         $capLast = DB::raw("
             (
@@ -428,7 +527,8 @@ class UpdateEstatusConstanciasController extends Controller
                     apellido_paterno,
                     apellido_materno
                 FROM public.a2_acciones_capacitacion
-                WHERE curp IS NOT NULL AND TRIM(curp) <> ''
+                WHERE curp IS NOT NULL
+                  AND TRIM(curp) <> ''
                 ORDER BY UPPER(TRIM(curp)), id_cat DESC NULLS LAST
             ) as cap
         ");
@@ -442,8 +542,26 @@ class UpdateEstatusConstanciasController extends Controller
             );
 
         ConstanciaVisibilityByName::apply($q, $user, 'c');
+        $this->applyValidConstanciaFilters($q);
 
         return $q;
+    }
+
+    private function applyValidConstanciaFilters(Builder $query): void
+    {
+        $query->whereNotNull('c.id_puesto')
+            ->whereRaw("BTRIM(COALESCE(c.id_puesto, '')) <> ''")
+            ->whereNotNull('c.estatus');
+    }
+
+    private function statusLabel(int $estatus): string
+    {
+        return match ($estatus) {
+            self::CONST_PENDIENTE => 'PENDIENTE',
+            self::CONST_CONCLUIDO => 'ACEPTADO',
+            self::CONST_RECHAZADO => 'RECHAZADO',
+            default => 'SIN ESTATUS',
+        };
     }
 
     private function sendConstanciaDecisionEmail(
@@ -460,32 +578,32 @@ class UpdateEstatusConstanciasController extends Controller
         $nombreCurso = trim($nombreCurso) !== '' ? trim($nombreCurso) : 'No especificado';
         $folio = trim($folio) !== '' ? trim($folio) : 'S/F';
 
-        if ($correoDestinatario === '' || !filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
+        if ($correoDestinatario === '' || ! filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
             Log::warning('No se encontró correo válido para notificación de constancia.', [
                 'correo' => $correoDestinatario,
-                'folio' => $folio,
-                'tipo' => $tipo,
+                'folio'  => $folio,
+                'tipo'   => $tipo,
             ]);
             return false;
         }
 
         try {
             if ($tipo === 'rechazo') {
-                $subject = 'Constancia rechazada - '.$nombreCurso.' - Folio '.$folio;
+                $subject = 'Constancia rechazada - ' . $nombreCurso . ' - Folio ' . $folio;
 
                 $html = '
                     <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
-                        <p>Hola <strong>'.e($nombrePersona).'</strong>,</p>
+                        <p>Hola <strong>' . e($nombrePersona) . '</strong>,</p>
 
                         <p>Te informamos que tu trámite/constancia fue <strong>rechazado</strong>.</p>
 
                         <p><strong>Detalle del rechazo:</strong></p>
                         <ul>
-                            <li><strong>Folio / ID:</strong> '.e($folio).'</li>
-                            <li><strong>Nombre del empleado:</strong> '.e($nombrePersona).'</li>
-                            <li><strong>Nombre del curso:</strong> '.e($nombreCurso).'</li>
-                            <li><strong>Fecha y hora del rechazo:</strong> '.e($fechaHora).'</li>
-                            <li><strong>Motivo:</strong> '.nl2br(e((string) $motivo)).'</li>
+                            <li><strong>Folio / ID:</strong> ' . e($folio) . '</li>
+                            <li><strong>Nombre del empleado:</strong> ' . e($nombrePersona) . '</li>
+                            <li><strong>Nombre del curso:</strong> ' . e($nombreCurso) . '</li>
+                            <li><strong>Fecha y hora del rechazo:</strong> ' . e($fechaHora) . '</li>
+                            <li><strong>Motivo:</strong> ' . nl2br(e((string) $motivo)) . '</li>
                         </ul>
 
                         <p>Por favor revisa la información y realiza las correcciones necesarias.</p>
@@ -496,20 +614,20 @@ class UpdateEstatusConstanciasController extends Controller
 
                 $cc = trim((string) env('CONSTANCIAS_RECHAZO_CC', ''));
             } else {
-                $subject = 'Constancia aceptada - '.$nombreCurso.' - Folio '.$folio;
+                $subject = 'Constancia aceptada - ' . $nombreCurso . ' - Folio ' . $folio;
 
                 $html = '
                     <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
-                        <p>Hola <strong>'.e($nombrePersona).'</strong>,</p>
+                        <p>Hola <strong>' . e($nombrePersona) . '</strong>,</p>
 
                         <p>Te informamos que tu constancia fue <strong>aceptada</strong> correctamente.</p>
 
                         <p><strong>Detalle de la aceptación:</strong></p>
                         <ul>
-                            <li><strong>Folio / ID:</strong> '.e($folio).'</li>
-                            <li><strong>Nombre del empleado:</strong> '.e($nombrePersona).'</li>
-                            <li><strong>Nombre del curso:</strong> '.e($nombreCurso).'</li>
-                            <li><strong>Fecha y hora de la aceptación:</strong> '.e($fechaHora).'</li>
+                            <li><strong>Folio / ID:</strong> ' . e($folio) . '</li>
+                            <li><strong>Nombre del empleado:</strong> ' . e($nombrePersona) . '</li>
+                            <li><strong>Nombre del curso:</strong> ' . e($nombreCurso) . '</li>
+                            <li><strong>Fecha y hora de la aceptación:</strong> ' . e($fechaHora) . '</li>
                         </ul>
 
                         <p>Tu registro fue validado correctamente.</p>
@@ -533,10 +651,10 @@ class UpdateEstatusConstanciasController extends Controller
 
             return true;
         } catch (\Throwable $mailEx) {
-            Log::error('Error enviando correo de constancia: '.$mailEx->getMessage(), [
+            Log::error('Error enviando correo de constancia: ' . $mailEx->getMessage(), [
                 'correo' => $correoDestinatario,
-                'folio' => $folio,
-                'tipo' => $tipo,
+                'folio'  => $folio,
+                'tipo'   => $tipo,
             ]);
             return false;
         }
@@ -545,7 +663,9 @@ class UpdateEstatusConstanciasController extends Controller
     private function resolveIdInstanciaSafe(string $instTxt): ?string
     {
         $instTxt = trim($instTxt);
-        if ($instTxt === '') return null;
+        if ($instTxt === '') {
+            return null;
+        }
 
         $tables = DB::table('information_schema.tables')
             ->where('table_schema', 'public')
@@ -566,16 +686,22 @@ class UpdateEstatusConstanciasController extends Controller
             $idCol  = $this->firstExistingColumnFromSet($set, ['id_instancia', 'id']);
             $txtCol = $this->firstExistingColumnFromSet($set, ['descripcion', 'instancia', 'nombre_instancia', 'nombre']);
 
-            if (!$idCol || !$txtCol) continue;
+            if (! $idCol || ! $txtCol) {
+                continue;
+            }
 
             $existsById = DB::table("public.$t")->where($idCol, $instTxt)->exists();
-            if ($existsById) return (string) $instTxt;
+            if ($existsById) {
+                return (string) $instTxt;
+            }
 
             $id = DB::table("public.$t")
                 ->whereRaw("TRIM(UPPER($txtCol)) = TRIM(UPPER(?))", [$instTxt])
                 ->value($idCol);
 
-            if (!empty($id)) return (string) $id;
+            if (! empty($id)) {
+                return (string) $id;
+            }
         }
 
         return null;
@@ -584,29 +710,36 @@ class UpdateEstatusConstanciasController extends Controller
     private function resolveTematicaFromCursoSafe(int $idAccion): ?string
     {
         $cols = $this->columnsFor('public', 'a1_cat_acciones');
-        if (!in_array('tematica', $cols, true)) return null;
+        if (! in_array('tematica', $cols, true)) {
+            return null;
+        }
 
         $t = DB::table('public.a1_cat_acciones')
             ->where('id_accion', $idAccion)
             ->value('tematica');
 
         $t = trim((string) $t);
+
         return $t !== '' ? $t : null;
     }
 
     private function resolveIdTematicaSafe(string $tematicaTxt): ?string
     {
         $tematicaTxt = trim($tematicaTxt);
-        if ($tematicaTxt === '') return null;
+        if ($tematicaTxt === '') {
+            return null;
+        }
 
         $cols = $this->columnsFor('public', 'cat_tematica');
-        if (!in_array('id_tematica', $cols, true) || !in_array('tematica', $cols, true)) return null;
+        if (! in_array('id_tematica', $cols, true) || ! in_array('tematica', $cols, true)) {
+            return null;
+        }
 
         $id = DB::table('public.cat_tematica')
             ->whereRaw("TRIM(UPPER(tematica)) = TRIM(UPPER(?))", [$tematicaTxt])
             ->value('id_tematica');
 
-        return !empty($id) ? (string) $id : null;
+        return ! empty($id) ? (string) $id : null;
     }
 
     private function columnsFor(string $schema, string $table): array
@@ -623,8 +756,11 @@ class UpdateEstatusConstanciasController extends Controller
     private function firstExistingColumnFromSet(array $set, array $candidates): ?string
     {
         foreach ($candidates as $c) {
-            if (isset($set[$c])) return $c;
+            if (isset($set[$c])) {
+                return $c;
+            }
         }
+
         return null;
     }
 }

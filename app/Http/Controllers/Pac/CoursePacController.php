@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class CoursePacController extends Controller
 {
+    private static ?bool $eventLogTableExists = null;
+
     /**
      * Catálogo de cursos para el modal "Agregar curso".
      * Solo muestra cursos con estatus VIGENTE o ALTA.
@@ -38,8 +41,8 @@ class CoursePacController extends Controller
             ], 200);
 
         } catch (\Throwable $th) {
-            Log::error('PAC listCourses error: ' . $th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+            Log::error('PAC listCourses error: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -59,25 +62,27 @@ class CoursePacController extends Controller
         try {
             $this->assertCanManageCourses();
 
-            $request->validate([
+            $user = auth()->user();
+
+            $validated = $request->validate([
                 'id_empl_accion_base' => 'required|integer',
                 'id_accion'           => 'required|integer',
             ]);
 
-            $idBase   = (int) $request->id_empl_accion_base;
-            $idAccion = (int) $request->id_accion;
+            $idBase   = (int) $validated['id_empl_accion_base'];
+            $idAccion = (int) $validated['id_accion'];
 
-            return DB::transaction(function () use ($idBase, $idAccion) {
-
+            $result = DB::transaction(function () use ($idBase, $idAccion) {
                 $base = DB::table('public.a2_acciones_empleados')
                     ->where('id_empl_accion', $idBase)
+                    ->lockForUpdate()
                     ->first();
 
                 if (! $base) {
-                    return response()->json([
+                    return [
                         'status'  => false,
                         'message' => 'Registro base del empleado no encontrado.',
-                    ], 200);
+                    ];
                 }
 
                 $accion = DB::table('public.a1_cat_acciones as a')
@@ -90,42 +95,48 @@ class CoursePacController extends Controller
                     ->first();
 
                 if (! $accion) {
-                    return response()->json([
+                    return [
                         'status'  => false,
                         'message' => 'Acción seleccionada no encontrada.',
-                    ], 200);
+                    ];
                 }
 
                 $estatusAccion = mb_strtoupper(trim((string) $accion->estatus), 'UTF-8');
 
                 if (! in_array($estatusAccion, ['VIGENTE', 'ALTA'], true)) {
-                    return response()->json([
+                    return [
                         'status'  => false,
                         'message' => 'Solo se pueden agregar cursos con estatus VIGENTE o ALTA.',
-                    ], 200);
+                    ];
                 }
 
-                $horasProgramadas = $accion->duracion_hrs ?? null;
-
-                $existe = DB::table('public.a2_acciones_empleados')
+                $employeeRows = DB::table('public.a2_acciones_empleados')
+                    ->select('id_num_curso', 'id_accion')
                     ->where('id_puesto', $base->id_puesto)
                     ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$base->curp])
-                    ->where('id_accion', $idAccion)
-                    ->exists();
+                    ->lockForUpdate()
+                    ->get();
+
+                $existe = $employeeRows->contains(function ($row) use ($idAccion) {
+                    return (int) $row->id_accion === $idAccion;
+                });
 
                 if ($existe) {
-                    return response()->json([
+                    return [
                         'status'  => false,
                         'message' => 'Este curso ya está asignado al empleado.',
-                    ], 200);
+                    ];
                 }
 
-                $maxNumCurso = DB::table('public.a2_acciones_empleados')
-                    ->where('id_puesto', $base->id_puesto)
-                    ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$base->curp])
-                    ->max('id_num_curso');
+                $maxNumCurso = $employeeRows
+                    ->pluck('id_num_curso')
+                    ->filter(fn ($v) => $v !== null && $v !== '')
+                    ->map(fn ($v) => (int) $v)
+                    ->max();
 
-                $nextNumCurso = $maxNumCurso ? ((int) $maxNumCurso + 1) : 1;
+                $nextNumCurso = $maxNumCurso ? ($maxNumCurso + 1) : 1;
+
+                DB::statement('LOCK TABLE public.a2_acciones_empleados IN ACCESS EXCLUSIVE MODE');
 
                 $maxId = DB::table('public.a2_acciones_empleados')->max('id_empl_accion');
                 $newId = $maxId ? ((int) $maxId + 1) : 1;
@@ -136,7 +147,7 @@ class CoursePacController extends Controller
                 $payload['id_accion']        = $idAccion;
                 $payload['id_finalidad']     = 6;
                 $payload['id_num_curso']     = $nextNumCurso;
-                $payload['horas_progamadas'] = $horasProgramadas;
+                $payload['horas_progamadas'] = $accion->duracion_hrs ?? null;
                 $payload['calificacion']     = 100.00;
 
                 $payload['horas_real']       = null;
@@ -150,19 +161,58 @@ class CoursePacController extends Controller
                 $payload['id_cat_estatus']   = null;
                 $payload['id_cat_tematica']  = null;
 
-                unset($payload['created_at'], $payload['updated_at']);
+                unset(
+                    $payload['created_at'],
+                    $payload['updated_at']
+                );
 
                 DB::table('public.a2_acciones_empleados')->insert($payload);
 
-                return response()->json([
-                    'status'  => true,
-                    'message' => 'Curso agregado correctamente.',
-                ], 200);
+                return [
+                    'status'        => true,
+                    'message'       => 'Curso agregado correctamente.',
+                    'id_nuevo'      => $newId,
+                    'id_base'       => $idBase,
+                    'id_accion'     => $idAccion,
+                    'id_num_curso'  => $nextNumCurso,
+                    'duracion_hrs'  => $accion->duracion_hrs ?? null,
+                ];
             });
 
+            if (! $result['status']) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => $result['message'],
+                ], 200);
+            }
+
+            $this->safeLogUserAction(
+                userId: (int) $user->id,
+                modulo: 'PAC',
+                accion: 'AGREGAR_CURSO',
+                descripcion: 'Se agregó un curso a un empleado',
+                idReferencia: (string) $result['id_nuevo'],
+                payload: [
+                    'id_empl_accion_base' => $result['id_base'],
+                    'id_empl_accion_nuevo'=> $result['id_nuevo'],
+                    'id_accion'           => $result['id_accion'],
+                    'id_num_curso'        => $result['id_num_curso'],
+                    'horas_programadas'   => $result['duracion_hrs'],
+                    'id_finalidad'        => 6,
+                    'calificacion'        => 100.00,
+                ]
+            );
+
+            return response()->json([
+                'status'  => true,
+                'message' => $result['message'],
+            ], 200);
+
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $th) {
-            Log::error('PAC addCourseToEmployee error: ' . $th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+            Log::error('PAC addCourseToEmployee error: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -170,6 +220,63 @@ class CoursePacController extends Controller
                 'message' => 'Ocurrió un error al agregar el curso.',
             ], 200);
         }
+    }
+
+    private function safeLogUserAction(
+        int $userId,
+        string $modulo,
+        string $accion,
+        ?string $descripcion = null,
+        ?string $idReferencia = null,
+        ?array $payload = null
+    ): void {
+        try {
+            if ($this->eventLogTableExists()) {
+                DB::table('log.log_eventos_usuario')->insert([
+                    'modulo'        => $modulo,
+                    'accion'        => $accion,
+                    'descripcion'   => $descripcion,
+                    'id_usuario'    => $userId,
+                    'id_referencia' => $idReferencia,
+                    'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+                    'creado_en'     => now(),
+                ]);
+                return;
+            }
+
+            Log::info('AUDITORIA_USUARIO', [
+                'modulo'        => $modulo,
+                'accion'        => $accion,
+                'descripcion'   => $descripcion,
+                'id_usuario'    => $userId,
+                'id_referencia' => $idReferencia,
+                'payload'       => $payload,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar log_eventos_usuario', [
+                'message' => $e->getMessage(),
+                'modulo'  => $modulo,
+                'accion'  => $accion,
+            ]);
+        }
+    }
+
+    private function eventLogTableExists(): bool
+    {
+        if (self::$eventLogTableExists !== null) {
+            return self::$eventLogTableExists;
+        }
+
+        try {
+            self::$eventLogTableExists = DB::table('information_schema.tables')
+                ->where('table_schema', 'log')
+                ->where('table_name', 'log_eventos_usuario')
+                ->exists();
+        } catch (\Throwable $e) {
+            self::$eventLogTableExists = false;
+        }
+
+        return self::$eventLogTableExists;
     }
 
     private function assertCanManageCourses(): void
@@ -189,6 +296,10 @@ class CoursePacController extends Controller
 
     private function isAdminOrRevisorEst($user): bool
     {
+        if (! $user) {
+            return false;
+        }
+
         if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
             return true;
         }

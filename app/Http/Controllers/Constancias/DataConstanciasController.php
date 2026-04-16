@@ -56,7 +56,8 @@ class DataConstanciasController extends Controller
                     apellido_paterno,
                     apellido_materno
                 FROM public.a2_acciones_capacitacion
-                WHERE curp IS NOT NULL AND TRIM(curp) <> ''
+                WHERE curp IS NOT NULL
+                  AND TRIM(curp) <> ''
                 ORDER BY UPPER(TRIM(curp)),
                          id_cat DESC NULLS LAST
             ) as cap
@@ -112,12 +113,17 @@ class DataConstanciasController extends Controller
 
         ConstanciaVisibilityByName::apply($row, $user, 'c');
 
+        // No permitir detalle de constancias inválidas para revisión
+        $row->whereNotNull('c.id_puesto')
+            ->whereRaw("BTRIM(COALESCE(c.id_puesto, '')) <> ''")
+            ->whereNotNull('c.estatus');
+
         $row = $row->first();
 
         if (! $row) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Registro no encontrado o fuera de tu alcance.',
+                'message' => 'Registro no encontrado, fuera de tu alcance o no válido para revisión.',
             ], 404);
         }
 
