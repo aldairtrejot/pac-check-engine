@@ -47,10 +47,6 @@ class User extends Authenticatable
         'id_clues' => 'integer',
     ];
 
-    // =========================================================================
-    // ROLES
-    // =========================================================================
-
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -65,10 +61,15 @@ class User extends Authenticatable
     {
         try {
             $row = DB::selectOne("SELECT to_regclass('administracion.user_roles') AS t");
-            return !empty($row?->t);
+            return ! empty($row?->t);
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    private function normalizeRoleCode(?string $code): string
+    {
+        return mb_strtoupper(trim((string) $code), 'UTF-8');
     }
 
     public function hasRole(string $code): bool
@@ -77,8 +78,13 @@ class User extends Authenticatable
             return false;
         }
 
+        $wanted = $this->normalizeRoleCode($code);
+
         $this->loadMissing('roles');
-        return $this->roles->contains(fn ($r) => $r->code === $code);
+
+        return $this->roles->contains(function ($role) use ($wanted) {
+            return $this->normalizeRoleCode($role->code ?? '') === $wanted;
+        });
     }
 
     public function hasAnyRole(array $codes): bool
@@ -87,17 +93,41 @@ class User extends Authenticatable
             return false;
         }
 
+        $wanted = collect($codes)
+            ->map(fn ($code) => $this->normalizeRoleCode($code))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         $this->loadMissing('roles');
-        return $this->roles->whereIn('code', $codes)->isNotEmpty();
+
+        return $this->roles->contains(function ($role) use ($wanted) {
+            return in_array($this->normalizeRoleCode($role->code ?? ''), $wanted, true);
+        });
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasAnyRole([
+            'ADMIN_OC',
+            'ADMIN',
+        ]);
     }
 
     public function isCentral(): bool
     {
-        return $this->hasAnyRole(['admin_oc', 'supervisor_oc']);
+        return $this->hasAnyRole([
+            'ADMIN_OC',
+            'SUPERVISOR_OC',
+        ]);
     }
 
     public function isOperative(): bool
     {
-        return $this->hasAnyRole(['revisor_est', 'supervisor_est']);
+        return $this->hasAnyRole([
+            'REVISOR_EST',
+            'SUPERVISOR_EST',
+        ]);
     }
 }

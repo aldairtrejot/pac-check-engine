@@ -3,25 +3,29 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
+use App\Models\Pac\Collection\CollectionFinalidadModel;
 use App\Models\Pac\Collection\CollectionInstanceModel;
 use App\Models\Pac\Collection\CollectionTematicaModel;
-use App\Models\Pac\Collection\CollectionFinalidadModel;
 use App\Models\Pac\DataPacModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DataPacController extends Controller
 {
     public function dataPac(Request $request)
     {
         try {
+            $request->validate([
+                'id' => 'required|integer',
+            ]);
+
             $collectionInstanceModel  = new CollectionInstanceModel;
             $collectionTematicaModel  = new CollectionTematicaModel;
             $collectionFinalidadModel = new CollectionFinalidadModel;
 
             $dataPacModel = new DataPacModel;
 
-            // ✅ FIX: tu modelo solo recibe ($id)
             $data = $dataPacModel->dataPac($request->id);
 
             if (! $data) {
@@ -55,6 +59,7 @@ class DataPacController extends Controller
             }
 
             $listOptionInstance = $collectionInstanceModel->listCollection();
+
             $listSelectInstance = isset($data->id_instancia)
                 ? $collectionInstanceModel->listConllectionSelect($data->id_instancia)
                 : [];
@@ -107,9 +112,15 @@ class DataPacController extends Controller
             ], 200);
 
         } catch (\Throwable $th) {
+            Log::error('Error en DataPacController@dataPac', [
+                'message' => $th->getMessage(),
+                'file'    => $th->getFile(),
+                'line'    => $th->getLine(),
+            ]);
+
             return response()->json([
                 'status'  => false,
-                'message' => __('default.error_message'),
+                'message' => 'No se pudo cargar la información del registro.',
             ], 200);
         }
     }

@@ -9,118 +9,266 @@ class PacVisibility
 {
     private static array $columnsCache = [];
 
-    public static function apply(Builder $query, $user, string $capTableQualified = 'public.a2_acciones_capacitacion'): void
-    {
+    public static function apply(
+        Builder $query,
+        $user,
+        string $capAlias = 'public.a2_acciones_capacitacion',
+        string $capTableQualified = 'public.a2_acciones_capacitacion'
+    ): void {
         if (! $user) {
-            abort(401, 'No autenticado');
-        }
-
-        // Centrales ven todo
-        if (method_exists($user, 'isCentral') && $user->isCentral()) {
+            $query->whereRaw('1 = 0');
             return;
         }
 
-        // Si no es operativo, no filtramos aquí
-        if (method_exists($user, 'isOperative') && ! $user->isOperative()) {
+        /*
+        |--------------------------------------------------------------------------
+        | SOLO ADMIN GLOBAL VE TODO
+        |--------------------------------------------------------------------------
+        | ADMIN_OC / ADMIN pueden ver todo.
+        | SUPERVISOR_OC, REVISOR_EST y SUPERVISOR_EST deben filtrarse.
+        */
+        if (self::isAdminGlobal($user)) {
             return;
         }
 
-        // Operativos requieren estos IDs
-        if (empty($user->id_entidad)) {
-            abort(403, 'Usuario operativo sin id_entidad asignado.');
+        /*
+        |--------------------------------------------------------------------------
+        | ROLES PERMITIDOS CON FILTRO
+        |--------------------------------------------------------------------------
+        */
+        if (! self::hasAnyRole($user, [
+            'SUPERVISOR_OC',
+            'REVISOR_EST',
+            'SUPERVISOR_EST',
+        ])) {
+            $query->whereRaw('1 = 0');
+            return;
         }
-        if (empty($user->id_tipo_nomina)) {
-            abort(403, 'Usuario operativo sin id_tipo_nomina asignado.');
+
+        if (empty($user->id_entidad) || empty($user->id_tipo_nomina)) {
+            $query->whereRaw('1 = 0');
+            return;
         }
 
         [$schemaCap, $tableCap] = self::splitQualified($capTableQualified);
 
-        $capEntidadCol = self::firstExistingColumn($schemaCap, $tableCap, ['id_entidad', 'entidad']);
-        $capNominaCol  = self::firstExistingColumn($schemaCap, $tableCap, ['id_tipo_nomina', 'nomina']);
-        $capCluesCol   = self::firstExistingColumn($schemaCap, $tableCap, ['id_clues', 'clave_clues', 'clues']);
+        $capEntidadCol = self::firstExistingColumn($schemaCap, $tableCap, [
+            'id_entidad',
+            'entidad',
+        ]);
 
-        if (! $capEntidadCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_entidad ni entidad.");
+        $capNominaCol = self::firstExistingColumn($schemaCap, $tableCap, [
+            'id_tipo_nomina',
+            'nomina',
+        ]);
+
+        $capCluesCol = self::firstExistingColumn($schemaCap, $tableCap, [
+            'id_clues',
+            'clave_clues',
+            'clues',
+        ]);
+
+        if (! $capEntidadCol || ! $capNominaCol) {
+            $query->whereRaw('1 = 0');
+            return;
         }
-        if (! $capNominaCol) {
-            abort(500, "a2_acciones_capacitacion no tiene columna id_tipo_nomina ni nomina.");
-        }
 
-        $cap = $capTableQualified;
+        $cap = trim($capAlias);
 
-        // ==========================
-        // ENTIDAD (a2.entidad es TEXTO en tu caso)
-        // ==========================
+        /*
+        |--------------------------------------------------------------------------
+        | ENTIDAD
+        |--------------------------------------------------------------------------
+        */
         if ($capEntidadCol === 'id_entidad') {
-            $query->where($cap . '.id_entidad', '=', (int) $user->id_entidad);
+            $query->where("{$cap}.id_entidad", '=', (int) $user->id_entidad);
         } else {
-            $entidadTxt = self::lookupLabel(
+            $entidadLabels = self::lookupLabels(
                 'administracion.cat_entidad',
                 'id_entidad',
                 (int) $user->id_entidad,
-                ['entidad', 'descripcion', 'nombre', 'desc_entidad']
+                [
+                    'nombre',
+                    'abreviatura',
+                    'entidad',
+                    'descripcion',
+                    'desc_entidad',
+                ]
             );
 
-            if (! $entidadTxt) {
-                abort(403, 'No se pudo resolver el texto de entidad desde cat_entidad.');
+            if (empty($entidadLabels)) {
+                $query->whereRaw('1 = 0');
+                return;
             }
 
-            $query->whereRaw("TRIM(UPPER({$cap}.entidad)) = TRIM(UPPER(?))", [$entidadTxt]);
+            self::whereNormalizedIn($query, "{$cap}.entidad", $entidadLabels);
         }
 
-        // ==========================
-        // NÓMINA (a2.nomina es TEXTO en tu caso)
-        // ==========================
+        /*
+        |--------------------------------------------------------------------------
+        | NÓMINA
+        |--------------------------------------------------------------------------
+        */
+        $nominaLabels = [];
+
         if ($capNominaCol === 'id_tipo_nomina') {
-            $query->where($cap . '.id_tipo_nomina', '=', (int) $user->id_tipo_nomina);
+            $query->where("{$cap}.id_tipo_nomina", '=', (int) $user->id_tipo_nomina);
         } else {
-            $nominaTxt = self::lookupLabel(
+            $nominaLabels = self::lookupLabels(
                 'administracion.cat_tipo_nomina',
                 'id_tipo_nomina',
                 (int) $user->id_tipo_nomina,
-                ['tipo_nomina', 'nomina', 'descripcion', 'nombre']
+                [
+                    'codigo',
+                    'nombre',
+                    'tipo_nomina',
+                    'nomina',
+                    'descripcion',
+                ]
             );
 
-            if (! $nominaTxt) {
-                abort(403, 'No se pudo resolver el texto de nómina desde cat_tipo_nomina.');
+            if (empty($nominaLabels)) {
+                $query->whereRaw('1 = 0');
+                return;
             }
 
-            $query->whereRaw("TRIM(UPPER({$cap}.nomina)) = TRIM(UPPER(?))", [$nominaTxt]);
+            self::whereNormalizedIn($query, "{$cap}.nomina", $nominaLabels);
         }
 
-        // ==========================
-        // CLUES (OPCIONAL) - tú sí tienes clave_clues
-        // ==========================
-        if (! empty($user->id_clues) && $capCluesCol) {
-            $cluesTxt = self::lookupLabel(
+        /*
+        |--------------------------------------------------------------------------
+        | CLUES
+        |--------------------------------------------------------------------------
+        | Si es HRAES, CLUES es obligatorio.
+        | Si el usuario trae id_clues, también se filtra por CLUES.
+        */
+        $requiresClues = self::labelsContain($nominaLabels, 'HRAES');
+
+        if ($requiresClues && empty($user->id_clues)) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        if (! empty($user->id_clues)) {
+            if (! $capCluesCol) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if ($capCluesCol === 'id_clues') {
+                $query->where("{$cap}.id_clues", '=', (int) $user->id_clues);
+                return;
+            }
+
+            $cluesLabels = self::lookupLabels(
                 'administracion.cat_clues',
                 'id_clues',
                 (int) $user->id_clues,
-                ['clave_clues', 'clues', 'descripcion', 'nombre']
+                [
+                    'clues',
+                    'clave_clues',
+                    'clave',
+                    'descripcion',
+                    'nombre',
+                ]
             );
 
-            if ($cluesTxt) {
-                if ($capCluesCol === 'id_clues') {
-                    $query->where($cap . '.id_clues', '=', (int) $user->id_clues);
-                } elseif ($capCluesCol === 'clave_clues') {
-                    $query->whereRaw("TRIM(UPPER({$cap}.clave_clues)) = TRIM(UPPER(?))", [$cluesTxt]);
-                } else {
-                    $query->whereRaw("TRIM(UPPER({$cap}.clues)) = TRIM(UPPER(?))", [$cluesTxt]);
-                }
+            if (empty($cluesLabels)) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if ($capCluesCol === 'clave_clues') {
+                self::whereNormalizedIn($query, "{$cap}.clave_clues", $cluesLabels);
+            } else {
+                self::whereNormalizedIn($query, "{$cap}.clues", $cluesLabels);
             }
         }
     }
 
-    // ==========================
-    // Helpers internos
-    // ==========================
+    private static function isAdminGlobal($user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole([
+            'ADMIN_OC',
+            'ADMIN',
+            'admin_oc',
+            'admin',
+        ])) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('ADMIN_OC')
+                || $user->hasRole('ADMIN')
+                || $user->hasRole('admin_oc')
+                || $user->hasRole('admin');
+        }
+
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
+            return true;
+        }
+
+        if (isset($user->is_admin) && (bool) $user->is_admin) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function hasAnyRole($user, array $roles): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole($roles)) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            foreach ($roles as $role) {
+                if ($user->hasRole($role)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function labelsContain(array $labels, string $needle): bool
+    {
+        $needle = mb_strtoupper(trim($needle), 'UTF-8');
+
+        foreach ($labels as $label) {
+            if (str_contains(mb_strtoupper(trim((string) $label), 'UTF-8'), $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static function splitQualified(string $qualified): array
     {
         $qualified = trim($qualified);
+
         if (str_contains($qualified, '.')) {
             $parts = explode('.', $qualified);
-            if (count($parts) === 2) return [$parts[0], $parts[1]];
+
+            if (count($parts) === 2) {
+                return [$parts[0], $parts[1]];
+            }
         }
+
         return ['public', $qualified];
     }
 
@@ -129,13 +277,13 @@ class PacVisibility
         $key = $schema . '.' . $table;
 
         if (! isset(self::$columnsCache[$key])) {
-            $rows = DB::table('information_schema.columns')
-                ->select('column_name')
+            self::$columnsCache[$key] = DB::table('information_schema.columns')
                 ->where('table_schema', $schema)
                 ->where('table_name', $table)
-                ->get();
-
-            self::$columnsCache[$key] = $rows->pluck('column_name')->map(fn ($c) => (string) $c)->all();
+                ->orderBy('ordinal_position')
+                ->pluck('column_name')
+                ->map(fn ($c) => (string) $c)
+                ->all();
         }
 
         return self::$columnsCache[$key];
@@ -144,22 +292,96 @@ class PacVisibility
     private static function firstExistingColumn(string $schema, string $table, array $candidates): ?string
     {
         $cols = self::columnsFor($schema, $table);
-        $set  = array_flip($cols);
+        $set = array_flip($cols);
 
-        foreach ($candidates as $c) {
-            if (isset($set[$c])) return $c;
+        foreach ($candidates as $candidate) {
+            if (isset($set[$candidate])) {
+                return $candidate;
+            }
         }
+
         return null;
     }
 
-    private static function lookupLabel(string $qualifiedTable, string $idCol, int $idVal, array $labelCandidates): ?string
+    private static function existingColumns(string $schema, string $table, array $candidates): array
     {
+        $cols = self::columnsFor($schema, $table);
+        $set = array_flip($cols);
+
+        $found = [];
+
+        foreach ($candidates as $candidate) {
+            if (isset($set[$candidate])) {
+                $found[] = $candidate;
+            }
+        }
+
+        return $found;
+    }
+
+    private static function lookupLabels(
+        string $qualifiedTable,
+        string $idCol,
+        int $idVal,
+        array $labelCandidates
+    ): array {
         [$schema, $table] = self::splitQualified($qualifiedTable);
 
-        $labelCol = self::firstExistingColumn($schema, $table, $labelCandidates);
-        if (! $labelCol) return null;
+        $labelCols = self::existingColumns($schema, $table, $labelCandidates);
 
-        $val = DB::table($qualifiedTable)->where($idCol, $idVal)->value($labelCol);
-        return $val !== null ? (string) $val : null;
+        if (empty($labelCols)) {
+            return [];
+        }
+
+        $row = DB::table($qualifiedTable)
+            ->select($labelCols)
+            ->where($idCol, $idVal)
+            ->first();
+
+        if (! $row) {
+            return [];
+        }
+
+        $labels = [];
+
+        foreach ($labelCols as $col) {
+            if (isset($row->{$col}) && trim((string) $row->{$col}) !== '') {
+                $labels[] = (string) $row->{$col};
+            }
+        }
+
+        return self::uniqueNormalizedLabels($labels);
+    }
+
+    private static function uniqueNormalizedLabels(array $labels): array
+    {
+        $normalized = [];
+
+        foreach ($labels as $label) {
+            $value = mb_strtoupper(trim((string) $label), 'UTF-8');
+
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    private static function whereNormalizedIn(Builder $query, string $column, array $values): void
+    {
+        $values = self::uniqueNormalizedLabels($values);
+
+        if (empty($values)) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($values), '?'));
+
+        $query->whereRaw(
+            "UPPER(TRIM(COALESCE({$column}, ''))) IN ({$placeholders})",
+            $values
+        );
     }
 }

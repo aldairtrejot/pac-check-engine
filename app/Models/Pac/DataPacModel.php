@@ -21,7 +21,7 @@ class DataPacModel extends Model
                 'c.codigo_puesto as codigo_puesto',
                 'c.puesto as puesto',
                 'c.clave_clues as clave_clues',
-                DB::raw("c.nombre || ' ' || c.apellido_paterno || ' ' || c.apellido_materno as nombre"),
+                DB::raw("TRIM(CONCAT_WS(' ', c.nombre, c.apellido_paterno, c.apellido_materno)) as nombre"),
                 'c.entidad as entidad',
                 'c.tipo_contratacion as contratacion',
 
@@ -57,69 +57,22 @@ class DataPacModel extends Model
             ->leftJoin('public.cat_coordinaciones as cc', 'cc.id_coordinacion', '=', 'c.id_coordinacion')
             ->where('e.id_empl_accion', (int) $id);
 
-        /**
-         * ✅ Admin / admin_oc / revisor_est ven igual que admin
-         * ✅ Los demás sí pasan por visibilidad normal
-         */
-        if (! $this->isAdminOrRevisorEst($user)) {
-            PacVisibility::apply($query, $user, 'c');
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | VISIBILIDAD
+        |--------------------------------------------------------------------------
+        | No se valida aquí si es admin/revisor.
+        | PacVisibility decide:
+        | - ADMIN_OC / ADMIN ve todo.
+        | - SUPERVISOR_OC / REVISOR_EST / SUPERVISOR_EST se filtran.
+        */
+        PacVisibility::apply(
+            $query,
+            $user,
+            'c',
+            'public.a2_acciones_capacitacion'
+        );
 
         return $query->first();
-    }
-
-    private function isAdminOrRevisorEst($user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        // Spatie
-        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
-            return true;
-        }
-
-        if (method_exists($user, 'hasRole')) {
-            if (
-                $user->hasRole('admin_oc') ||
-                $user->hasRole('admin') ||
-                $user->hasRole('revisor_est')
-            ) {
-                return true;
-            }
-        }
-
-        // método auxiliar existente
-        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
-            return true;
-        }
-
-        // rol_id clásico
-        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
-            return true;
-        }
-
-        // booleano
-        if (isset($user->is_admin) && (bool) $user->is_admin) {
-            return true;
-        }
-
-        // nombres textuales posibles
-        $roleCandidates = [
-            $user->role ?? null,
-            $user->rol ?? null,
-            $user->rol_nombre ?? null,
-            $user->nombre_rol ?? null,
-            $user->perfil ?? null,
-        ];
-
-        foreach ($roleCandidates as $role) {
-            $role = strtolower(trim((string) $role));
-            if (in_array($role, ['admin_oc', 'admin', 'revisor_est'], true)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

@@ -57,24 +57,33 @@ class SavePacController extends Controller
 
             $id = (int) $validated['id'];
 
-            if ($this->isAdminOrRevisorEst($user)) {
-                $allowed = DB::table('public.a2_acciones_empleados')
-                    ->where('id_empl_accion', $id);
-            } else {
-                $allowed = DB::table('public.a2_acciones_empleados')
-                    ->join('public.a2_acciones_capacitacion', function ($join) {
-                        $join->on(
-                            DB::raw('public.a2_acciones_empleados.id_puesto::INTEGER'),
-                            '=',
-                            'public.a2_acciones_capacitacion.id_puesto'
-                        )->whereRaw(
-                            'UPPER(TRIM(public.unaccent(public.a2_acciones_empleados.curp))) = UPPER(TRIM(public.unaccent(public.a2_acciones_capacitacion.curp)))'
-                        );
-                    })
-                    ->where('public.a2_acciones_empleados.id_empl_accion', $id);
+            /*
+            |--------------------------------------------------------------------------
+            | VALIDACIÓN DE VISIBILIDAD
+            |--------------------------------------------------------------------------
+            | PacVisibility decide:
+            | - admin_oc / admin: ve y puede modificar todo.
+            | - supervisor_oc / revisor_est / supervisor_est: solo lo que le corresponde.
+            | - usuarios sin rol permitido: no ven ni modifican nada.
+            */
+            $allowed = DB::table('public.a2_acciones_empleados as e')
+                ->join('public.a2_acciones_capacitacion as c', function ($join) {
+                    $join->on(
+                        DB::raw('e.id_puesto::INTEGER'),
+                        '=',
+                        'c.id_puesto'
+                    )->whereRaw(
+                        'UPPER(TRIM(public.unaccent(e.curp))) = UPPER(TRIM(public.unaccent(c.curp)))'
+                    );
+                })
+                ->where('e.id_empl_accion', $id);
 
-                PacVisibility::apply($allowed, $user, 'public.a2_acciones_capacitacion');
-            }
+            PacVisibility::apply(
+                $allowed,
+                $user,
+                'c',
+                'public.a2_acciones_capacitacion'
+            );
 
             if (! $allowed->exists()) {
                 return response()->json([
@@ -132,12 +141,14 @@ class SavePacController extends Controller
             $horasRealInput = $validated['m_horas_real'] ?? null;
 
             $idTrimestre = $row->id_trimestre;
+
             if (! empty($fechaIni)) {
                 $m = (int) date('n', strtotime($fechaIni));
                 $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
             }
 
             $horasReal = $horasRealInput;
+
             if ($horasReal === null || $horasReal === '') {
                 $dur = DB::table('public.a1_cat_acciones')
                     ->where('id_accion', $row->id_accion)
@@ -149,7 +160,7 @@ class SavePacController extends Controller
             }
 
             $obs = $validated['m_observaciones'] ?? null;
-            $obs = $obs !== null ? mb_strtoupper(trim($obs)) : null;
+            $obs = $obs !== null ? mb_strtoupper(trim($obs), 'UTF-8') : null;
 
             $eval = ($validated['m_eval_aprendizaje'] ?? '0') === '1' ? 1 : 0;
 
@@ -256,6 +267,7 @@ class SavePacController extends Controller
 
         } catch (ValidationException $e) {
             throw $e;
+
         } catch (\Throwable $th) {
             Log::error('Error al guardar PAC', [
                 'message' => $th->getMessage(),
@@ -333,6 +345,7 @@ class SavePacController extends Controller
                     'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
                     'creado_en'     => now(),
                 ]);
+
                 return;
             }
 
@@ -409,6 +422,7 @@ class SavePacController extends Controller
         $value = preg_replace('/[^0-9.]/', '', $value);
 
         $firstDot = strpos($value, '.');
+
         if ($firstDot !== false) {
             $before = substr($value, 0, $firstDot + 1);
             $after  = substr($value, $firstDot + 1);
@@ -422,55 +436,5 @@ class SavePacController extends Controller
         }
 
         return $value;
-    }
-
-    private function isAdminOrRevisorEst($user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin_oc', 'admin', 'revisor_est'])) {
-            return true;
-        }
-
-        if (method_exists($user, 'hasRole')) {
-            if (
-                $user->hasRole('admin_oc') ||
-                $user->hasRole('admin') ||
-                $user->hasRole('revisor_est')
-            ) {
-                return true;
-            }
-        }
-
-        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
-            return true;
-        }
-
-        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
-            return true;
-        }
-
-        if (isset($user->is_admin) && (bool) $user->is_admin) {
-            return true;
-        }
-
-        $roleCandidates = [
-            $user->role ?? null,
-            $user->rol ?? null,
-            $user->rol_nombre ?? null,
-            $user->nombre_rol ?? null,
-            $user->perfil ?? null,
-        ];
-
-        foreach ($roleCandidates as $role) {
-            $role = strtolower(trim((string) $role));
-            if (in_array($role, ['admin_oc', 'admin', 'revisor_est'], true)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

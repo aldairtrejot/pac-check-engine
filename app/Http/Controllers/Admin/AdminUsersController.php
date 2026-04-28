@@ -21,12 +21,23 @@ class AdminUsersController extends Controller
         $offset = (int) $request->input('offset', 0);
         $search = trim((string) $request->input('search', ''));
 
-        $q = User::query()->select(['id', 'name', 'email', 'is_admin', 'created_at']);
+        $q = User::query()
+            ->select([
+                'id',
+                'name',
+                'email',
+                'is_admin',
+                'status',
+                'id_entidad',
+                'id_tipo_nomina',
+                'id_clues',
+                'created_at',
+            ]);
 
         if ($search !== '') {
             $q->where(function ($w) use ($search) {
                 $w->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -41,6 +52,10 @@ class AdminUsersController extends Controller
                 'name' => $u->name,
                 'email' => $u->email,
                 'is_admin' => (bool) $u->is_admin,
+                'status' => (bool) $u->status,
+                'id_entidad' => $u->id_entidad,
+                'id_tipo_nomina' => $u->id_tipo_nomina,
+                'id_clues' => $u->id_clues,
                 'created_at' => optional($u->created_at)->format('Y-m-d H:i'),
             ]);
 
@@ -55,16 +70,29 @@ class AdminUsersController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:190', 'unique:users,email'],
+            'email' => [
+                'required',
+                'email',
+                'max:190',
+                Rule::unique('administracion.users', 'email'),
+            ],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'is_admin' => ['required', 'in:0,1'],
+            'status' => ['nullable', 'in:0,1'],
+            'id_entidad' => ['nullable', 'integer'],
+            'id_tipo_nomina' => ['nullable', 'integer'],
+            'id_clues' => ['nullable', 'integer'],
         ]);
 
         User::create([
-            'name' => mb_strtoupper(trim($data['name'])),
+            'name' => mb_strtoupper(trim($data['name']), 'UTF-8'),
             'email' => strtolower(trim($data['email'])),
             'password' => Hash::make($data['password']),
             'is_admin' => (int) $data['is_admin'],
+            'status' => isset($data['status']) ? (int) $data['status'] : 1,
+            'id_entidad' => $data['id_entidad'] ?? null,
+            'id_tipo_nomina' => $data['id_tipo_nomina'] ?? null,
+            'id_clues' => $data['id_clues'] ?? null,
         ]);
 
         return response()->json([
@@ -76,7 +104,11 @@ class AdminUsersController extends Controller
     public function delete(Request $request)
     {
         $data = $request->validate([
-            'id' => ['required', 'integer', Rule::exists('users', 'id')],
+            'id' => [
+                'required',
+                'integer',
+                Rule::exists('administracion.users', 'id'),
+            ],
         ]);
 
         if ((int) auth()->id() === (int) $data['id']) {
@@ -93,34 +125,4 @@ class AdminUsersController extends Controller
             'message' => 'Usuario eliminado.',
         ]);
     }
-
-    // (OPCIONAL) si activas rutas edit/update:
-    /*
-    public function edit(User $user)
-    {
-        return view('admin.users.edit', compact('user'));
-    }
-
-    public function update(Request $request, User $user)
-    {
-        $data = $request->validate([
-            'name' => ['required','string','max:120'],
-            'email' => ['required','email','max:190', Rule::unique('users','email')->ignore($user->id)],
-            'password' => ['nullable','string','min:8','confirmed'],
-            'is_admin' => ['required','in:0,1'],
-        ]);
-
-        $user->name = mb_strtoupper(trim($data['name']));
-        $user->email = strtolower(trim($data['email']));
-        $user->is_admin = (int)$data['is_admin'];
-
-        if (!empty($data['password'])) {
-            $user->password = Hash::make($data['password']);
-        }
-
-        $user->save();
-
-        return redirect()->route('usuarios')->with('success', 'Usuario actualizado correctamente.');
-    }
-    */
 }
