@@ -287,7 +287,7 @@
                     <div class="col-6 col-md-3">
                       <div class="text-xs text-secondary" style="font-weight:800;">Calificación</div>
                       <div class="text-sm" style="font-weight:900; color:#111;">
-                        {{ d.calificacion || '—' }}
+                        {{ formatCalificacion(d.calificacion_n ?? d.calificacion) }}
                       </div>
                     </div>
                   </div>
@@ -578,6 +578,20 @@ function statusBadgeClass(statusTxt) {
   return 'bg-dark'
 }
 
+function formatCalificacion(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—'
+  }
+
+  const num = Number(String(value).replace(',', '.'))
+
+  if (!Number.isFinite(num)) {
+    return String(value)
+  }
+
+  return num.toFixed(2).replace(/\.00$/, '')
+}
+
 const fetchTableData = async () => {
   const MIN_SPINNER_DURATION = 1000
   const startTime = Date.now()
@@ -660,7 +674,13 @@ async function loadDetails(id_respuesta, openModal = false) {
       return
     }
 
-    d.value = data.data || {}
+    const detalle = data.data || {}
+
+    d.value = {
+      ...detalle,
+      calificacion: detalle.calificacion_n ?? detalle.calificacion ?? null,
+    }
+
     extraPretty.value = 'Pendiente de definición por el equipo.'
 
     if (openModal) {

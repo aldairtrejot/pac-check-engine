@@ -84,6 +84,19 @@ class TableConstanciasController extends Controller
                 'c.anio',
                 'c.estatus',
 
+                /*
+                |--------------------------------------------------------------------------
+                | Calificación
+                |--------------------------------------------------------------------------
+                | La columna anterior era: c.calificacion
+                | La columna nueva es: c.calificacion_n
+                |
+                | Se manda como "calificacion" para no romper el frontend si ya usa
+                | row.calificacion, y también como "calificacion_n" por claridad.
+                */
+                DB::raw("c.calificacion_n AS calificacion"),
+                DB::raw("c.calificacion_n AS calificacion_n"),
+
                 DB::raw("
                     CASE
                         WHEN c.estatus = " . self::ESTATUS_PENDIENTE . " THEN 'PENDIENTE'

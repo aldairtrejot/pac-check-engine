@@ -158,11 +158,11 @@ class UpdateEstatusConstanciasController extends Controller
             $notify = $this->notificationDataForConstancia($idRespuesta, $user);
 
             return [
-                'status'            => true,
-                'correo_electronico'=> (string) ($notify['correo_electronico'] ?? ''),
-                'nombre_persona'    => (string) ($notify['nombre_persona'] ?? ''),
-                'nombre_curso'      => (string) ($notify['nombre_curso'] ?? ''),
-                'folio'             => (string) ($notify['folio'] ?? $idRespuesta),
+                'status'             => true,
+                'correo_electronico' => (string) ($notify['correo_electronico'] ?? ''),
+                'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
+                'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
+                'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
             ];
         });
 
@@ -212,7 +212,7 @@ class UpdateEstatusConstanciasController extends Controller
                     'c.fecha_inicio',
                     'c.fecha_final',
                     'c.horas_realizadas',
-                    'c.calificacion',
+                    'c.calificacion_n',
                     'c.instancia',
                     'c.instancia_otro',
                     'c.correo_electronico',
@@ -316,22 +316,36 @@ class UpdateEstatusConstanciasController extends Controller
                 $horasReal = (float) $hrsRaw;
             }
 
-            $cal = 100;
-            $calRaw = trim((string) ($c->calificacion ?? ''));
+            /*
+            |--------------------------------------------------------------------------
+            | Calificación
+            |--------------------------------------------------------------------------
+            | La columna anterior era: calificacion
+            | La columna nueva es: calificacion_n
+            |
+            | Esta calificación es la que se copia a:
+            | public.a2_acciones_empleados.calificacion
+            */
+            $cal = 100.00;
+            $calRaw = trim((string) ($c->calificacion_n ?? ''));
+
             if ($calRaw !== '') {
                 $calRaw = str_replace(',', '.', $calRaw);
+
                 if (is_numeric($calRaw)) {
-                    $cal = (int) round((float) $calRaw);
+                    $cal = round((float) $calRaw, 2);
                 }
             }
 
             if ($cal < 70) {
-                $cal = 70;
+                $cal = 70.00;
             }
 
             if ($cal > 100) {
-                $cal = 100;
+                $cal = 100.00;
             }
+
+            $calTexto = rtrim(rtrim(number_format($cal, 2, '.', ''), '0'), '.');
 
             DB::select("SELECT pg_advisory_xact_lock(5001)");
             DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
@@ -344,7 +358,7 @@ class UpdateEstatusConstanciasController extends Controller
 
             $obsBase = 'Curso Extra.';
             if (! $hasCalificacion) {
-                $obsBase .= ' Calificación: ' . $cal . '.';
+                $obsBase .= ' Calificación: ' . $calTexto . '.';
             }
 
             if ($existe) {
@@ -442,12 +456,12 @@ class UpdateEstatusConstanciasController extends Controller
             $notify = $this->notificationDataForConstancia($idRespuesta, $user);
 
             return [
-                'status'            => true,
-                'message'           => 'Constancia aceptada y procesada correctamente.',
-                'correo_electronico'=> (string) ($notify['correo_electronico'] ?? ''),
-                'nombre_persona'    => (string) ($notify['nombre_persona'] ?? ''),
-                'nombre_curso'      => (string) ($notify['nombre_curso'] ?? ''),
-                'folio'             => (string) ($notify['folio'] ?? $idRespuesta),
+                'status'             => true,
+                'message'            => 'Constancia aceptada y procesada correctamente.',
+                'correo_electronico' => (string) ($notify['correo_electronico'] ?? ''),
+                'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
+                'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
+                'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
             ];
         });
 
@@ -500,10 +514,10 @@ class UpdateEstatusConstanciasController extends Controller
             ->first();
 
         return [
-            'folio'             => (string) ($row->id_respuesta ?? $idRespuesta),
-            'nombre_curso'      => (string) ($row->nombre_curso ?? ''),
-            'correo_electronico'=> (string) ($row->correo_electronico ?? ''),
-            'nombre_persona'    => (string) ($row->nombre_persona ?? ''),
+            'folio'              => (string) ($row->id_respuesta ?? $idRespuesta),
+            'nombre_curso'       => (string) ($row->nombre_curso ?? ''),
+            'correo_electronico' => (string) ($row->correo_electronico ?? ''),
+            'nombre_persona'     => (string) ($row->nombre_persona ?? ''),
         ];
     }
 
@@ -671,7 +685,7 @@ class UpdateEstatusConstanciasController extends Controller
             ->where('table_schema', 'public')
             ->where(function ($q) {
                 $q->whereIn('table_name', ['cat_instancias', 'cat_instancia'])
-                  ->orWhereRaw("table_name ILIKE ?", ['%instanc%']);
+                    ->orWhereRaw("table_name ILIKE ?", ['%instanc%']);
             })
             ->orderBy('table_name')
             ->pluck('table_name')

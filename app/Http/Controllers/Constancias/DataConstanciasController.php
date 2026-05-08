@@ -127,6 +127,19 @@ class DataConstanciasController extends Controller
             ], 404);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Calificación normalizada para frontend
+        |--------------------------------------------------------------------------
+        | La columna anterior era: calificacion
+        | La columna nueva es: calificacion_n
+        |
+        | Para no romper el Vue si todavía consume "calificacion",
+        | mandamos calificacion con el valor de calificacion_n.
+        */
+        $row->calificacion_original = $row->calificacion ?? null;
+        $row->calificacion = $row->calificacion_n ?? null;
+
         return response()->json([
             'status' => true,
             'data'   => $row,
