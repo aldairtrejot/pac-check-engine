@@ -17,7 +17,22 @@ class UpdateEstatusConstanciasController extends Controller
     private const CONST_CONCLUIDO = 2;
     private const CONST_RECHAZADO = 3;
 
+    /**
+     * En public.cat_estatus:
+     * 1 = VIGENTE
+     * 2 = ALTA
+     * 3 = BAJA
+     * 4 = NO VIGENTE
+     */
     private const PLANTILLA_ID_CAT_ESTATUS_DEFAULT = 1;
+
+    /**
+     * Cursos que deben guardarse con observaciones PAC 2025.
+     */
+    private const PAC_2025_COURSES = [
+        'INTRODUCCIÓN A LA ADMINISTRACIÓN PÚBLICA FEDERAL',
+        'ÉTICA E INTEGRIDAD PÚBLICA PARA UN BUEN GOBIERNO',
+    ];
 
     public function update(Request $request)
     {
@@ -203,6 +218,8 @@ class UpdateEstatusConstanciasController extends Controller
             $hasHorasProg    = isset($colSet['horas_progamadas']);
             $hasEvalApr      = isset($colSet['eval_aprendizaje']);
 
+            $idCatEstatusVigente = $this->resolveIdCatEstatusVigente();
+
             $c = $this->baseConstanciaOnlyQuery($user)
                 ->select([
                     'c.id_respuesta',
@@ -263,8 +280,22 @@ class UpdateEstatusConstanciasController extends Controller
                 ];
             }
 
-            $idAccion         = (int) $accionCat->id_accion;
-            $horasProgramadas = $accionCat->duracion_hrs ?? null;
+            $idAccion = (int) $accionCat->id_accion;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Horas programadas
+            |--------------------------------------------------------------------------
+            | 1. Primero toma duracion_hrs desde a1_cat_acciones.
+            | 2. Si viene vacío, busca horas_progamadas en a2_acciones_empleados.
+            | 3. Si tampoco encuentra, busca horas_real existentes.
+            | 4. Si tampoco encuentra, usa horas_realizadas de la constancia.
+            */
+            $horasProgramadas = $this->resolveHorasProgramadasSafe(
+                idAccion: $idAccion,
+                horasCatalogo: $accionCat->duracion_hrs ?? null,
+                horasConstancia: $c->horas_realizadas ?? null
+            );
 
             $instTxt = trim((string) (($c->instancia ?? '') !== '' ? $c->instancia : ($c->instancia_otro ?? '')));
             $idInstancia = $this->resolveIdInstanciaSafe($instTxt);
@@ -309,12 +340,7 @@ class UpdateEstatusConstanciasController extends Controller
                 ];
             }
 
-            $horasReal = null;
-            $hrsRaw = trim((string) ($c->horas_realizadas ?? ''));
-            if ($hrsRaw !== '') {
-                $hrsRaw = str_replace(',', '.', $hrsRaw);
-                $horasReal = (float) $hrsRaw;
-            }
+            $horasReal = $this->parseHorasToFloat($c->horas_realizadas ?? null);
 
             /*
             |--------------------------------------------------------------------------
@@ -356,23 +382,48 @@ class UpdateEstatusConstanciasController extends Controller
                 ->where('id_accion', $idAccion)
                 ->exists();
 
-            $obsBase = 'Curso Extra.';
-            if (! $hasCalificacion) {
-                $obsBase .= ' Calificación: ' . $calTexto . '.';
-            }
+            /*
+            |--------------------------------------------------------------------------
+            | Observaciones
+            |--------------------------------------------------------------------------
+            | Cursos especiales:
+            | - INTRODUCCIÓN A LA ADMINISTRACIÓN PÚBLICA FEDERAL
+            | - ÉTICA E INTEGRIDAD PÚBLICA PARA UN BUEN GOBIERNO
+            |
+            | Para esos cursos se guarda PAC 2025.
+            */
+            $obsBase = $this->resolveObservacionesBase(
+                cursoTxt: $cursoTxt,
+                calTexto: $calTexto,
+                appendCalificacion: ! $hasCalificacion
+            );
 
             if ($existe) {
                 $upd = [
                     'id_finalidad'     => 6,
-                    'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                    'id_cat_estatus'   => $idCatEstatusVigente,
                     'fecha_ini'        => $c->fecha_inicio,
                     'fecha_fin'        => $c->fecha_final,
                     'id_trimestre'     => $idTrimestre,
                     'id_instancia'     => (string) $idInstancia,
                     'id_cat_tematica'  => (string) $idTematica,
                     'horas_real'       => $horasReal,
-                    'observaciones'    => DB::raw("COALESCE(NULLIF(BTRIM(observaciones), ''), '{$obsBase}')"),
                 ];
+
+                /*
+                |--------------------------------------------------------------------------
+                | Observaciones en update
+                |--------------------------------------------------------------------------
+                | Si es curso PAC 2025, se fuerza PAC 2025.
+                | Si no es curso PAC 2025, solo se llena si observaciones está vacío.
+                */
+                if ($this->isPac2025Course($cursoTxt)) {
+                    $upd['observaciones'] = $obsBase;
+                } else {
+                    $upd['observaciones'] = DB::raw(
+                        "COALESCE(NULLIF(BTRIM(observaciones), ''), " . $this->quoteSqlString($obsBase) . ")"
+                    );
+                }
 
                 if ($hasEvalApr) {
                     $upd['eval_aprendizaje'] = true;
@@ -417,7 +468,7 @@ class UpdateEstatusConstanciasController extends Controller
                     'id_trimestre'     => $idTrimestre,
                     'id_num_curso'     => $nextNumCurso,
                     'observaciones'    => $obsBase,
-                    'id_cat_estatus'   => self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                    'id_cat_estatus'   => $idCatEstatusVigente,
                     'id_cat_tematica'  => (string) $idTematica,
                 ];
 
@@ -754,6 +805,178 @@ class UpdateEstatusConstanciasController extends Controller
             ->value('id_tematica');
 
         return ! empty($id) ? (string) $id : null;
+    }
+
+    private function resolveIdCatEstatusVigente(): int
+    {
+        try {
+            $id = DB::table('public.cat_estatus')
+                ->whereRaw("TRIM(UPPER(descripcion)) = 'VIGENTE'")
+                ->value('id_cat_estatus');
+
+            if (! empty($id)) {
+                return (int) $id;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo resolver id_cat_estatus VIGENTE.', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT;
+    }
+
+    private function resolveHorasProgramadasSafe(
+        int $idAccion,
+        $horasCatalogo = null,
+        $horasConstancia = null
+    ): ?float {
+        /*
+        |--------------------------------------------------------------------------
+        | 1) Primero intenta usar duracion_hrs del catálogo a1_cat_acciones.
+        |--------------------------------------------------------------------------
+        */
+        $horas = $this->parseHorasToFloat($horasCatalogo);
+
+        if ($horas !== null && $horas > 0) {
+            return $horas;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2) Si catálogo no trae horas, busca horas_progamadas existentes.
+        |--------------------------------------------------------------------------
+        */
+        try {
+            $horasExistentes = DB::table('public.a2_acciones_empleados')
+                ->select('horas_progamadas', DB::raw('COUNT(*) as total'))
+                ->where('id_accion', $idAccion)
+                ->whereNotNull('horas_progamadas')
+                ->where('horas_progamadas', '>', 0)
+                ->groupBy('horas_progamadas')
+                ->orderByDesc('total')
+                ->value('horas_progamadas');
+
+            $horas = $this->parseHorasToFloat($horasExistentes);
+
+            if ($horas !== null && $horas > 0) {
+                return $horas;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudieron resolver horas_progamadas desde acciones existentes.', [
+                'message'   => $e->getMessage(),
+                'id_accion' => $idAccion,
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3) Si tampoco hay horas_progamadas, busca horas_real existentes.
+        |--------------------------------------------------------------------------
+        */
+        try {
+            $horasRealesExistentes = DB::table('public.a2_acciones_empleados')
+                ->select('horas_real', DB::raw('COUNT(*) as total'))
+                ->where('id_accion', $idAccion)
+                ->whereNotNull('horas_real')
+                ->where('horas_real', '>', 0)
+                ->groupBy('horas_real')
+                ->orderByDesc('total')
+                ->value('horas_real');
+
+            $horas = $this->parseHorasToFloat($horasRealesExistentes);
+
+            if ($horas !== null && $horas > 0) {
+                return $horas;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudieron resolver horas_real desde acciones existentes.', [
+                'message'   => $e->getMessage(),
+                'id_accion' => $idAccion,
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 4) Último recurso: horas_realizadas de la constancia.
+        |--------------------------------------------------------------------------
+        */
+        $horas = $this->parseHorasToFloat($horasConstancia);
+
+        if ($horas !== null && $horas > 0) {
+            return $horas;
+        }
+
+        return null;
+    }
+
+    private function parseHorasToFloat($value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $raw = trim((string) $value);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        $raw = str_replace(',', '.', $raw);
+
+        if (! is_numeric($raw)) {
+            return null;
+        }
+
+        return round((float) $raw, 2);
+    }
+
+    private function resolveObservacionesBase(
+        string $cursoTxt,
+        string $calTexto,
+        bool $appendCalificacion = false
+    ): string {
+        if ($this->isPac2025Course($cursoTxt)) {
+            return 'PAC 2025';
+        }
+
+        $obs = 'Curso Extra.';
+
+        if ($appendCalificacion) {
+            $obs .= ' Calificación: ' . $calTexto . '.';
+        }
+
+        return $obs;
+    }
+
+    private function isPac2025Course(string $cursoTxt): bool
+    {
+        $curso = $this->normalizeText($cursoTxt);
+
+        foreach (self::PAC_2025_COURSES as $course) {
+            if ($curso === $this->normalizeText($course)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeText(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+        return mb_strtoupper($value, 'UTF-8');
+    }
+
+    private function quoteSqlString(string $value): string
+    {
+        try {
+            return DB::connection()->getPdo()->quote($value);
+        } catch (\Throwable $e) {
+            return "'" . str_replace("'", "''", $value) . "'";
+        }
     }
 
     private function columnsFor(string $schema, string $table): array

@@ -11,17 +11,36 @@ class ConstanciaVisibility
     private static array $tableExistsCache = [];
 
     /**
+     * CLUES que solo puede ver ADMIN_OC / ADMIN.
+     */
+    private const ADMIN_ONLY_CLUES = [
+        'DFIMB000014',
+    ];
+
+    /**
      * Aplica visibilidad por entidad / tipo de nómina / CLUES.
      *
      * Regla:
+     * - ADMIN_OC / ADMIN ve todo.
      * - Si el usuario no trae ningún scope, no ve nada.
      * - Si el usuario es HRAES y no trae CLUES, no ve nada.
      * - Si trae CLUES, además se filtra por CLUES.
+     * - DFIMB000014 solo la puede ver ADMIN_OC / ADMIN.
      */
     public static function apply(Builder $query, $user, string $capAlias = 'cap'): void
     {
         if (! $user) {
             $query->whereRaw('1=0');
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADMIN GLOBAL VE TODO
+        |--------------------------------------------------------------------------
+        | ADMIN_OC / ADMIN puede ver todo, incluyendo DFIMB000014.
+        */
+        if (self::isAdminGlobal($user)) {
             return;
         }
 
@@ -36,6 +55,15 @@ class ConstanciaVisibility
             $query->whereRaw('1=0');
             return;
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLUES EXCLUSIVAS DE ADMIN
+        |--------------------------------------------------------------------------
+        | Como ADMIN ya hizo return arriba, esta regla aplica para revisores,
+        | supervisores y cualquier otro usuario no administrador.
+        */
+        self::applyAdminOnlyCluesRestriction($query, $capAlias);
 
         if (! empty($scope['entidad_ids'])) {
             $query->whereIn("{$capAlias}.scope_id_entidad", $scope['entidad_ids']);
@@ -56,7 +84,7 @@ class ConstanciaVisibility
 
                 if (! empty($cluesCodes)) {
                     $placeholders = implode(',', array_fill(0, count($cluesCodes), '?'));
-                    $sql = "UPPER(TRIM(COALESCE({$capAlias}.scope_clues, ''))) IN ({$placeholders})";
+                    $sql = "UPPER(TRIM(COALESCE({$capAlias}.scope_clues::text, ''))) IN ({$placeholders})";
 
                     if (! empty($cluesIds)) {
                         $w->orWhereRaw($sql, $cluesCodes);
@@ -145,6 +173,91 @@ class ConstanciaVisibility
         ";
 
         return DB::raw($sql);
+    }
+
+    private static function applyAdminOnlyCluesRestriction(Builder $query, string $capAlias = 'cap'): void
+    {
+        $restrictedCodes = self::uniqueUpperStrings(self::ADMIN_ONLY_CLUES);
+
+        if (empty($restrictedCodes)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($restrictedCodes), '?'));
+
+        /*
+        |--------------------------------------------------------------------------
+        | Restricción por código CLUES normalizado
+        |--------------------------------------------------------------------------
+        | scope_clues viene de:
+        | - public.a2_acciones_capacitacion.clave_clues
+        | - public.a2_acciones_capacitacion.clues
+        | - public.a2_acciones_capacitacion.clave
+        | - o administracion.cat_clues.clues
+        */
+        $query->whereRaw(
+            "UPPER(TRIM(COALESCE({$capAlias}.scope_clues::text, ''))) NOT IN ({$placeholders})",
+            $restrictedCodes
+        );
+    }
+
+    private static function isAdminGlobal($user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole([
+            'ADMIN_OC',
+            'ADMIN',
+            'admin_oc',
+            'admin',
+        ])) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('ADMIN_OC')
+                || $user->hasRole('ADMIN')
+                || $user->hasRole('admin_oc')
+                || $user->hasRole('admin');
+        }
+
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        if (isset($user->rol_id) && (int) $user->rol_id === 1) {
+            return true;
+        }
+
+        if (isset($user->is_admin) && (bool) $user->is_admin) {
+            return true;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback directo a base de datos
+        |--------------------------------------------------------------------------
+        | Sirve por si el modelo User no trae hasAnyRole() o hasRole().
+        */
+        if (isset($user->id) && (int) $user->id > 0 && self::tableExists('administracion', 'user_roles')) {
+            try {
+                return DB::table('administracion.user_roles as ur')
+                    ->join('administracion.roles as r', 'r.id', '=', 'ur.role_id')
+                    ->where('ur.user_id', (int) $user->id)
+                    ->where('r.is_active', true)
+                    ->whereIn(DB::raw("UPPER(TRIM(r.code))"), [
+                        'ADMIN_OC',
+                        'ADMIN',
+                    ])
+                    ->exists();
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     private static function resolveUserScope($user): array
@@ -248,12 +361,12 @@ class ConstanciaVisibility
         $requiresClues = self::isUserHraes($nominaIds);
 
         return [
-            'entidad_ids'   => $entidadIds,
-            'nomina_ids'    => $nominaIds,
-            'clues_ids'     => $cluesIds,
-            'clues_codes'   => $cluesCodes,
-            'requires_clues'=> $requiresClues,
-            'has_any_scope' => ! empty($entidadIds) || ! empty($nominaIds) || ! empty($cluesIds) || ! empty($cluesCodes),
+            'entidad_ids'    => $entidadIds,
+            'nomina_ids'     => $nominaIds,
+            'clues_ids'      => $cluesIds,
+            'clues_codes'    => $cluesCodes,
+            'requires_clues' => $requiresClues,
+            'has_any_scope'  => ! empty($entidadIds) || ! empty($nominaIds) || ! empty($cluesIds) || ! empty($cluesCodes),
         ];
     }
 

@@ -8,6 +8,13 @@ use Illuminate\Support\Facades\DB;
 class ConstanciaVisibilityByName
 {
     /**
+     * CLUES que solo puede ver ADMIN_OC.
+     */
+    private const ADMIN_ONLY_CLUES = [
+        'DFIMB000014',
+    ];
+
+    /**
      * Reglas:
      * - ADMIN_OC: ve absolutamente todo.
      * - SUPERVISOR_OC / REVISOR_EST / SUPERVISOR_EST:
@@ -29,6 +36,15 @@ class ConstanciaVisibilityByName
         if ($scope['is_admin_global']) {
             return;
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLUES EXCLUSIVAS DE ADMIN
+        |--------------------------------------------------------------------------
+        | Como ADMIN_OC ya hizo return arriba, esta regla solo aplica a roles
+        | filtrados como supervisor/revisor.
+        */
+        self::applyAdminOnlyCluesRestriction($query, $constAlias);
 
         if ($scope['entidad'] === '' || $scope['tipo_nomina'] === '') {
             $query->whereRaw('1 = 0');
@@ -56,6 +72,25 @@ class ConstanciaVisibilityByName
                 [$scope['clues']]
             );
         }
+    }
+
+    private static function applyAdminOnlyCluesRestriction(Builder $query, string $constAlias = 'c'): void
+    {
+        $restrictedCodes = array_values(array_unique(array_filter(array_map(
+            fn ($value) => self::norm($value),
+            self::ADMIN_ONLY_CLUES
+        ))));
+
+        if (empty($restrictedCodes)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($restrictedCodes), '?'));
+
+        $query->whereRaw(
+            "UPPER(BTRIM(COALESCE({$constAlias}.clues::text, ''))) NOT IN ({$placeholders})",
+            $restrictedCodes
+        );
     }
 
     public static function resolveScope(int $userId): array

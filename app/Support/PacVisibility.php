@@ -9,6 +9,13 @@ class PacVisibility
 {
     private static array $columnsCache = [];
 
+    /**
+     * CLUES que solo puede ver ADMIN_OC / ADMIN.
+     */
+    private const ADMIN_ONLY_CLUES = [
+        'DFIMB000014',
+    ];
+
     public static function apply(
         Builder $query,
         $user,
@@ -40,6 +47,9 @@ class PacVisibility
             'SUPERVISOR_OC',
             'REVISOR_EST',
             'SUPERVISOR_EST',
+            'supervisor_oc',
+            'revisor_est',
+            'supervisor_est',
         ])) {
             $query->whereRaw('1 = 0');
             return;
@@ -74,6 +84,15 @@ class PacVisibility
         }
 
         $cap = trim($capAlias);
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLUES EXCLUSIVAS DE ADMIN
+        |--------------------------------------------------------------------------
+        | Como el ADMIN ya hizo return arriba, esta regla solo aplica para
+        | SUPERVISOR_OC, REVISOR_EST y SUPERVISOR_EST.
+        */
+        self::applyAdminOnlyCluesRestriction($query, $cap, $capCluesCol);
 
         /*
         |--------------------------------------------------------------------------
@@ -184,6 +203,71 @@ class PacVisibility
                 self::whereNormalizedIn($query, "{$cap}.clues", $cluesLabels);
             }
         }
+    }
+
+    private static function applyAdminOnlyCluesRestriction(
+        Builder $query,
+        string $capAlias,
+        ?string $capCluesCol
+    ): void {
+        if (! $capCluesCol) {
+            return;
+        }
+
+        $restrictedCodes = self::uniqueNormalizedLabels(self::ADMIN_ONLY_CLUES);
+
+        if (empty($restrictedCodes)) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Si la tabla usa id_clues, convertimos la CLUES restringida a id_clues.
+        |--------------------------------------------------------------------------
+        */
+        if ($capCluesCol === 'id_clues') {
+            try {
+                $placeholders = implode(',', array_fill(0, count($restrictedCodes), '?'));
+
+                $restrictedIds = DB::table('administracion.cat_clues')
+                    ->whereRaw(
+                        "UPPER(TRIM(COALESCE(clues, ''))) IN ({$placeholders})",
+                        $restrictedCodes
+                    )
+                    ->pluck('id_clues')
+                    ->map(fn ($id) => (int) $id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (! empty($restrictedIds)) {
+                    $query->where(function ($w) use ($capAlias, $restrictedIds) {
+                        $w->whereNull("{$capAlias}.id_clues")
+                          ->orWhereNotIn("{$capAlias}.id_clues", $restrictedIds);
+                    });
+                }
+            } catch (\Throwable $e) {
+                /*
+                 * No rompemos el sistema si falla la consulta al catálogo.
+                 * En public.a2_acciones_capacitacion normalmente se usa clave_clues.
+                 */
+            }
+
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Si la tabla usa clave_clues o clues, comparamos directo contra el código.
+        |--------------------------------------------------------------------------
+        */
+        $placeholders = implode(',', array_fill(0, count($restrictedCodes), '?'));
+
+        $query->whereRaw(
+            "UPPER(TRIM(COALESCE({$capAlias}.{$capCluesCol}::text, ''))) NOT IN ({$placeholders})",
+            $restrictedCodes
+        );
     }
 
     private static function isAdminGlobal($user): bool

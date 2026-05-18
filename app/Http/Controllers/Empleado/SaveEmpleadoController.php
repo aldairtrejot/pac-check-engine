@@ -120,7 +120,7 @@ class SaveEmpleadoController extends Controller
                                         ? $validated['entidad']
                                         : ($datosBase->entidad ?? null),
                 'num_cursos'        => 0,
-                'activo'            => 1,
+                'activo'            => 2,
             ];
 
             // Copiar campos de acciones/finalidades si hay base (de la CURP fija)
