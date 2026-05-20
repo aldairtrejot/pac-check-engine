@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ConstanciaDecisionMail;
 use App\Support\ConstanciaVisibilityByName;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -642,6 +643,7 @@ class UpdateEstatusConstanciasController extends Controller
         $nombrePersona = trim($nombrePersona) !== '' ? trim($nombrePersona) : 'Usuario';
         $nombreCurso = trim($nombreCurso) !== '' ? trim($nombreCurso) : 'No especificado';
         $folio = trim($folio) !== '' ? trim($folio) : 'S/F';
+        $tipo = strtolower(trim($tipo));
 
         if ($correoDestinatario === '' || ! filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
             Log::warning('No se encontró correo válido para notificación de constancia.', [
@@ -649,80 +651,64 @@ class UpdateEstatusConstanciasController extends Controller
                 'folio'  => $folio,
                 'tipo'   => $tipo,
             ]);
+
             return false;
         }
 
         try {
-            if ($tipo === 'rechazo') {
-                $subject = 'Constancia rechazada - ' . $nombreCurso . ' - Folio ' . $folio;
+            $decision = $tipo === 'rechazo'
+                ? 'RECHAZADO'
+                : 'ACEPTADO';
 
-                $html = '
-                    <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
-                        <p>Hola <strong>' . e($nombrePersona) . '</strong>,</p>
+            $ccRaw = $tipo === 'rechazo'
+                ? trim((string) env('CONSTANCIAS_RECHAZO_CC', ''))
+                : trim((string) env('CONSTANCIAS_ACEPTACION_CC', ''));
 
-                        <p>Te informamos que tu trámite/constancia fue <strong>rechazado</strong>.</p>
+            $ccList = $this->parseMailList($ccRaw);
 
-                        <p><strong>Detalle del rechazo:</strong></p>
-                        <ul>
-                            <li><strong>Folio / ID:</strong> ' . e($folio) . '</li>
-                            <li><strong>Nombre del empleado:</strong> ' . e($nombrePersona) . '</li>
-                            <li><strong>Nombre del curso:</strong> ' . e($nombreCurso) . '</li>
-                            <li><strong>Fecha y hora del rechazo:</strong> ' . e($fechaHora) . '</li>
-                            <li><strong>Motivo:</strong> ' . nl2br(e((string) $motivo)) . '</li>
-                        </ul>
+            $mail = Mail::to($correoDestinatario);
 
-                        <p>Por favor revisa la información y realiza las correcciones necesarias.</p>
-
-                        <p>Saludos.</p>
-                    </div>
-                ';
-
-                $cc = trim((string) env('CONSTANCIAS_RECHAZO_CC', ''));
-            } else {
-                $subject = 'Constancia aceptada - ' . $nombreCurso . ' - Folio ' . $folio;
-
-                $html = '
-                    <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#222;">
-                        <p>Hola <strong>' . e($nombrePersona) . '</strong>,</p>
-
-                        <p>Te informamos que tu constancia fue <strong>aceptada</strong> correctamente.</p>
-
-                        <p><strong>Detalle de la aceptación:</strong></p>
-                        <ul>
-                            <li><strong>Folio / ID:</strong> ' . e($folio) . '</li>
-                            <li><strong>Nombre del empleado:</strong> ' . e($nombrePersona) . '</li>
-                            <li><strong>Nombre del curso:</strong> ' . e($nombreCurso) . '</li>
-                            <li><strong>Fecha y hora de la aceptación:</strong> ' . e($fechaHora) . '</li>
-                        </ul>
-
-                        <p>Tu registro fue validado correctamente.</p>
-
-                        <p>Saludos.</p>
-                    </div>
-                ';
-
-                $cc = trim((string) env('CONSTANCIAS_ACEPTACION_CC', ''));
+            if (! empty($ccList)) {
+                $mail->cc($ccList);
             }
 
-            Mail::send([], [], function ($message) use ($correoDestinatario, $subject, $html, $cc) {
-                $message->to($correoDestinatario)
-                    ->subject($subject)
-                    ->html($html);
-
-                if ($cc !== '' && filter_var($cc, FILTER_VALIDATE_EMAIL)) {
-                    $message->cc($cc);
-                }
-            });
+            $mail->send(new ConstanciaDecisionMail(
+                nombrePersona: $nombrePersona,
+                nombreCurso: $nombreCurso,
+                folio: $folio,
+                fechaHora: $fechaHora,
+                decision: $decision,
+                motivo: $motivo
+            ));
 
             return true;
+
         } catch (\Throwable $mailEx) {
             Log::error('Error enviando correo de constancia: ' . $mailEx->getMessage(), [
                 'correo' => $correoDestinatario,
                 'folio'  => $folio,
                 'tipo'   => $tipo,
+                'trace'  => $mailEx->getTraceAsString(),
             ]);
+
             return false;
         }
+    }
+
+    private function parseMailList(string $raw): array
+    {
+        if (trim($raw) === '') {
+            return [];
+        }
+
+        $emails = preg_split('/[;,]+/', $raw) ?: [];
+
+        return collect($emails)
+            ->map(fn ($email) => trim((string) $email))
+            ->filter(fn ($email) => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function resolveIdInstanciaSafe(string $instTxt): ?string

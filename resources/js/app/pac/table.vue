@@ -252,13 +252,40 @@
         </li>
 
         <div class="row">
-          <inputField label="Horas obligatorias" id="m_duracion_hrs" v-model="m_duracion_hrs" :disabled="true" />
-          <inputField label="Horas realizadas" id="m_horas_real" v-model="m_horas_real" />
+          <inputField
+            label="Horas obligatorias"
+            id="m_duracion_hrs"
+            v-model="m_duracion_hrs"
+            :disabled="true"
+            :required="true"
+          />
+
+          <inputField
+            label="Horas realizadas"
+            id="m_horas_real"
+            v-model="m_horas_real"
+            :required="true"
+          />
         </div>
 
         <div class="row" style="margin-top: -20px !important;">
-          <inputField :grid="gridx3" type="date" label="Fecha Inicio" id="m_fecha_ini" v-model="m_fecha_ini" />
-          <inputField :grid="gridx3" type="date" label="Fecha Fin" id="m_fecha_fin" v-model="m_fecha_fin" />
+          <inputField
+            :grid="gridx3"
+            type="date"
+            label="Fecha Inicio"
+            id="m_fecha_ini"
+            v-model="m_fecha_ini"
+            :required="true"
+          />
+
+          <inputField
+            :grid="gridx3"
+            type="date"
+            label="Fecha Fin"
+            id="m_fecha_fin"
+            v-model="m_fecha_fin"
+            :required="true"
+          />
         </div>
 
         <div class="row" style="margin-top: -70px !important;">
@@ -269,7 +296,9 @@
             label="Estatus"
             :multiple="false"
             grid="col-md-6 col-sm-12"
+            :required="true"
           />
+
           <inputSelect
             v-model="listSelectInstance"
             :options="listOptionInstance"
@@ -277,6 +306,7 @@
             :multiple="false"
             label="Instancia"
             grid="col-md-6 col-sm-12"
+            :required="true"
           />
         </div>
 
@@ -288,7 +318,9 @@
             label="Finalidad"
             :multiple="false"
             grid="col-md-6 col-sm-12"
+            :required="true"
           />
+
           <inputField
             type="text"
             label="Calificación (70 a 100)"
@@ -296,7 +328,9 @@
             v-model="m_calificacion"
             grid="col-md-6 col-sm-12"
             :disabled="!canEditCalificacion"
+            :required="true"
           />
+
           <div class="col-12 mt-1">
             <small class="text-muted">
               Captura un valor entre 70 y 100. Se permiten hasta 2 decimales. Ejemplo: 89.5
@@ -312,6 +346,7 @@
             label="Temática"
             :multiple="false"
             grid="col-12"
+            :required="true"
           />
         </div>
 
@@ -322,7 +357,14 @@
             id="m_observaciones"
             v-model="m_observaciones"
             :uppercase="true"
+            :required="true"
           />
+
+          <div v-if="observacionesError" class="col-12 mt-1">
+            <small class="text-danger fw-bold">
+              {{ observacionesError }}
+            </small>
+          </div>
         </div>
 
         <div class="row">
@@ -463,6 +505,7 @@ const m_accion = ref('')
 const m_fecha_ini = ref('')
 const m_fecha_fin = ref('')
 const m_observaciones = ref('')
+const observacionesError = ref('')
 const m_duracion_hrs = ref('')
 const m_horas_real = ref('')
 const m_eval_aprendizaje = ref(true)
@@ -600,6 +643,12 @@ watch(m_calificacion, (val) => {
   }
 })
 
+watch(m_observaciones, (val) => {
+  if (String(val ?? '').trim() !== '') {
+    observacionesError.value = ''
+  }
+})
+
 function blurActiveElement() {
   try {
     const el = document.activeElement
@@ -621,6 +670,7 @@ function resetEmployeeModalData() {
   m_fecha_ini.value = ''
   m_fecha_fin.value = ''
   m_observaciones.value = ''
+  observacionesError.value = ''
   m_duracion_hrs.value = ''
   m_horas_real.value = ''
   m_eval_aprendizaje.value = true
@@ -735,17 +785,125 @@ async function main() {
   }
 }
 
+function isBlank(value) {
+  return String(value ?? '').trim() === ''
+}
+
+function focusFieldById(id) {
+  nextTick(() => {
+    const input =
+      document.getElementById(id) ||
+      document.querySelector(`[name="${id}"]`)
+
+    if (input && typeof input.scrollIntoView === 'function') {
+      input.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }
+
+    if (input && typeof input.focus === 'function') {
+      input.focus()
+    }
+  })
+}
+
+function validateEmployeeModalRequiredFields() {
+  const requiredFields = [
+    {
+      label: 'Horas obligatorias',
+      id: 'm_duracion_hrs',
+      valid: !isBlank(m_duracion_hrs.value),
+    },
+    {
+      label: 'Horas realizadas',
+      id: 'm_horas_real',
+      valid: !isBlank(m_horas_real.value),
+    },
+    {
+      label: 'Fecha Inicio',
+      id: 'm_fecha_ini',
+      valid: !isBlank(m_fecha_ini.value),
+    },
+    {
+      label: 'Fecha Fin',
+      id: 'm_fecha_fin',
+      valid: !isBlank(m_fecha_fin.value),
+    },
+    {
+      label: 'Estatus',
+      id: 'id_cat_estatus',
+      valid: !!listSelectStatus.value?.id,
+    },
+    {
+      label: 'Instancia',
+      id: 'id_instancia',
+      valid: !!listSelectInstance.value?.id,
+    },
+    {
+      label: 'Finalidad',
+      id: 'id_finalidad',
+      valid: !!listSelectFinalidad.value?.id,
+    },
+    {
+      label: 'Calificación',
+      id: 'calificacion',
+      valid: !isBlank(m_calificacion.value),
+    },
+    {
+      label: 'Temática',
+      id: 'id_cat_tematica',
+      valid: !!listSelectTematica.value?.id,
+    },
+    {
+      label: 'Observaciones',
+      id: 'm_observaciones',
+      valid: !isBlank(m_observaciones.value),
+    },
+    {
+      label: 'Evaluación de aprendizaje',
+      id: 'm_eval_aprendizaje',
+      valid: !!m_eval_aprendizaje.value,
+    },
+  ]
+
+  const missing = requiredFields.find((field) => !field.valid)
+
+  if (missing) {
+    if (missing.id === 'm_observaciones') {
+      observacionesError.value = 'El campo Observaciones es obligatorio.'
+    } else {
+      observacionesError.value = ''
+    }
+
+    notyf.error(`El campo "${missing.label}" es obligatorio.`)
+    focusFieldById(missing.id)
+
+    return false
+  }
+
+  observacionesError.value = ''
+  m_observaciones.value = String(m_observaciones.value ?? '').trim()
+
+  return true
+}
+
 async function button_confirm() {
   if (isSavingPac.value) return
 
   try {
     isSavingPac.value = true
     clearErrors()
+    observacionesError.value = ''
 
     const key = parseInt(window._selectkybyemployee ?? 0, 10)
 
     if (!key) {
       notyf.error('No se encontró el identificador del registro.')
+      return
+    }
+
+    if (!validateEmployeeModalRequiredFields()) {
       return
     }
 
@@ -769,6 +927,7 @@ async function button_confirm() {
     formData.set('id_finalidad', String(listSelectFinalidad.value?.id ?? ''))
     formData.set('m_eval_aprendizaje', m_eval_aprendizaje.value ? '1' : '0')
     formData.set('calificacion', String(calificacionNormalizada))
+    formData.set('m_observaciones', String(m_observaciones.value ?? '').trim())
     formData.set('id', String(key))
 
     showSpinner()
@@ -841,6 +1000,7 @@ async function setOption(id) {
     m_fecha_ini.value = data.fecha_ini ?? ''
     m_fecha_fin.value = data.fecha_fin ?? ''
     m_observaciones.value = data.observaciones ?? ''
+    observacionesError.value = ''
     m_duracion_hrs.value = data.duracion_hrs?.toString() || ''
     m_horas_real.value = data.horas_real?.toString() || ''
     m_eval_aprendizaje.value =
