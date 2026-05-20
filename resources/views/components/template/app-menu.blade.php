@@ -34,12 +34,12 @@
             [
                 'titulo' => 'Aviso de Privacidad Simplificado',
                 'descripcion' => 'Consulta el aviso simplificado sobre el tratamiento de datos personales.',
-                'url' => 'https://imssbienestar.gob.mx/assets/doc/transparencia/02_proteccion/01_privacidad/01_dgsimssbienestar/recursos_humanos/APS%20SERV%20SOC%20Y%20PRACT%20PROF_UAF%2022ABR25.pdf',
+                'url' => 'https://imssbienestar.gob.mx/assets/doc/transparencia/02_proteccion/01_privacidad/01_dgsimssbienestar/recursos_humanos/Aviso%20de%20Privacidad%20Simplificado%20de%20Reclutamiento%20y%20Sele_.pdf',
             ],
             [
                 'titulo' => 'Aviso de Privacidad Integral',
                 'descripcion' => 'Consulta el aviso integral con la información completa sobre el tratamiento de datos personales.',
-                'url' => 'https://imssbienestar.gob.mx/assets/doc/transparencia/02_proteccion/01_privacidad/01_dgsimssbienestar/recursos_humanos/API%20SERV%20SOC%20Y%20PRACT%20PROF_UAF%2022ABR25.pdf',
+                'url' => 'https://imssbienestar.gob.mx/assets/doc/transparencia/02_proteccion/01_privacidad/01_dgsimssbienestar/recursos_humanos/Aviso%20de%20Privacidad%20Integral%20Reclutamiento%20y%20Selecci%C3%B3n_.pdf',
             ],
         ];
     @endphp
