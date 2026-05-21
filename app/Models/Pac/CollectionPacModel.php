@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 class CollectionPacModel extends Model
 {
     /**
-     * The function returns the list of active roles for the combox
+     * The function returns the list of active actions for the combo box.
      *
      * @return \Illuminate\Support\Collection<int, \stdClass>
      */

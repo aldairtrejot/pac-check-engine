@@ -12,6 +12,17 @@ class TablePacModel extends Model
     {
         $user = auth()->user();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Paginación segura
+        |--------------------------------------------------------------------------
+        | Evita límites demasiado grandes o valores negativos.
+        | Máximo 50 registros por consulta para no exponer/cargar información de más.
+        */
+        $limit  = max(1, min((int) $limit, 50));
+        $offset = max(0, (int) $offset);
+        $select = max(1, min((int) $select, 50));
+
         $query = DB::table('public.a2_acciones_empleados as e')
             ->selectRaw("
                 e.id_empl_accion AS id,
@@ -40,13 +51,40 @@ class TablePacModel extends Model
             ")
             ->join('public.a1_cat_acciones as a', 'e.id_accion', '=', 'a.id_accion')
             ->join('public.a2_acciones_capacitacion as c', function ($join) {
-                $join->on(DB::raw('e.id_puesto::INTEGER'), '=', 'c.id_puesto')
-                    ->whereRaw(
-                        'UPPER(TRIM(public.unaccent(e.curp))) = UPPER(TRIM(public.unaccent(c.curp)))'
-                    );
+                /*
+                |--------------------------------------------------------------------------
+                | JOIN seguro por puesto y CURP
+                |--------------------------------------------------------------------------
+                | e.id_puesto es TEXT y c.id_puesto es INTEGER.
+                | Se usa CASE para castear solo cuando e.id_puesto sea numérico.
+                | Esto evita errores si llega un id_puesto vacío, nulo o con letras.
+                */
+                $join->on(
+                    DB::raw("
+                        CASE
+                            WHEN TRIM(e.id_puesto) ~ '^[0-9]+$'
+                            THEN TRIM(e.id_puesto)::INTEGER
+                            ELSE NULL
+                        END
+                    "),
+                    '=',
+                    'c.id_puesto'
+                )
+                ->whereRaw(
+                    'UPPER(TRIM(public.unaccent(e.curp))) = UPPER(TRIM(public.unaccent(c.curp)))'
+                );
             });
 
-        // Ocultar BAJA (3) en la lista: mostramos NULL, 1, 2
+        /*
+        |--------------------------------------------------------------------------
+        | Filtro de estatus del registro PAC
+        |--------------------------------------------------------------------------
+        | Oculta BAJA (3).
+        | Solo muestra registros con:
+        | - NULL
+        | - 1
+        | - 2
+        */
         $query->where(function ($q) {
             $q->whereNull('e.id_cat_estatus')
                 ->orWhereIn('e.id_cat_estatus', [1, 2]);
@@ -54,9 +92,31 @@ class TablePacModel extends Model
 
         /*
         |--------------------------------------------------------------------------
-        | VISIBILIDAD
+        | Filtro de activo del empleado en capacitación
         |--------------------------------------------------------------------------
-        | PacVisibility decide si el usuario ve todo o si se filtra.
+        | La columna activo pertenece a public.a2_acciones_capacitacion, alias c.
+        | Solo muestra:
+        | - NULL
+        | - 1
+        | - 2
+        |
+        | Oculta:
+        | - 0
+        | - 3
+        | - cualquier otro valor
+        */
+        $query->where(function ($q) {
+            $q->whereNull('c.activo')
+                ->orWhereIn('c.activo', [1, 2]);
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | VISIBILIDAD POR ALCANCE
+        |--------------------------------------------------------------------------
+        | PacVisibility decide si el usuario ve todo o si se filtra por alcance.
+        | Este filtro debe permanecer para evitar que usuarios sin permiso vean datos
+        | fuera de su entidad, nómina, unidad, coordinación, etc.
         */
         PacVisibility::apply(
             $query,
@@ -65,15 +125,30 @@ class TablePacModel extends Model
             'public.a2_acciones_capacitacion'
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Filtros de búsqueda
+        |--------------------------------------------------------------------------
+        */
         $this->applySearch($query, $request);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Conteo total ya con filtros, activo y visibilidad aplicados
+        |--------------------------------------------------------------------------
+        */
         $countQuery = clone $query;
         $allRow = $countQuery->count();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Listado paginado
+        |--------------------------------------------------------------------------
+        */
         $list = $query
             ->orderBy('e.curp', 'ASC')
-            ->offset((int) $offset)
-            ->limit((int) $limit)
+            ->offset($offset)
+            ->limit($limit)
             ->get();
 
         $row = abs(($allRow < ($offset + $select)) ? $allRow : ($offset + $select));
@@ -87,45 +162,76 @@ class TablePacModel extends Model
 
     private function applySearch($query, $request)
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Búsqueda por nombre
+        |--------------------------------------------------------------------------
+        | Busca por nombre, apellido paterno, apellido materno y nombre completo.
+        | Ignora acentos, mayúsculas/minúsculas y espacios.
+        */
         if (! empty($request->name)) {
-            $searchTerm = '%' . $request->name . '%';
+            $name = trim((string) $request->name);
 
-            $query->where(function ($q) use ($searchTerm) {
-                $q->whereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(c.nombre))), ' ', '')
-                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
-                    [$searchTerm]
-                )
-                ->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(c.apellido_paterno))), ' ', '')
-                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
-                    [$searchTerm]
-                )
-                ->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(c.apellido_materno))), ' ', '')
-                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
-                    [$searchTerm]
-                )
-                ->orWhereRaw(
-                    "REPLACE(UPPER(TRIM(public.unaccent(c.nombre))), ' ', '') ||
-                     REPLACE(UPPER(TRIM(public.unaccent(c.apellido_paterno))), ' ', '') ||
-                     REPLACE(UPPER(TRIM(public.unaccent(c.apellido_materno))), ' ', '')
-                     LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
-                    [$searchTerm]
-                );
-            });
+            if ($name !== '') {
+                $searchTerm = '%' . $name . '%';
+
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->whereRaw(
+                        "REPLACE(UPPER(TRIM(public.unaccent(c.nombre))), ' ', '')
+                         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                        [$searchTerm]
+                    )
+                    ->orWhereRaw(
+                        "REPLACE(UPPER(TRIM(public.unaccent(c.apellido_paterno))), ' ', '')
+                         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                        [$searchTerm]
+                    )
+                    ->orWhereRaw(
+                        "REPLACE(UPPER(TRIM(public.unaccent(c.apellido_materno))), ' ', '')
+                         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                        [$searchTerm]
+                    )
+                    ->orWhereRaw(
+                        "REPLACE(UPPER(TRIM(public.unaccent(c.nombre))), ' ', '') ||
+                         REPLACE(UPPER(TRIM(public.unaccent(c.apellido_paterno))), ' ', '') ||
+                         REPLACE(UPPER(TRIM(public.unaccent(c.apellido_materno))), ' ', '')
+                         LIKE REPLACE(UPPER(TRIM(public.unaccent(?))), ' ', '')",
+                        [$searchTerm]
+                    );
+                });
+            }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Búsqueda por CURP
+        |--------------------------------------------------------------------------
+        */
         if (! empty($request->curp)) {
-            $query->whereRaw(
-                'UPPER(TRIM(public.unaccent(e.curp)))
-                 LIKE UPPER(TRIM(public.unaccent(?)))',
-                ['%' . $request->curp . '%']
-            );
+            $curp = trim((string) $request->curp);
+
+            if ($curp !== '') {
+                $query->whereRaw(
+                    'UPPER(TRIM(public.unaccent(e.curp)))
+                     LIKE UPPER(TRIM(public.unaccent(?)))',
+                    ['%' . $curp . '%']
+                );
+            }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Filtro por acción
+        |--------------------------------------------------------------------------
+        | Si id_accion viene inválido, no se deja pasar la consulta abierta.
+        | Se fuerza a no devolver resultados para evitar mostrar información de más.
+        */
         if (! empty($request->id_accion)) {
-            $query->where('e.id_accion', '=', $request->id_accion);
+            if (is_numeric($request->id_accion)) {
+                $query->where('e.id_accion', '=', (int) $request->id_accion);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         return $query;

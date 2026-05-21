@@ -40,8 +40,6 @@ class EntityPacModel extends Model
         'id_cat_estatus',
         'id_cat_tematica',
         'horas_progamadas',
-
-        // ✅ NUEVO
         'calificacion',
     ];
 }
