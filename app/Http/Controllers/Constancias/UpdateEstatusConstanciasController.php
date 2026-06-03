@@ -27,14 +27,6 @@ class UpdateEstatusConstanciasController extends Controller
      */
     private const PLANTILLA_ID_CAT_ESTATUS_DEFAULT = 1;
 
-    /**
-     * Cursos que deben guardarse con observaciones PAC 2025.
-     */
-    private const PAC_2025_COURSES = [
-        'INTRODUCCIÓN A LA ADMINISTRACIÓN PÚBLICA FEDERAL',
-        'ÉTICA E INTEGRIDAD PÚBLICA PARA UN BUEN GOBIERNO',
-    ];
-
     public function update(Request $request)
     {
         try {
@@ -341,7 +333,25 @@ class UpdateEstatusConstanciasController extends Controller
                 ];
             }
 
-            $horasReal = $this->parseHorasToFloat($c->horas_realizadas ?? null);
+            /*
+            |--------------------------------------------------------------------------
+            | Horas realizadas / horas_real
+            |--------------------------------------------------------------------------
+            | Regla solicitada:
+            | 1. Recuperar horas del catálogo a1_cat_acciones.duracion_hrs.
+            | 2. Compararlas contra tbl_constancias.horas_realizadas.
+            | 3. Si horas_realizadas viene vacía, nula, inválida, en cero o mayor
+            |    a la duración del catálogo, guardar la duración del catálogo.
+            | 4. Si horas_realizadas viene válida y es menor o igual al catálogo,
+            |    guardar horas_realizadas.
+            |
+            | Nota: si el catálogo no trae duración válida, se conserva la hora
+            | válida de la constancia como respaldo.
+            */
+            $horasReal = $this->resolveHorasRealSafe(
+                horasCatalogo: $accionCat->duracion_hrs ?? null,
+                horasConstancia: $c->horas_realizadas ?? null
+            );
 
             /*
             |--------------------------------------------------------------------------
@@ -387,17 +397,18 @@ class UpdateEstatusConstanciasController extends Controller
             |--------------------------------------------------------------------------
             | Observaciones
             |--------------------------------------------------------------------------
-            | Cursos especiales:
-            | - INTRODUCCIÓN A LA ADMINISTRACIÓN PÚBLICA FEDERAL
-            | - ÉTICA E INTEGRIDAD PÚBLICA PARA UN BUEN GOBIERNO
+            | El flujo correcto es:
+            | 1. La constancia trae el nombre del curso en c.nombre_curso.
+            | 2. Ese nombre se busca en public.a1_cat_acciones.nombre_accion.
+            | 3. De ahí se obtiene el id_accion real del catálogo.
+            | 4. Con ese id_accion se define el texto de observaciones:
+            |    - 1 o 2                 => PAC 2025
+            |    - 1000001 o 1000002     => PAC
+            |    - Cualquier otro        => CURSO EXTRA
             |
-            | Para esos cursos se guarda PAC 2025.
+            | Todos los textos se guardan en MAYÚSCULAS.
             */
-            $obsBase = $this->resolveObservacionesBase(
-                cursoTxt: $cursoTxt,
-                calTexto: $calTexto,
-                appendCalificacion: ! $hasCalificacion
-            );
+            $obsBase = $this->resolveObservacionesBase($idAccion);
 
             if ($existe) {
                 $upd = [
@@ -415,16 +426,11 @@ class UpdateEstatusConstanciasController extends Controller
                 |--------------------------------------------------------------------------
                 | Observaciones en update
                 |--------------------------------------------------------------------------
-                | Si es curso PAC 2025, se fuerza PAC 2025.
-                | Si no es curso PAC 2025, solo se llena si observaciones está vacío.
+                | Se fuerza siempre el texto correcto según el id_accion resuelto desde
+                | el nombre del curso. Esto evita conservar observaciones anteriores con
+                | formato viejo como "Curso Extra." o textos manuales.
                 */
-                if ($this->isPac2025Course($cursoTxt)) {
-                    $upd['observaciones'] = $obsBase;
-                } else {
-                    $upd['observaciones'] = DB::raw(
-                        "COALESCE(NULLIF(BTRIM(observaciones), ''), " . $this->quoteSqlString($obsBase) . ")"
-                    );
-                }
+                $upd['observaciones'] = $obsBase;
 
                 if ($hasEvalApr) {
                     $upd['eval_aprendizaje'] = true;
@@ -917,52 +923,50 @@ class UpdateEstatusConstanciasController extends Controller
         return round((float) $raw, 2);
     }
 
-    private function resolveObservacionesBase(
-        string $cursoTxt,
-        string $calTexto,
-        bool $appendCalificacion = false
-    ): string {
-        if ($this->isPac2025Course($cursoTxt)) {
-            return 'PAC 2025';
-        }
 
-        $obs = 'Curso Extra.';
-
-        if ($appendCalificacion) {
-            $obs .= ' Calificación: ' . $calTexto . '.';
-        }
-
-        return $obs;
-    }
-
-    private function isPac2025Course(string $cursoTxt): bool
+    private function resolveHorasRealSafe($horasCatalogo = null, $horasConstancia = null): ?float
     {
-        $curso = $this->normalizeText($cursoTxt);
+        $catalogo = $this->parseHorasToFloat($horasCatalogo);
+        $constancia = $this->parseHorasToFloat($horasConstancia);
 
-        foreach (self::PAC_2025_COURSES as $course) {
-            if ($curso === $this->normalizeText($course)) {
-                return true;
+        /*
+        |--------------------------------------------------------------------------
+        | Regla para horas_real
+        |--------------------------------------------------------------------------
+        | Si existe duración válida en catálogo:
+        | - Constancia vacía, nula, inválida o en cero: usa catálogo.
+        | - Constancia mayor al catálogo: usa catálogo.
+        | - Constancia menor o igual al catálogo: usa constancia.
+        |
+        | Si el catálogo no trae duración válida:
+        | - Usa constancia solo si viene válida y mayor a cero.
+        */
+        if ($catalogo !== null && $catalogo > 0) {
+            if ($constancia === null || $constancia <= 0) {
+                return $catalogo;
             }
+
+            if ($constancia > $catalogo) {
+                return $catalogo;
+            }
+
+            return $constancia;
         }
 
-        return false;
-    }
-
-    private function normalizeText(string $value): string
-    {
-        $value = trim($value);
-        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-
-        return mb_strtoupper($value, 'UTF-8');
-    }
-
-    private function quoteSqlString(string $value): string
-    {
-        try {
-            return DB::connection()->getPdo()->quote($value);
-        } catch (\Throwable $e) {
-            return "'" . str_replace("'", "''", $value) . "'";
+        if ($constancia !== null && $constancia > 0) {
+            return $constancia;
         }
+
+        return null;
+    }
+
+    private function resolveObservacionesBase(int $idAccion): string
+    {
+        return match ($idAccion) {
+            1, 2 => 'PAC 2025',
+            1000001, 1000002 => 'PAC',
+            default => 'CURSO EXTRA',
+        };
     }
 
     private function columnsFor(string $schema, string $table): array
