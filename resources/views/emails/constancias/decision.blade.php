@@ -64,6 +64,23 @@
         return $value;
     };
 
+    $parseHorasNumero = function ($value): float {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '' || strtolower($value) === 'null') {
+            return 0.0;
+        }
+
+        $value = str_replace(',', '.', $value);
+
+        if (! is_numeric($value)) {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) $value, 2));
+    };
+
+
     /*
      |--------------------------------------------------------------------------
      | Logo incrustado para correo
@@ -330,6 +347,7 @@
                                     </td>
                                 </tr>
 
+
                                 <tr>
                                     <td style="padding:0;">
                                         @if ($historialTotal > 0)
@@ -343,7 +361,7 @@
                                                         </th>
                                                         <th align="center"
                                                             style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:45px;">
-                                                            Horas
+                                                            Horas reales
                                                         </th>
                                                         <th align="center"
                                                             style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:70px;">
@@ -372,10 +390,7 @@
                                                     @foreach ($historialRows as $historial)
                                                                                                 @php
                                                                                                     $hNombre = trim((string) data_get($historial, 'nombre_accion', ''));
-                                                                                                    $hHoras = data_get($historial, 'horas_real', null);
-                                                                                                    $hHoras = ($hHoras === null || trim((string) $hHoras) === '')
-                                                                                                        ? data_get($historial, 'duracion_hrs', null)
-                                                                                                        : $hHoras;
+                                                                                                    $hHorasReal = data_get($historial, 'horas_real', null);
                                                                                                     $hInicio = data_get($historial, 'fecha_ini', null);
                                                                                                     $hFin = data_get($historial, 'fecha_fin', null);
                                                                                                     $hCalificacion = data_get($historial, 'calificacion', null);
@@ -390,7 +405,12 @@
                                                                                                     $hEstatusColor = $hEstatusNormalizado === 'CONCLUIDO' ? '#1e5b4f' : '#777777';
                                                                                                     $hEstatusFondo = $hEstatusNormalizado === 'CONCLUIDO' ? '#e5f4ef' : '#f2f2f2';
 
-                                                                                                    // Para registros pendientes no se muestra calificación.
+                                                                                                    // Para registros pendientes no se muestran horas reales acumuladas ni calificación.
+                                                                                                    // Se muestra 0 horas para dejar claro que aún no aporta al total.
+                                                                                                    $hHorasVista = $hEstatusNormalizado === 'CONCLUIDO'
+                                                                                                        ? $formatNumero($parseHorasNumero($hHorasReal))
+                                                                                                        : '0';
+
                                                                                                     $hCalificacionVista = $hEstatusNormalizado === 'CONCLUIDO'
                                                                                                         ? $formatNumero($hCalificacion)
                                                                                                         : '';
@@ -398,12 +418,12 @@
 
                                                          <tr>
                                                                                                     <td valign="top"
-                                                                                                        style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700; line-height:1.4; text-transform:uppercase;">
+                                                                                                        style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:400; line-height:1.4; text-transform:uppercase;">
                                                                                                         {{ $hNombre !== '' ? $hNombre : 'SIN NOMBRE' }}
                                                                                                     </td>
                                                                                                     <td align="center" valign="top"
                                                                                                         style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700;">
-                                                                                                        {{ $formatNumero($hHoras) }}
+                                                                                                        {{ $hHorasVista }}
                                                                                                     </td>
                                                                                                     <td align="center" valign="top"
                                                                                                         style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
