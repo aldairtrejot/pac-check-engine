@@ -1,21 +1,38 @@
 @php
-    $esAceptado = $decision === 'ACEPTADO';
+    $decisionNormalizada = strtoupper(trim((string) ($decision ?? '')));
+    $esAceptado = in_array($decisionNormalizada, ['ACEPTADO', 'ACEPTADA'], true);
 
-    $colorPrincipal = $esAceptado ? '#1e5b4f' : '#9b2247';
-    $colorFondo = $esAceptado ? '#eef8f5' : '#fff4f6';
-    $tituloDecision = $esAceptado ? 'Constancia aceptada correctamente' : 'Constancia rechazada';
+    $nombrePersonaSafe = trim((string) ($nombrePersona ?? ''));
+    $nombreCursoSafe   = trim((string) ($nombreCurso ?? ''));
+    $folioSafe         = trim((string) ($folio ?? ''));
+    $fechaHoraSafe     = trim((string) ($fechaHora ?? ''));
+    $motivoSafe        = trim((string) ($motivo ?? ''));
+
+    $nombrePersonaSafe = $nombrePersonaSafe !== '' ? $nombrePersonaSafe : 'Usuario';
+    $nombreCursoSafe   = $nombreCursoSafe !== '' ? $nombreCursoSafe : 'No especificado';
+    $folioSafe         = $folioSafe !== '' ? $folioSafe : 'S/F';
+    $fechaHoraSafe     = $fechaHoraSafe !== '' ? $fechaHoraSafe : 'No especificada';
+
+    $colorVino = '#611232';
+    $colorDorado = '#d6bd74';
+
+    $colorPrincipal = $esAceptado ? '#1e5b4f' : '#b3261e';
+    $colorFondoEstatus = $esAceptado ? '#eef8f5' : '#fff1f1';
+    $colorBordeEstatus = $esAceptado ? '#b8d8cf' : '#f0c5c5';
+
+    $tituloDecision = $esAceptado ? 'Constancia aceptada' : 'Constancia rechazada';
     $estatusTexto = $esAceptado ? 'ACEPTADA' : 'RECHAZADA';
 
     $textoDecision = $esAceptado
         ? 'Te informamos que tu constancia fue aceptada y procesada correctamente.'
-        : 'Te informamos que tu trámite/constancia fue rechazado.';
+        : 'Te informamos que tu constancia fue rechazada.';
 
     /*
      |--------------------------------------------------------------------------
      | Logo incrustado para correo
      |--------------------------------------------------------------------------
      | Archivo esperado:
-     | public/assets/imss/logo-v-color.png
+     | public/assets/images/bienestar/logo-v-color.png
      |
      | Si la vista se abre desde navegador y no existe $message,
      | se usa asset() como respaldo.
@@ -34,154 +51,245 @@
     <title>{{ $tituloDecision }}</title>
 </head>
 
-<body style="margin:0; padding:0; background-color:#f3f5f6; font-family:Segoe UI, Arial, sans-serif; color:#253039;">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f5f6; padding:24px 12px; border-collapse:collapse;">
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:Segoe UI, Arial, Helvetica, sans-serif; color:#252525;">
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6; padding:24px 10px; border-collapse:collapse;">
         <tr>
             <td align="center">
-                <table width="680" cellpadding="0" cellspacing="0" border="0" style="max-width:680px; width:100%; background-color:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 8px 28px rgba(22,26,29,0.12); border-collapse:collapse;">
 
-                    <!-- LOGO SUPERIOR -->
+                <table width="760" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:760px; background-color:#ffffff; border-collapse:collapse; border:1px solid #dedede; box-shadow:0 8px 28px rgba(0,0,0,0.08);">
+
+                    <!-- ENCABEZADO -->
                     <tr>
-                        <td style="padding:18px 24px; background-color:#ffffff; border-bottom:1px solid #dde2e5;">
+                        <td style="background-color:{{ $colorVino }}; padding:15px 22px; border-bottom:4px solid #4d0e27;">
                             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
                                 <tr>
                                     <td align="left" style="vertical-align:middle;">
                                         <img
                                             src="{{ $logoSrc }}"
                                             alt="IMSS Bienestar"
-                                            width="260"
-                                            style="display:block; width:260px; max-width:260px; height:auto; border:0; outline:none; text-decoration:none;"
+                                            width="220"
+                                            style="display:block; width:220px; max-width:220px; height:auto; border:0; outline:none; text-decoration:none;"
                                         >
+                                    </td>
+
+                                    <td align="right" style="vertical-align:middle;">
+                                        <p style="margin:0; color:#ffffff; font-size:18px; font-weight:700; line-height:1.3;">
+                                            Sistema de Constancias
+                                        </p>
+                                        <p style="margin:3px 0 0; color:{{ $colorDorado }}; font-size:12px; font-weight:600; line-height:1.3;">
+                                            IMSS-BIENESTAR
+                                        </p>
                                     </td>
                                 </tr>
                             </table>
-                        </td>
-                    </tr>
-
-                    <!-- ENCABEZADO COLOR -->
-                    <tr>
-                        <td style="background-color:#611232; padding:18px 26px;">
-                            <h1 style="margin:0; color:#ffffff; font-size:21px; font-weight:700; line-height:1.25;">
-                                Sistema de Constancias
-                            </h1>
-
-                            <p style="margin:5px 0 0; color:#d6bd74; font-size:14px; font-weight:600; line-height:1.4;">
-                                IMSS-BIENESTAR · Notificación de validación
-                            </p>
                         </td>
                     </tr>
 
                     <!-- CONTENIDO -->
                     <tr>
-                        <td style="padding:30px 28px 22px;">
-                            <p style="margin:0 0 18px; font-size:16px; line-height:1.6;">
-                                Estimado(a)
-                                <strong>{{ $nombrePersona ?: 'usuario' }}</strong>:
+                        <td style="padding:24px 22px 18px;">
+
+                            <!-- DESTINATARIO -->
+                            <p style="margin:0; color:#7a7a7a; font-size:11px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase;">
+                                Destinatario
                             </p>
 
-                            <div style="background-color:{{ $colorFondo }}; border-left:5px solid {{ $colorPrincipal }}; border-radius:10px; padding:16px 18px; margin-bottom:22px;">
-                                <h2 style="margin:0 0 8px; color:{{ $colorPrincipal }}; font-size:20px; line-height:1.3;">
-                                    {{ $tituloDecision }}
-                                </h2>
+                            <p style="margin:4px 0 20px; color:#1f1f1f; font-size:24px; font-weight:800; line-height:1.25; text-transform:uppercase;">
+                                {{ $nombrePersonaSafe }}
+                            </p>
 
-                                <p style="margin:0; font-size:15.5px; line-height:1.6;">
-                                    {{ $textoDecision }}
-                                </p>
-                            </div>
-
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; margin:22px 0; font-size:15px;">
+                            <!-- ESTATUS GENERAL -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; margin-bottom:18px;">
                                 <tr>
-                                    <td style="padding:10px 12px; background-color:#f8f9fa; border:1px solid #dde2e5; color:#611232; font-weight:700; width:35%;">
-                                        Folio / ID
-                                    </td>
-                                    <td style="padding:10px 12px; border:1px solid #dde2e5; color:#253039;">
-                                        {{ $folio }}
-                                    </td>
-                                </tr>
+                                    <td style="background-color:{{ $colorFondoEstatus }}; border:1px solid {{ $colorBordeEstatus }}; border-radius:8px; padding:14px 16px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                                            <tr>
+                                                <td width="34" valign="top" style="width:34px;">
+                                                    <div style="width:26px; height:26px; line-height:26px; border-radius:50%; background-color:{{ $colorPrincipal }}; color:#ffffff; text-align:center; font-size:15px; font-weight:800;">
+                                                        {{ $esAceptado ? '✓' : '!' }}
+                                                    </div>
+                                                </td>
 
-                                <tr>
-                                    <td style="padding:10px 12px; background-color:#f8f9fa; border:1px solid #dde2e5; color:#611232; font-weight:700;">
-                                        Nombre del empleado
-                                    </td>
-                                    <td style="padding:10px 12px; border:1px solid #dde2e5; color:#253039;">
-                                        {{ $nombrePersona }}
-                                    </td>
-                                </tr>
+                                                <td valign="middle">
+                                                    <p style="margin:0; color:{{ $colorPrincipal }}; font-size:16px; font-weight:800; line-height:1.4;">
+                                                        {{ $tituloDecision }}
+                                                    </p>
 
-                                <tr>
-                                    <td style="padding:10px 12px; background-color:#f8f9fa; border:1px solid #dde2e5; color:#611232; font-weight:700;">
-                                        Nombre del curso
-                                    </td>
-                                    <td style="padding:10px 12px; border:1px solid #dde2e5; color:#253039;">
-                                        {{ $nombreCurso }}
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td style="padding:10px 12px; background-color:#f8f9fa; border:1px solid #dde2e5; color:#611232; font-weight:700;">
-                                        Fecha y hora
-                                    </td>
-                                    <td style="padding:10px 12px; border:1px solid #dde2e5; color:#253039;">
-                                        {{ $fechaHora }}
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td style="padding:10px 12px; background-color:#f8f9fa; border:1px solid #dde2e5; color:#611232; font-weight:700;">
-                                        Estatus
-                                    </td>
-                                    <td style="padding:10px 12px; border:1px solid #dde2e5; color:{{ $colorPrincipal }}; font-weight:700;">
-                                        {{ $estatusTexto }}
+                                                    <p style="margin:5px 0 0; color:#3f3f3f; font-size:13.5px; line-height:1.6;">
+                                                        {{ $textoDecision }}
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            @if (! $esAceptado)
-                                <p style="margin:20px 0 8px; font-size:15.5px; line-height:1.6; font-weight:700; color:#611232;">
-                                    Motivo del rechazo:
-                                </p>
+                            <!-- BLOQUES DETALLE / OBSERVACIONES -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                                <tr>
 
-                                <div style="padding:14px 16px; background-color:#fff4f6; border:1px solid rgba(155,34,71,0.25); border-radius:10px; color:#253039; font-size:15px; line-height:1.6;">
-                                    {!! nl2br(e($motivo ?: 'Sin motivo especificado.')) !!}
-                                </div>
+                                    <!-- DETALLE -->
+                                    <td width="49%" valign="top" style="padding-right:8px; padding-bottom:16px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; border:1px solid #dedede; background-color:#ffffff;">
+                                            <tr>
+                                                <td style="padding:11px 14px; background-color:#f6f6f6; border-bottom:1px solid #dedede;">
+                                                    <p style="margin:0; color:#5b5b5b; font-size:11px; font-weight:800; letter-spacing:0.3px; text-transform:uppercase;">
+                                                        Detalle de constancia
+                                                    </p>
+                                                </td>
+                                            </tr>
 
-                                <p style="margin:18px 0 0; font-size:15px; line-height:1.6;">
-                                    Te solicitamos revisar la observación indicada para realizar las correcciones correspondientes, una vez realizadas volver a registrar tu constancia.
-                                </p>
-                            @else
-                                <p style="margin:18px 0 0; font-size:15px; line-height:1.6;">
-                                    Tu registro fue validado correctamente.
-                                </p>
-                            @endif
+                                            <tr>
+                                                <td style="padding:15px 14px;">
 
-                            <p style="margin:28px 0 0; font-size:15px; line-height:1.6;">
-                                Atentamente,<br>
-                                <strong style="color:#1e5b4f;">
-                                    Sistema de Constancias IMSS-BIENESTAR
-                                </strong>
+                                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                                                        <tr>
+                                                            <td width="50%" valign="top" style="padding:0 8px 14px 0;">
+                                                                <p style="margin:0; color:#777777; font-size:11px; font-weight:800;">
+                                                                    Folio / ID
+                                                                </p>
+                                                                <p style="margin:4px 0 0; color:#222222; font-size:19px; font-weight:800;">
+                                                                    {{ $folioSafe }}
+                                                                </p>
+                                                            </td>
+
+                                                            <td width="50%" valign="top" style="padding:0 0 14px 8px;">
+                                                                <p style="margin:0; color:#777777; font-size:11px; font-weight:800;">
+                                                                    Fecha y hora
+                                                                </p>
+                                                                <p style="margin:6px 0 0; color:#222222; font-size:14px; font-weight:800;">
+                                                                    {{ $fechaHoraSafe }}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+
+                                                        <tr>
+                                                            <td colspan="2" style="padding:13px 0; border-top:1px solid #eeeeee;">
+                                                                <p style="margin:0; color:#777777; font-size:11px; font-weight:800;">
+                                                                    Nombre del curso
+                                                                </p>
+                                                                <p style="margin:6px 0 0; color:#222222; font-size:15px; font-weight:800; line-height:1.4; text-transform:uppercase;">
+                                                                    {{ $nombreCursoSafe }}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+
+                                                        <tr>
+                                                            <td colspan="2" style="padding:13px 0 0; border-top:1px solid #eeeeee;">
+                                                                <p style="margin:0; color:#777777; font-size:11px; font-weight:800;">
+                                                                    Estatus actual
+                                                                </p>
+                                                                <p style="margin:6px 0 0; color:{{ $colorPrincipal }}; font-size:15px; font-weight:900;">
+                                                                    {{ $estatusTexto }}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+
+                                    <!-- OBSERVACIONES -->
+                                    <td width="51%" valign="top" style="padding-left:8px; padding-bottom:16px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; border:1px solid #dedede; background-color:#ffffff;">
+                                            <tr>
+                                                <td style="padding:11px 14px; background-color:#fff7f7; border-bottom:1px solid #dedede;">
+                                                    <p style="margin:0; color:#9b2247; font-size:11px; font-weight:800; letter-spacing:0.3px; text-transform:uppercase;">
+                                                        Observaciones
+                                                    </p>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <td style="padding:15px 14px;">
+
+                                                    @if (! $esAceptado)
+                                                        <p style="margin:0 0 8px; color:#9b2247; font-size:11.5px; font-weight:800;">
+                                                            Motivo del rechazo:
+                                                        </p>
+
+                                                        <div style="background-color:#fffafa; border-left:4px solid #d7a0a0; padding:12px 14px; color:#444444; font-size:13px; line-height:1.6; font-style:italic;">
+                                                            {!! nl2br(e($motivoSafe !== '' ? $motivoSafe : 'Sin motivo especificado.')) !!}
+                                                        </div>
+
+                                                        <div style="margin-top:14px; background-color:#fafafa; border:1px solid #eeeeee; padding:12px 14px; color:#555555; font-size:13px; line-height:1.6;">
+                                                            Te solicitamos revisar la observación indicada y realizar las correcciones correspondientes.
+                                                            Una vez realizadas, deberás registrar nuevamente tu constancia.
+                                                        </div>
+                                                    @else
+                                                        <div style="background-color:#f4fbf8; border-left:4px solid #1e5b4f; padding:12px 14px; color:#35584f; font-size:13px; line-height:1.6;">
+                                                            Tu registro fue validado correctamente y no presenta observaciones pendientes.
+                                                        </div>
+
+                                                        <div style="margin-top:14px; background-color:#fafafa; border:1px solid #eeeeee; padding:12px 14px; color:#555555; font-size:13px; line-height:1.6;">
+                                                            La constancia fue procesada en el sistema de capacitación.
+                                                        </div>
+                                                    @endif
+
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+
+                                </tr>
+                            </table>
+
+                            <!-- NOTA -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; margin-top:2px; margin-bottom:20px;">
+                                <tr>
+                                    <td style="background-color:#fafafa; border:1px solid #e5e5e5; padding:13px 15px; color:#555555; font-size:13px; line-height:1.6;">
+                                        Este mensaje corresponde a una notificación automática generada por el
+                                        <strong>Sistema de Constancias IMSS-BIENESTAR</strong>.
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin:0 0 4px; color:#333333; font-size:14px; line-height:1.6;">
+                                Atentamente,
                             </p>
+
+                            <p style="margin:0 0 18px; color:#1e5b4f; font-size:14px; font-weight:800; line-height:1.6;">
+                                Sistema de Constancias IMSS-BIENESTAR
+                            </p>
+
                         </td>
                     </tr>
 
                     <!-- FRANJA INFERIOR -->
                     <tr>
-                        <td style="height:12px; background-color:#1e5b4f; font-size:0; line-height:0;">
+                        <td style="height:10px; background-color:#1e5b4f; font-size:0; line-height:0;">
                             &nbsp;
                         </td>
                     </tr>
 
                     <!-- PIE -->
                     <tr>
-                        <td style="padding:18px 24px; background-color:#f2f2f2; text-align:center;">
-                            <p style="margin:0; font-size:12.5px; color:#777777; line-height:1.5;">
-                                Este es un correo de notificación automática. Por favor, no responda a este mensaje.
-                            </p>
+                        <td style="background-color:#eeeeee; padding:16px 22px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                                <tr>
+                                    <td align="left" valign="top" style="color:#666666; font-size:11.5px; line-height:1.5;">
+                                        <strong>IMSS-BIENESTAR</strong><br>
+                                        Sistema de Constancias
+                                    </td>
+
+                                    <td align="right" valign="top" style="color:#777777; font-size:11.5px; line-height:1.5;">
+                                        Este es un correo de notificación automática.<br>
+                                        Por favor, no responda a este mensaje.
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
 
                 </table>
+
             </td>
         </tr>
     </table>
+
 </body>
 </html>
