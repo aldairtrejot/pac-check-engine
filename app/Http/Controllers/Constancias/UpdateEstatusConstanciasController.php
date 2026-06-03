@@ -167,6 +167,7 @@ class UpdateEstatusConstanciasController extends Controller
 
             return [
                 'status'             => true,
+                'curp'               => (string) ($registro->curp ?? ''),
                 'correo_electronico' => (string) ($notify['correo_electronico'] ?? ''),
                 'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
                 'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
@@ -190,7 +191,8 @@ class UpdateEstatusConstanciasController extends Controller
             folio: (string) ($resultado['folio'] ?? ''),
             fechaHora: $ahora->format('d/m/Y H:i:s'),
             tipo: 'rechazo',
-            motivo: $motivo
+            motivo: $motivo,
+            curp: (string) ($resultado['curp'] ?? '')
         );
 
         return response()->json([
@@ -516,6 +518,7 @@ class UpdateEstatusConstanciasController extends Controller
             return [
                 'status'             => true,
                 'message'            => 'Constancia aceptada y procesada correctamente.',
+                'curp'               => (string) ($c->curp ?? ''),
                 'correo_electronico' => (string) ($notify['correo_electronico'] ?? ''),
                 'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
                 'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
@@ -539,7 +542,8 @@ class UpdateEstatusConstanciasController extends Controller
             folio: (string) ($resultado['folio'] ?? ''),
             fechaHora: $ahora->format('d/m/Y H:i:s'),
             tipo: 'aceptacion',
-            motivo: null
+            motivo: null,
+            curp: (string) ($resultado['curp'] ?? '')
         );
 
         return response()->json([
@@ -643,7 +647,8 @@ class UpdateEstatusConstanciasController extends Controller
         string $folio,
         string $fechaHora,
         string $tipo,
-        ?string $motivo = null
+        ?string $motivo = null,
+        string $curp = ''
     ): bool {
         $correoDestinatario = trim($correoDestinatario);
         $nombrePersona = trim($nombrePersona) !== '' ? trim($nombrePersona) : 'Usuario';
@@ -672,6 +677,8 @@ class UpdateEstatusConstanciasController extends Controller
 
             $ccList = $this->parseMailList($ccRaw);
 
+            $historialCapacitacion = $this->historialCapacitacionPorCurp($curp);
+
             $mail = Mail::to($correoDestinatario);
 
             if (! empty($ccList)) {
@@ -684,7 +691,8 @@ class UpdateEstatusConstanciasController extends Controller
                 folio: $folio,
                 fechaHora: $fechaHora,
                 decision: $decision,
-                motivo: $motivo
+                motivo: $motivo,
+                historialCapacitacion: $historialCapacitacion
             ));
 
             return true;
@@ -816,6 +824,53 @@ class UpdateEstatusConstanciasController extends Controller
         }
 
         return self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT;
+    }
+
+    private function historialCapacitacionPorCurp(string $curp): array
+    {
+        $curp = trim($curp);
+
+        if ($curp === '') {
+            return [];
+        }
+
+        try {
+            return DB::table('public.a2_acciones_empleados as a')
+                ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
+                ->leftJoin('public.cat_estatus as c', 'a.id_cat_estatus', '=', 'c.id_cat_estatus')
+                ->whereRaw('TRIM(UPPER(a.curp)) = TRIM(UPPER(?))', [$curp])
+                ->select([
+                    'a.id_accion',
+                    'b.nombre_accion',
+                    'b.duracion_hrs',
+                    'a.horas_real',
+                    'a.fecha_ini',
+                    'a.fecha_fin',
+                    'a.calificacion',
+                    DB::raw("COALESCE(c.descripcion, 'SIN ESTATUS') AS descripcion_estatus"),
+                    DB::raw("COALESCE(a.observaciones, '') AS observaciones"),
+                    DB::raw("
+                        CASE
+                            WHEN a.fecha_fin IS NOT NULL THEN 'CONCLUIDO'
+                            ELSE 'PENDIENTE'
+                        END AS estatus_accion
+                    "),
+                ])
+                ->orderByRaw("CASE WHEN a.fecha_fin IS NULL THEN 1 ELSE 0 END")
+                ->orderByDesc('a.fecha_fin')
+                ->orderByDesc('a.fecha_ini')
+                ->get()
+                ->map(fn ($row) => (array) $row)
+                ->toArray();
+
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo obtener historial de capacitación para correo de constancias.', [
+                'curp'    => $curp,
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 
     private function resolveHorasProgramadasSafe(

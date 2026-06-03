@@ -23,25 +23,62 @@
     $tituloDecision = $esAceptado ? 'Constancia aceptada' : 'Constancia rechazada';
     $estatusTexto = $esAceptado ? 'ACEPTADA' : 'RECHAZADA';
 
-    $textoDecision = $esAceptado
-        ? 'Te informamos que tu constancia fue aceptada y procesada correctamente.'
-        : 'Te informamos que tu constancia fue rechazada.';
+
+    /*
+     |--------------------------------------------------------------------------
+     | Historial de capacitación
+     |--------------------------------------------------------------------------
+     | Esta vista espera recibir $historialCapacitacion desde el Mailable.
+     | Puede venir como array, colección o lista de objetos.
+     */
+    $historialRows = collect($historialCapacitacion ?? []);
+    $historialTotal = $historialRows->count();
+
+    $formatFecha = function ($value) {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '' || strtolower($value) === 'null') {
+            return '-';
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('d/m/Y');
+        } catch (\Throwable $e) {
+            return $value;
+        }
+    };
+
+    $formatNumero = function ($value) {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '' || strtolower($value) === 'null') {
+            return '-';
+        }
+
+        $value = str_replace(',', '.', $value);
+
+        if (is_numeric($value)) {
+            return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+        }
+
+        return $value;
+    };
 
     /*
      |--------------------------------------------------------------------------
      | Logo incrustado para correo
      |--------------------------------------------------------------------------
      | Archivo esperado:
-     | public/assets/images/bienestar/logo-v-color.png
+     | public/assets/images/bienestar/logo_imss_blanco.png
      |
      | Si la vista se abre desde navegador y no existe $message,
      | se usa asset() como respaldo.
      */
-    $logoPath = public_path('assets/images/bienestar/logo-v-color.png');
+    $logoPath = public_path('assets/images/bienestar/logo_imss_blanco.png');
 
     $logoSrc = isset($message) && file_exists($logoPath)
         ? $message->embed($logoPath)
-        : asset('assets/images/bienestar/logo-v-color.png');
+        : asset('assets/images/bienestar/logo_imss_blanco.png');
 @endphp
 
 <!DOCTYPE html>
@@ -57,7 +94,7 @@
         <tr>
             <td align="center">
 
-                <table width="760" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:760px; background-color:#ffffff; border-collapse:collapse; border:1px solid #dedede; box-shadow:0 8px 28px rgba(0,0,0,0.08);">
+                <table width="820" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:820px; background-color:#ffffff; border-collapse:collapse; border:1px solid #dedede; box-shadow:0 8px 28px rgba(0,0,0,0.08);">
 
                     <!-- ENCABEZADO -->
                     <tr>
@@ -114,10 +151,6 @@
                                                 <td valign="middle">
                                                     <p style="margin:0; color:{{ $colorPrincipal }}; font-size:16px; font-weight:800; line-height:1.4;">
                                                         {{ $tituloDecision }}
-                                                    </p>
-
-                                                    <p style="margin:5px 0 0; color:#3f3f3f; font-size:13.5px; line-height:1.6;">
-                                                        {{ $textoDecision }}
                                                     </p>
                                                 </td>
                                             </tr>
@@ -220,15 +253,11 @@
                                                             Te solicitamos revisar la observación indicada y realizar las correcciones correspondientes.
                                                             Una vez realizadas, deberás registrar nuevamente tu constancia.
                                                         </div>
-                                                    @else
-                                                        <div style="background-color:#f4fbf8; border-left:4px solid #1e5b4f; padding:12px 14px; color:#35584f; font-size:13px; line-height:1.6;">
-                                                            Tu registro fue validado correctamente y no presenta observaciones pendientes.
-                                                        </div>
-
-                                                        <div style="margin-top:14px; background-color:#fafafa; border:1px solid #eeeeee; padding:12px 14px; color:#555555; font-size:13px; line-height:1.6;">
-                                                            La constancia fue procesada en el sistema de capacitación.
-                                                        </div>
-                                                    @endif
+                                                  @else
+                                                 <div style="background-color:#f4fbf8; border-left:4px solid #1e5b4f; padding:12px 14px; color:#35584f; font-size:13px; line-height:1.6; font-weight:800;">
+        Tu registro fue validado correctamente y no presenta observaciones pendientes.
+    </div>
+@endif
 
                                                 </td>
                                             </tr>
@@ -238,23 +267,124 @@
                                 </tr>
                             </table>
 
-                            <!-- NOTA -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; margin-top:2px; margin-bottom:20px;">
+                            <!-- HISTORIAL DE CAPACITACIÓN -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; border:1px solid #dedede; background-color:#ffffff; margin-bottom:20px;">
                                 <tr>
-                                    <td style="background-color:#fafafa; border:1px solid #e5e5e5; padding:13px 15px; color:#555555; font-size:13px; line-height:1.6;">
-                                        Este mensaje corresponde a una notificación automática generada por el
-                                        <strong>Sistema de Constancias IMSS-BIENESTAR</strong>.
+                                    <td style="padding:12px 14px; background-color:#f6f6f6; border-bottom:1px solid #dedede;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                                            <tr>
+                                                <td align="left" style="vertical-align:middle;">
+                                                    <p style="margin:0; color:#333333; font-size:14px; font-weight:800; line-height:1.3;">
+                                                        Historial de Capacitación
+                                                    </p>
+                                                </td>
+
+                                                <td align="right" style="vertical-align:middle;">
+                                                    <span style="display:inline-block; background-color:#1e5b4f; color:#ffffff; font-size:10px; font-weight:800; padding:5px 8px; border-radius:12px; text-transform:uppercase;">
+                                                        {{ $historialTotal }} {{ $historialTotal === 1 ? 'registro' : 'registros' }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td style="padding:0;">
+                                        @if ($historialTotal > 0)
+                                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; font-size:10.5px;">
+                                                <thead>
+                                                    <tr>
+                                                        <th align="left" style="padding:9px 8px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase;">
+                                                            Nombre de acción
+                                                        </th>
+                                                        <th align="center" style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:45px;">
+                                                            Horas
+                                                        </th>
+                                                        <th align="center" style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:70px;">
+                                                            Inicio
+                                                        </th>
+                                                        <th align="center" style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:70px;">
+                                                            Fin
+                                                        </th>
+                                                        <th align="center" style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:50px;">
+                                                            Calif.
+                                                        </th>
+                                                        <th align="center" style="padding:9px 6px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:70px;">
+                                                            Estatus
+                                                        </th>
+                                                        <th align="left" style="padding:9px 8px; background-color:#eeeeee; border-bottom:1px solid #d8d8d8; color:#666666; font-size:9.5px; font-weight:800; text-transform:uppercase; width:110px;">
+                                                            Observaciones
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody>
+                                                    @foreach ($historialRows as $historial)
+                                                        @php
+                                                            $hNombre = trim((string) data_get($historial, 'nombre_accion', ''));
+                                                            $hHoras = data_get($historial, 'horas_real', null);
+                                                            $hHoras = ($hHoras === null || trim((string) $hHoras) === '')
+                                                                ? data_get($historial, 'duracion_hrs', null)
+                                                                : $hHoras;
+                                                            $hInicio = data_get($historial, 'fecha_ini', null);
+                                                            $hFin = data_get($historial, 'fecha_fin', null);
+                                                            $hCalificacion = data_get($historial, 'calificacion', null);
+                                                            $hObservaciones = trim((string) data_get($historial, 'observaciones', ''));
+                                                            $hEstatus = trim((string) data_get($historial, 'estatus_accion', ''));
+
+                                                            if ($hEstatus === '') {
+                                                                $hEstatus = ! empty($hFin) ? 'CONCLUIDO' : 'PENDIENTE';
+                                                            }
+
+                                                            $hEstatusNormalizado = strtoupper($hEstatus);
+                                                            $hEstatusColor = $hEstatusNormalizado === 'CONCLUIDO' ? '#1e5b4f' : '#777777';
+                                                            $hEstatusFondo = $hEstatusNormalizado === 'CONCLUIDO' ? '#e5f4ef' : '#f2f2f2';
+
+                                                            // Para registros pendientes no se muestra calificación.
+                                                            $hCalificacionVista = $hEstatusNormalizado === 'CONCLUIDO'
+                                                                ? $formatNumero($hCalificacion)
+                                                                : '';
+                                                        @endphp
+
+                                                        <tr>
+                                                            <td valign="top" style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700; line-height:1.4; text-transform:uppercase;">
+                                                                {{ $hNombre !== '' ? $hNombre : 'SIN NOMBRE' }}
+                                                            </td>
+                                                            <td align="center" valign="top" style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700;">
+                                                                {{ $formatNumero($hHoras) }}
+                                                            </td>
+                                                            <td align="center" valign="top" style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
+                                                                {{ $formatFecha($hInicio) }}
+                                                            </td>
+                                                            <td align="center" valign="top" style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
+                                                                {{ $formatFecha($hFin) }}
+                                                            </td>
+                                                            <td align="center" valign="top" style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#9b2247; font-size:10.5px; font-weight:800;">
+                                                                {{ $hCalificacionVista }}
+                                                            </td>
+                                                            <td align="center" valign="top" style="padding:9px 6px; border-bottom:1px solid #eeeeee;">
+                                                                <span style="display:inline-block; background-color:{{ $hEstatusFondo }}; color:{{ $hEstatusColor }}; font-size:8.8px; font-weight:800; padding:4px 6px; border-radius:4px; text-transform:uppercase;">
+                                                                    {{ $hEstatusNormalizado }}
+                                                                </span>
+                                                            </td>
+                                                            <td valign="top" style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#555555; font-size:10px; line-height:1.4; font-style:italic; text-transform:uppercase;">
+                                                                {{ $hObservaciones !== '' ? $hObservaciones : '-' }}
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        @else
+                                            <div style="padding:14px 16px; color:#666666; font-size:13px; line-height:1.6;">
+                                                No se encontraron registros previos de capacitación para este empleado.
+                                            </div>
+                                        @endif
                                     </td>
                                 </tr>
                             </table>
 
-                            <p style="margin:0 0 4px; color:#333333; font-size:14px; line-height:1.6;">
-                                Atentamente,
-                            </p>
 
-                            <p style="margin:0 0 18px; color:#1e5b4f; font-size:14px; font-weight:800; line-height:1.6;">
-                                Sistema de Constancias IMSS-BIENESTAR
-                            </p>
 
                         </td>
                     </tr>
@@ -273,12 +403,17 @@
                                 <tr>
                                     <td align="left" valign="top" style="color:#666666; font-size:11.5px; line-height:1.5;">
                                         <strong>IMSS-BIENESTAR</strong><br>
-                                        Sistema de Constancias
+                                        <p style="margin:4px 0 0; color:#666666; font-size:11px; line-height:1.4;">UNIDAD DE ADMINISTRACIÓN Y FINANZAS</p>
+                                        <p style="margin:0; color:#666666; font-size:11px; line-height:1.4;">COORDINACIÓN DE RECURSOS HUMANOS</p>
+                                        <p style="margin:0; color:#666666; font-size:11px; line-height:1.4;">COORDINACIÓN TÉCNICA DE CAPACITACIÓN Y EVALUACIÓN</p>
                                     </td>
 
                                     <td align="right" valign="top" style="color:#777777; font-size:11.5px; line-height:1.5;">
-                                        Este es un correo de notificación automática.<br>
-                                        Por favor, no responda a este mensaje.
+                                        <strong style="color:#611232;">CAPACITACIÓN</strong><br>
+                                        <strong>RECURSOS HUMANOS</strong><br>
+                                        Calle Gustavo E. Campa 54, piso 3, Guadalupe Inn.<br>
+                                        Álvaro Obregón, 01020, Ciudad de México, México.<br>
+                                        Tel: 01(55) 9160 8100 Ext. 111106
                                     </td>
                                 </tr>
                             </table>
