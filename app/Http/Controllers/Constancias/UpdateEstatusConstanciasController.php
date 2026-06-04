@@ -405,7 +405,7 @@ class UpdateEstatusConstanciasController extends Controller
             | 3. De ahí se obtiene el id_accion real del catálogo.
             | 4. Con ese id_accion se define el texto de observaciones:
             |    - 1 o 2                 => PAC 2025
-            |    - 1000001 o 1000002     => PAC
+            |    - 1000001 o 1000002     => OBLIGATORIO
             |    - Cualquier otro        => CURSO EXTRA
             |
             | Todos los textos se guardan en MAYÚSCULAS.
@@ -1019,7 +1019,7 @@ class UpdateEstatusConstanciasController extends Controller
     {
         return match ($idAccion) {
             1, 2 => 'PAC 2025',
-            1000001, 1000002 => 'PAC',
+            1000001, 1000002 => 'OBLIGATORIO',
             default => 'CURSO EXTRA',
         };
     }
