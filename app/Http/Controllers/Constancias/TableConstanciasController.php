@@ -22,13 +22,17 @@ class TableConstanciasController extends Controller
 
         if (! $user) {
             return response()->json([
-                'list'    => [],
-                'allRow'  => 0,
-                'row'     => 0,
-                'status'  => false,
-                'message' => 'No autenticado.',
+                'list'     => [],
+                'allRow'   => 0,
+                'row'      => 0,
+                'status'   => false,
+                'message'  => 'No autenticado.',
+                'is_admin' => false,
             ], 401);
         }
+
+        $scope = ConstanciaVisibilityByName::resolveScope((int) $user->id);
+        $isAdmin = (bool) ($scope['is_admin_global'] ?? false);
 
         $request->validate([
             'limit'       => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
@@ -39,7 +43,13 @@ class TableConstanciasController extends Controller
             'estatus'     => 'nullable',
             'search'      => 'nullable|string|max:255',
 
-            // NUEVOS FILTROS
+            /*
+            |--------------------------------------------------------------------------
+            | Filtros solo para ADMIN
+            |--------------------------------------------------------------------------
+            | Aunque el frontend los oculta para no administradores, aquí también
+            | se validan y solo se aplican cuando $isAdmin es true.
+            */
             'entidad'     => 'nullable|string|max:255',
             'tipo_nomina' => 'nullable|string|max:255',
             'clues'       => 'nullable|string|max:255',
@@ -57,7 +67,6 @@ class TableConstanciasController extends Controller
         $estatusRaw = trim((string) $request->input('estatus', ''));
         $search     = trim((string) $request->input('search', ''));
 
-        // NUEVOS FILTROS
         $entidadFiltro    = trim((string) $request->input('entidad', ''));
         $tipoNominaFiltro = trim((string) $request->input('tipo_nomina', ''));
         $cluesFiltro      = trim((string) $request->input('clues', ''));
@@ -94,7 +103,14 @@ class TableConstanciasController extends Controller
                 'c.anio',
                 'c.estatus',
 
-                // NUEVAS COLUMNAS PARA MOSTRAR EN LA TABLA
+                /*
+                |--------------------------------------------------------------------------
+                | Columnas administrativas
+                |--------------------------------------------------------------------------
+                | Se devuelven para que el frontend las muestre únicamente si el
+                | usuario es ADMIN. Para no administradores el backend también
+                | mantiene su alcance con ConstanciaVisibilityByName.
+                */
                 'c.entidad',
                 'c.tipo_nomina',
                 'c.clues',
@@ -103,8 +119,8 @@ class TableConstanciasController extends Controller
                 |--------------------------------------------------------------------------
                 | Calificación
                 |--------------------------------------------------------------------------
-                | La columna anterior era: c.calificacion
-                | La columna nueva es: c.calificacion_n
+                | La columna anterior era: c.calificacion.
+                | La columna nueva es: c.calificacion_n.
                 |
                 | Se manda como "calificacion" para no romper el frontend si ya usa
                 | row.calificacion, y también como "calificacion_n" por claridad.
@@ -160,26 +176,40 @@ class TableConstanciasController extends Controller
             $q->where('c.estatus', $estatus);
         }
 
-        // NUEVOS FILTROS
-        if ($entidadFiltro !== '') {
-            $q->where('c.entidad', 'ILIKE', "%{$entidadFiltro}%");
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | Filtros administrativos
+        |--------------------------------------------------------------------------
+        | Solo se aplican si el usuario es ADMIN.
+        | Para evitar capturas libres, el frontend los muestra como ComboBox.
+        */
+        if ($isAdmin) {
+            if ($entidadFiltro !== '') {
+                $q->whereRaw(
+                    "UPPER(BTRIM(COALESCE(c.entidad::text, ''))) = ?",
+                    [$this->norm($entidadFiltro)]
+                );
+            }
 
-        if ($tipoNominaFiltro !== '') {
-            $q->where('c.tipo_nomina', 'ILIKE', "%{$tipoNominaFiltro}%");
-        }
+            if ($tipoNominaFiltro !== '') {
+                $q->whereRaw(
+                    "UPPER(BTRIM(COALESCE(c.tipo_nomina::text, ''))) = ?",
+                    [$this->norm($tipoNominaFiltro)]
+                );
+            }
 
-        if ($cluesFiltro !== '') {
-            $q->where('c.clues', 'ILIKE', "%{$cluesFiltro}%");
+            if ($cluesFiltro !== '') {
+                $q->whereRaw(
+                    "UPPER(BTRIM(COALESCE(c.clues::text, ''))) = ?",
+                    [$this->norm($cluesFiltro)]
+                );
+            }
         }
 
         if ($search !== '') {
-            $q->where(function ($w) use ($search) {
+            $q->where(function ($w) use ($search, $isAdmin) {
                 $w->where('c.curp', 'ILIKE', "%{$search}%")
                   ->orWhere('c.nombre_curso', 'ILIKE', "%{$search}%")
-                  ->orWhere('c.entidad', 'ILIKE', "%{$search}%")
-                  ->orWhere('c.tipo_nomina', 'ILIKE', "%{$search}%")
-                  ->orWhere('c.clues', 'ILIKE', "%{$search}%")
                   ->orWhereRaw("CAST(c.anio AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("CAST(c.estatus AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("
@@ -189,6 +219,12 @@ class TableConstanciasController extends Controller
                             NULLIF(TRIM(cap.apellido_materno), '')
                         )) ILIKE ?
                     ", ["%{$search}%"]);
+
+                if ($isAdmin) {
+                    $w->orWhere('c.entidad', 'ILIKE', "%{$search}%")
+                      ->orWhere('c.tipo_nomina', 'ILIKE', "%{$search}%")
+                      ->orWhere('c.clues', 'ILIKE', "%{$search}%");
+                }
             });
         }
 
@@ -202,9 +238,15 @@ class TableConstanciasController extends Controller
             ->get();
 
         return response()->json([
-            'list'   => $list,
-            'allRow' => $allRow,
-            'row'    => count($list),
+            'list'     => $list,
+            'allRow'   => $allRow,
+            'row'      => count($list),
+            'is_admin' => $isAdmin,
         ]);
+    }
+
+    private function norm($value): string
+    {
+        return mb_strtoupper(trim((string) $value), 'UTF-8');
     }
 }

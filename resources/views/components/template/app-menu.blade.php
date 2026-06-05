@@ -1,16 +1,18 @@
 <aside class="sidenav navbar navbar-vertical navbar-expand-xs border-0 border-radius-xl my-3 fixed-start ms-3"
     id="sidenav-main">
-    <div class="sidenav-header">
+    <div class="sidenav-header sidebar-brand-header">
         <i class="fas fa-times p-3 cursor-pointer text-secondary opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
             aria-hidden="true" id="iconSidenav"></i>
 
-        <a class="navbar-brand m-0" href="{{ route('pac') }}">
-            <img src="{{ asset('assets/images/bienestar/logo_imss_blanco.png') }}" alt="main_logo"
-                style="height: 54px !important; width: auto !important;">
+        <a class="navbar-brand m-0 sidebar-brand-link" href="{{ route('pac') }}" aria-label="Ir a Mi plantilla">
+            <span class="sidebar-brand-logo-wrap">
+                <img src="{{ asset('assets/images/bienestar/logo_imss_blanco.png') }}" alt="main_logo"
+                    class="sidebar-brand-logo">
+            </span>
         </a>
     </div>
 
-    <hr class="horizontal dark mt-0">
+    <hr class="horizontal dark mt-0 sidebar-soft-divider">
 
     @php
         $user = auth()->user();
@@ -28,7 +30,58 @@
         // Usuarios que pueden ver y operar constancias
         $canAccessConstancias = auth()->check()
             && method_exists($user, 'hasAnyRole')
-            && $user->hasAnyRole(['admin_oc', 'supervisor_oc', 'revisor_est']);
+            && $user->hasAnyRole(['admin_oc', 'supervisor_oc', 'revisor_est', 'supervisor_est']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Datos de sesión para ventana informativa
+        |--------------------------------------------------------------------------
+        | Solo se consultan datos esenciales del usuario autenticado.
+        | No se expone password, remember_token ni datos sensibles.
+        */
+        $datosSesion = null;
+        $rolesSesion = [];
+
+        if (auth()->check()) {
+            try {
+                $datosSesion = \Illuminate\Support\Facades\DB::table('administracion.users as u')
+                    ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
+                    ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
+                    ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
+                    ->where('u.id', $user->id)
+                    ->select([
+                        'u.name',
+                        'u.email',
+                        'u.status',
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(ce.nombre, 'No asignado') as entidad_nombre"),
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(ctn.codigo, 'No asignado') as tipo_nomina_codigo"),
+                        \Illuminate\Support\Facades\DB::raw("COALESCE(cc.clues, 'No asignado') as clues_codigo"),
+                    ])
+                    ->first();
+
+                $rolesSesion = \Illuminate\Support\Facades\DB::table('administracion.user_roles as ur')
+                    ->join('administracion.roles as r', 'r.id', '=', 'ur.role_id')
+                    ->where('ur.user_id', $user->id)
+                    ->where('r.is_active', true)
+                    ->orderBy('r.code')
+                    ->pluck('r.code')
+                    ->filter(fn ($rol) => trim((string) $rol) !== '')
+                    ->values()
+                    ->all();
+
+            } catch (\Throwable $e) {
+                $datosSesion = (object) [
+                    'name' => $user->name ?? 'No asignado',
+                    'email' => $user->email ?? 'No asignado',
+                    'status' => $user->status ?? false,
+                    'entidad_nombre' => 'No asignado',
+                    'tipo_nomina_codigo' => 'No asignado',
+                    'clues_codigo' => 'No asignado',
+                ];
+
+                $rolesSesion = [];
+            }
+        }
 
         $avisosPrivacidad = [
             [
@@ -45,7 +98,31 @@
     @endphp
 
     <div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
-        <ul class="navbar-nav">
+        <ul class="navbar-nav sidebar-menu-list">
+
+            {{-- Mi sesión: primera opción del menú, visible para todo usuario autenticado --}}
+            @auth
+                <li class="nav-item">
+                    <a href="#"
+                       id="btnMiSesion"
+                       class="nav-link mi-sesion-nav-link"
+                       aria-label="Ver información de mi sesión">
+
+                        <div class="icon icon-shape icon-sm shadow border-radius-md text-center me-2 d-flex align-items-center justify-content-center mi-sesion-nav-icon">
+                            <i class="fa fa-user-circle"></i>
+                        </div>
+
+                        <span class="nav-link-text ms-1">
+                            Mi sesión
+                        </span>
+
+                        <span class="mi-sesion-nav-indicator" aria-hidden="true"></span>
+                    </a>
+                </li>
+
+                {{-- Separación visual entre Mi sesión y el menú principal --}}
+                <li class="nav-item menu-after-session-spacer" aria-hidden="true"></li>
+            @endauth
 
             {{-- Siempre visible --}}
             <x-button.button-nav-menu
@@ -99,7 +176,7 @@
 
             @endif
 
-            {{-- Constancias: Admin OC + Supervisor OC + Revisor EST --}}
+            {{-- Constancias: Admin OC + Supervisor OC + Revisor EST + Supervisor EST --}}
             @if($canAccessConstancias)
                 <x-button.button-nav-menu
                     active="constancias"
@@ -124,7 +201,8 @@
             <li class="nav-item privacy-nav-bottom">
                 <a href="#"
                    id="btnAvisoPrivacidad"
-                   class="nav-link privacy-nav-link">
+                   class="nav-link privacy-nav-link"
+                   aria-label="Consultar aviso de privacidad">
 
                     <div class="icon icon-shape icon-sm shadow border-radius-md text-center me-2 d-flex align-items-center justify-content-center privacy-nav-icon">
                         <i class="fa-solid fa-shield-halved"></i>
@@ -146,34 +224,196 @@
 <style>
     /*
     |--------------------------------------------------------------------------
-    | Acomodo del menú lateral
+    | Diseño base del menú lateral
     |--------------------------------------------------------------------------
     */
 
     #sidenav-main {
         overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 1rem 2.5rem rgba(16, 49, 43, 0.16) !important;
+    }
+
+    #sidenav-main .sidebar-brand-header {
+        min-height: 5.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.05rem 1rem 0.7rem 1rem;
+    }
+
+    #sidenav-main .sidebar-brand-link {
+        width: calc(100% - 1.2rem);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0.55rem 0.75rem;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transition: all 0.2s ease-in-out;
+    }
+
+    #sidenav-main .sidebar-brand-link:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.18);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+    }
+
+    #sidenav-main .sidebar-brand-logo-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+    }
+
+    #sidenav-main .sidebar-brand-logo {
+        height: 54px !important;
+        width: auto !important;
+        max-width: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 0.35rem 0.65rem rgba(0, 0, 0, 0.18));
+    }
+
+    #sidenav-main .sidebar-soft-divider {
+        margin-left: 1rem;
+        margin-right: 1rem;
+        opacity: 0.18;
+        background: rgba(255, 255, 255, 0.55);
     }
 
     #sidenav-main #sidenav-collapse-main {
-        height: calc(100vh - 120px);
-        max-height: calc(100vh - 120px);
-        overflow: hidden !important;
+        height: calc(100vh - 126px);
+        max-height: calc(100vh - 126px);
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        padding: 0 0 0.65rem 0;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
     }
 
-    #sidenav-main #sidenav-collapse-main .navbar-nav {
+    #sidenav-main #sidenav-collapse-main::-webkit-scrollbar {
+        width: 0.35rem;
+    }
+
+    #sidenav-main #sidenav-collapse-main::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #sidenav-main #sidenav-collapse-main::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.22);
+        border-radius: 999px;
+    }
+
+    #sidenav-main #sidenav-collapse-main .sidebar-menu-list {
         min-height: 100%;
         display: flex;
         flex-direction: column;
+        padding-bottom: 0.1rem;
+    }
+
+    #sidenav-main .navbar-nav > .nav-item {
+        position: relative;
+    }
+
+    #sidenav-main .navbar-nav .nav-link {
+        border-radius: 0.85rem;
+        transition: background 0.2s ease-in-out, transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    #sidenav-main .navbar-nav .nav-link:not(.mi-sesion-nav-link):not(.privacy-nav-link):hover {
+        transform: translateX(2px);
+        background: rgba(255, 255, 255, 0.07) !important;
     }
 
     .sidebar-bottom-spacer {
         margin-top: auto;
-        min-height: 0.5rem;
+        min-height: 0.65rem;
     }
 
     .privacy-nav-bottom {
-        margin-top: 0.25rem;
-        padding-bottom: 0.25rem;
+        margin-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mi sesión en sidebar
+    |--------------------------------------------------------------------------
+    */
+
+    .mi-sesion-nav-link {
+        position: relative;
+        display: flex !important;
+        align-items: center !important;
+        min-height: 3.05rem;
+        padding: 0.675rem 0.95rem !important;
+        margin: 0.1rem 0.65rem 0.15rem 0.65rem;
+        border-radius: 0.95rem;
+        cursor: pointer;
+        overflow: hidden;
+        isolation: isolate;
+        transition: all 0.2s ease-in-out;
+        background:
+            radial-gradient(circle at 88% 15%, rgba(188, 149, 92, 0.42), transparent 30%),
+            linear-gradient(135deg, rgba(35, 91, 78, 0.98) 0%, rgba(16, 49, 43, 0.98) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 0.55rem 1.25rem rgba(16, 49, 43, 0.24);
+    }
+
+    .mi-sesion-nav-link::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 45%);
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+    .mi-sesion-nav-link:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.26);
+        box-shadow: 0 0.75rem 1.45rem rgba(16, 49, 43, 0.30);
+    }
+
+    .mi-sesion-nav-icon {
+        width: 2rem !important;
+        height: 2rem !important;
+        min-width: 2rem !important;
+        background: rgba(255, 255, 255, 0.16) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.26);
+        box-shadow: none !important;
+    }
+
+    .mi-sesion-nav-icon i {
+        color: #ffffff !important;
+        font-size: 0.95rem;
+    }
+
+    .mi-sesion-nav-link .nav-link-text {
+        color: #ffffff !important;
+        font-size: 0.875rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: 0.01rem;
+    }
+
+    .mi-sesion-nav-indicator {
+        width: 0.48rem;
+        height: 0.48rem;
+        border-radius: 50%;
+        background: #BC955C;
+        margin-left: auto;
+        box-shadow: 0 0 0 0.22rem rgba(188, 149, 92, 0.18);
+    }
+
+    .menu-after-session-spacer {
+        height: 0.9rem;
+        margin: 0 0.9rem 0.45rem 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     /*
@@ -183,23 +423,302 @@
     */
 
     .privacy-nav-link {
+        display: flex !important;
+        align-items: center !important;
+        min-height: 3rem;
+        padding: 0.65rem 0.95rem !important;
+        margin: 0 0.65rem;
+        border-radius: 0.95rem;
         cursor: pointer;
         transition: all 0.2s ease-in-out;
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .privacy-nav-link:hover {
-        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.09);
+        border-color: rgba(255, 255, 255, 0.16);
+        box-shadow: 0 0.45rem 1rem rgba(0, 0, 0, 0.10);
     }
 
     .privacy-nav-icon {
+        width: 2rem !important;
+        height: 2rem !important;
+        min-width: 2rem !important;
         background: rgba(255, 255, 255, 0.14) !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: none !important;
     }
 
     .privacy-nav-icon i {
         color: #ffffff !important;
         font-size: 0.9rem;
+    }
+
+    .privacy-nav-link .nav-link-text {
+        color: rgba(255, 255, 255, 0.96) !important;
+        font-size: 0.84rem;
+        font-weight: 750;
+        line-height: 1.15;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Modales SweetAlert - base compartida
+    |--------------------------------------------------------------------------
+    */
+
+    .swal2-popup.swal-session-popup,
+    .swal2-popup.swal-privacy-popup,
+    .swal2-popup.swal-logout-popup {
+        border-radius: 1.35rem !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        box-shadow: 0 1.4rem 3.4rem rgba(0, 0, 0, 0.24) !important;
+        border: 1px solid rgba(16, 49, 43, 0.10) !important;
+    }
+
+    .swal2-html-container.swal-session-html,
+    .swal2-html-container.swal-privacy-html {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    .swal-session-close,
+    .swal-privacy-close {
+        color: #ffffff !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+
+    .swal-session-close:hover,
+    .swal-privacy-close:hover {
+        color: #ffffff !important;
+        transform: scale(1.08);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Modal Mi sesión
+    |--------------------------------------------------------------------------
+    */
+
+    .session-modal {
+        text-align: left;
+        background: #f8faf9;
+    }
+
+    .session-modal-header {
+        position: relative;
+        display: flex;
+        gap: 0.95rem;
+        align-items: center;
+        padding: 1.35rem 1.45rem;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 88% 18%, rgba(188, 149, 92, 0.40), transparent 30%),
+            linear-gradient(135deg, #235B4E 0%, #10312B 100%);
+        color: #ffffff;
+    }
+
+    .session-modal-header::after {
+        content: '';
+        position: absolute;
+        right: -2.7rem;
+        bottom: -2.7rem;
+        width: 8rem;
+        height: 8rem;
+        border-radius: 50%;
+        border: 1.2rem solid rgba(255, 255, 255, 0.06);
+        pointer-events: none;
+    }
+
+    .session-modal-badge {
+        width: 3rem;
+        height: 3rem;
+        min-width: 3rem;
+        border-radius: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.23);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    }
+
+    .session-modal-badge i {
+        color: #ffffff;
+        font-size: 1.2rem;
+    }
+
+    .session-modal-title-wrap {
+        position: relative;
+        z-index: 1;
+    }
+
+    .session-modal-title {
+        margin: 0;
+        color: #ffffff;
+        font-size: 1.18rem;
+        font-weight: 850;
+        line-height: 1.2;
+        letter-spacing: -0.01rem;
+    }
+
+    .session-modal-subtitle {
+        margin: 0.34rem 0 0 0;
+        color: rgba(255, 255, 255, 0.80);
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+
+    .session-modal-body {
+        padding: 1.1rem;
+    }
+
+    .session-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.78rem;
+        align-items: stretch;
+    }
+
+    .session-info-item {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.72rem;
+        align-items: center;
+        min-height: 4.35rem;
+        padding: 0.82rem 0.88rem;
+        border-radius: 1rem;
+        background: #ffffff;
+        border: 1px solid rgba(35, 91, 78, 0.12);
+        box-shadow: 0 0.45rem 1.1rem rgba(16, 49, 43, 0.055);
+    }
+
+    .session-info-item-full {
+        grid-column: 1 / -1;
+    }
+
+    .session-info-icon {
+        width: 2.15rem;
+        height: 2.15rem;
+        min-width: 2.15rem;
+        border-radius: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(35, 91, 78, 0.08);
+        color: #235B4E;
+    }
+
+    .session-info-icon i {
+        color: #235B4E;
+        font-size: 0.86rem;
+    }
+
+    .session-info-label {
+        display: block;
+        color: #667085;
+        font-size: 0.68rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.035rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .session-info-value {
+        color: #111827;
+        font-size: 0.84rem;
+        font-weight: 800;
+        line-height: 1.34;
+        overflow-wrap: anywhere;
+    }
+
+    .session-status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.38rem;
+        padding: 0.32rem 0.58rem;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 850;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .session-status-chip::before {
+        content: '';
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 50%;
+    }
+
+    .session-status-chip.is-active {
+        color: #235B4E;
+        background: rgba(35, 91, 78, 0.10);
+        border: 1px solid rgba(35, 91, 78, 0.16);
+    }
+
+    .session-status-chip.is-active::before {
+        background: #235B4E;
+    }
+
+    .session-status-chip.is-inactive {
+        color: #7f1d1d;
+        background: rgba(127, 29, 29, 0.08);
+        border: 1px solid rgba(127, 29, 29, 0.12);
+    }
+
+    .session-status-chip.is-inactive::before {
+        background: #7f1d1d;
+    }
+
+    .session-role-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.42rem;
+    }
+
+    .session-role-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.34rem 0.58rem;
+        border-radius: 999px;
+        color: #10312B;
+        background: rgba(188, 149, 92, 0.14);
+        border: 1px solid rgba(188, 149, 92, 0.22);
+        font-size: 0.74rem;
+        font-weight: 850;
+        line-height: 1;
+    }
+
+    .session-role-chip-empty {
+        color: #667085;
+        background: rgba(102, 112, 133, 0.08);
+        border-color: rgba(102, 112, 133, 0.12);
+    }
+
+    .session-modal-note {
+        display: flex;
+        gap: 0.55rem;
+        align-items: flex-start;
+        margin: 0.95rem 0 0 0;
+        padding: 0.78rem 0.86rem;
+        border-radius: 0.95rem;
+        background: rgba(188, 149, 92, 0.12);
+        color: #6f4e21;
+        font-size: 0.75rem;
+        line-height: 1.38;
+        border: 1px solid rgba(188, 149, 92, 0.16);
+    }
+
+    .session-modal-note i {
+        color: #BC955C;
+        margin-top: 0.12rem;
     }
 
     /*
@@ -208,40 +727,47 @@
     |--------------------------------------------------------------------------
     */
 
-    .swal2-popup.swal-privacy-popup {
-        border-radius: 1.35rem !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.22) !important;
-    }
-
-    .swal2-html-container.swal-privacy-html {
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-    }
-
     .privacy-modal {
         text-align: left;
-        background: #ffffff;
+        background: #f8faf9;
     }
 
     .privacy-modal-header {
+        position: relative;
+        display: flex;
+        gap: 0.95rem;
+        align-items: center;
         padding: 1.35rem 1.45rem;
-        background: linear-gradient(135deg, #235B4E 0%, #10312B 100%);
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 88% 18%, rgba(188, 149, 92, 0.40), transparent 30%),
+            linear-gradient(135deg, #235B4E 0%, #10312B 100%);
         color: #ffffff;
     }
 
+    .privacy-modal-header::after {
+        content: '';
+        position: absolute;
+        right: -2.7rem;
+        bottom: -2.7rem;
+        width: 8rem;
+        height: 8rem;
+        border-radius: 50%;
+        border: 1.2rem solid rgba(255, 255, 255, 0.06);
+        pointer-events: none;
+    }
+
     .privacy-modal-badge {
-        width: 2.7rem;
-        height: 2.7rem;
-        border-radius: 0.9rem;
+        width: 3rem;
+        height: 3rem;
+        min-width: 3rem;
+        border-radius: 1rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: rgba(255, 255, 255, 0.14);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        margin-bottom: 0.7rem;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.23);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
     }
 
     .privacy-modal-badge i {
@@ -249,23 +775,29 @@
         font-size: 1.15rem;
     }
 
+    .privacy-modal-title-wrap {
+        position: relative;
+        z-index: 1;
+    }
+
     .privacy-modal-title {
         margin: 0;
         color: #ffffff;
-        font-size: 1.15rem;
-        font-weight: 800;
-        line-height: 1.25;
+        font-size: 1.18rem;
+        font-weight: 850;
+        line-height: 1.2;
+        letter-spacing: -0.01rem;
     }
 
     .privacy-modal-subtitle {
-        margin: 0.35rem 0 0 0;
-        color: rgba(255, 255, 255, 0.78);
-        font-size: 0.86rem;
+        margin: 0.34rem 0 0 0;
+        color: rgba(255, 255, 255, 0.80);
+        font-size: 0.85rem;
         line-height: 1.4;
     }
 
     .privacy-modal-body {
-        padding: 1.15rem;
+        padding: 1.12rem;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.9rem;
@@ -275,32 +807,48 @@
         position: relative;
         display: flex;
         flex-direction: column;
-        min-height: 10rem;
+        min-height: 10.25rem;
         padding: 1rem;
-        border-radius: 1rem;
+        border-radius: 1.05rem;
         text-decoration: none;
         background: #ffffff;
-        border: 1px solid rgba(35, 91, 78, 0.16);
-        box-shadow: 0 0.45rem 1.1rem rgba(16, 49, 43, 0.08);
+        border: 1px solid rgba(35, 91, 78, 0.14);
+        box-shadow: 0 0.5rem 1.2rem rgba(16, 49, 43, 0.075);
         transition: all 0.2s ease-in-out;
+        overflow: hidden;
+    }
+
+    .privacy-modal-card::after {
+        content: attr(data-document-number);
+        position: absolute;
+        right: 0.8rem;
+        top: 0.55rem;
+        color: rgba(35, 91, 78, 0.06);
+        font-size: 3rem;
+        font-weight: 900;
+        line-height: 1;
+        pointer-events: none;
     }
 
     .privacy-modal-card:hover {
         transform: translateY(-3px);
-        border-color: rgba(35, 91, 78, 0.35);
-        box-shadow: 0 0.75rem 1.45rem rgba(16, 49, 43, 0.14);
+        border-color: rgba(35, 91, 78, 0.30);
+        box-shadow: 0 0.8rem 1.55rem rgba(16, 49, 43, 0.13);
+        text-decoration: none;
     }
 
     .privacy-modal-card-icon {
-        width: 2.45rem;
-        height: 2.45rem;
-        border-radius: 0.85rem;
+        width: 2.5rem;
+        height: 2.5rem;
+        min-width: 2.5rem;
+        border-radius: 0.9rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: rgba(35, 91, 78, 0.10);
+        background: rgba(35, 91, 78, 0.09);
         color: #235B4E;
         margin-bottom: 0.8rem;
+        border: 1px solid rgba(35, 91, 78, 0.10);
     }
 
     .privacy-modal-card-icon i {
@@ -309,67 +857,262 @@
     }
 
     .privacy-modal-card-title {
+        position: relative;
+        z-index: 1;
         color: #10312B;
         font-size: 0.95rem;
-        font-weight: 800;
+        font-weight: 850;
         line-height: 1.25;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.42rem;
     }
 
     .privacy-modal-card-description {
+        position: relative;
+        z-index: 1;
         color: #667085;
         font-size: 0.78rem;
-        line-height: 1.4;
+        line-height: 1.42;
         margin-bottom: 0.9rem;
     }
 
     .privacy-modal-card-action {
+        position: relative;
+        z-index: 1;
         margin-top: auto;
         display: inline-flex;
         align-items: center;
-        gap: 0.4rem;
+        gap: 0.42rem;
         color: #235B4E;
         font-size: 0.78rem;
-        font-weight: 800;
+        font-weight: 850;
     }
 
     .privacy-modal-footer {
-        padding: 0 1.15rem 1.15rem 1.15rem;
+        padding: 0 1.12rem 1.12rem 1.12rem;
     }
 
     .privacy-modal-note {
+        display: flex;
+        gap: 0.55rem;
+        align-items: flex-start;
         margin: 0;
-        padding: 0.75rem 0.85rem;
-        border-radius: 0.85rem;
+        padding: 0.78rem 0.86rem;
+        border-radius: 0.95rem;
         background: rgba(188, 149, 92, 0.12);
         color: #6f4e21;
         font-size: 0.75rem;
-        line-height: 1.35;
+        line-height: 1.38;
+        border: 1px solid rgba(188, 149, 92, 0.16);
     }
 
-    .swal-privacy-close {
-        color: #ffffff !important;
-        transition: all 0.2s ease-in-out !important;
+    .privacy-modal-note i {
+        color: #BC955C;
+        margin-top: 0.12rem;
     }
 
-    .swal-privacy-close:hover {
-        color: #ffffff !important;
-        transform: scale(1.08);
+    /*
+    |--------------------------------------------------------------------------
+    | Modal cerrar sesión
+    |--------------------------------------------------------------------------
+    */
+
+    .swal2-popup.swal-logout-popup {
+        padding: 1.4rem !important;
+    }
+
+    .swal-logout-title {
+        color: #10312B !important;
+        font-weight: 850 !important;
+        letter-spacing: -0.01rem !important;
+    }
+
+    .swal-logout-confirm,
+    .swal-logout-cancel {
+        border-radius: 0.8rem !important;
+        font-weight: 800 !important;
+        padding: 0.68rem 1rem !important;
     }
 
     @media (max-width: 768px) {
-        .privacy-modal-body {
+        .privacy-modal-body,
+        .session-info-grid {
             grid-template-columns: 1fr;
         }
 
         .privacy-modal-card {
             min-height: auto;
         }
+
+        .session-modal-header,
+        .privacy-modal-header {
+            align-items: flex-start;
+            padding-right: 2.7rem;
+        }
     }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    const escapeHtml = (value) => {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    };
+
+    const buildRoleChips = (roles) => {
+        if (!Array.isArray(roles) || !roles.length) {
+            return '<span class="session-role-chip session-role-chip-empty">Sin rol asignado</span>';
+        }
+
+        return roles.map((rol) => {
+            return `<span class="session-role-chip">${escapeHtml(rol)}</span>`;
+        }).join('');
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mi sesión
+    |--------------------------------------------------------------------------
+    */
+
+    const datosSesion = @json($datosSesion);
+    const rolesSesion = @json($rolesSesion);
+    const btnMiSesion = document.getElementById('btnMiSesion');
+
+    if (btnMiSesion && datosSesion) {
+        btnMiSesion.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            const cuentaActiva = Boolean(datosSesion.status);
+            const estatusTexto = cuentaActiva ? 'Cuenta activa' : 'Cuenta inactiva';
+            const estatusClass = cuentaActiva ? 'is-active' : 'is-inactive';
+
+            Swal.fire({
+                html: `
+                    <div class="session-modal">
+                        <div class="session-modal-header">
+                            <div class="session-modal-badge">
+                                <i class="fa fa-user-circle"></i>
+                            </div>
+
+                            <div class="session-modal-title-wrap">
+                                <h2 class="session-modal-title">
+                                    Mi sesión
+                                </h2>
+
+                                <p class="session-modal-subtitle">
+                                    Información del usuario actualmente autenticado.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="session-modal-body">
+                            <div class="session-info-grid">
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-user"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">Nombre</span>
+                                        <div class="session-info-value">${escapeHtml(datosSesion.name || 'No asignado')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-envelope"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">Correo electrónico</span>
+                                        <div class="session-info-value">${escapeHtml(datosSesion.email || 'No asignado')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-map-marker-alt"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">Entidad</span>
+                                        <div class="session-info-value">${escapeHtml(datosSesion.entidad_nombre || 'No asignado')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-briefcase"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">Tipo de nómina</span>
+                                        <div class="session-info-value">${escapeHtml(datosSesion.tipo_nomina_codigo || 'No asignado')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-hospital"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">CLUES</span>
+                                        <div class="session-info-value">${escapeHtml(datosSesion.clues_codigo || 'No asignado')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-check-circle"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label">Estatus</span>
+                                        <div class="session-info-value">
+                                            <span class="session-status-chip ${estatusClass}">${escapeHtml(estatusTexto)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="session-info-item session-info-item-full">
+                                    <span class="session-info-icon">
+                                        <i class="fa fa-user-shield"></i>
+                                    </span>
+                                    <div>
+                                        <span class="session-info-label"></span>
+                                        <div class="session-info-value session-role-wrap">
+                                            ${buildRoleChips(rolesSesion)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="session-modal-note">
+                                <i class="fa fa-info-circle"></i>
+                                <span>Esta ventana es únicamente informativa. No permite capturar ni modificar información.</span>
+                            </p>
+                        </div>
+                    </div>
+                `,
+                width: '45rem',
+                padding: 0,
+                showConfirmButton: false,
+                showCloseButton: true,
+                focusConfirm: false,
+                customClass: {
+                    popup: 'swal-session-popup',
+                    htmlContainer: 'swal-session-html',
+                    closeButton: 'swal-session-close',
+                },
+            });
+        });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Avisos de privacidad
@@ -379,25 +1122,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const avisosPrivacidad = @json($avisosPrivacidad);
     const btnAvisoPrivacidad = document.getElementById('btnAvisoPrivacidad');
 
-    const escapeHtml = (value) => {
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
-    };
-
     if (btnAvisoPrivacidad) {
         btnAvisoPrivacidad.addEventListener('click', function (e) {
             e.preventDefault();
 
-            const cards = avisosPrivacidad.map((aviso) => {
+            const cards = avisosPrivacidad.map((aviso, index) => {
                 return `
                     <a class="privacy-modal-card"
                        href="${escapeHtml(aviso.url)}"
                        target="_blank"
-                       rel="noopener noreferrer">
+                       rel="noopener noreferrer"
+                       data-document-number="0${index + 1}">
 
                         <span class="privacy-modal-card-icon">
                             <i class="fa fa-file-pdf"></i>
@@ -427,13 +1162,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <i class="fa-solid fa-shield-halved"></i>
                             </div>
 
-                            <h2 class="privacy-modal-title">
-                                Aviso de Privacidad
-                            </h2>
+                            <div class="privacy-modal-title-wrap">
+                                <h2 class="privacy-modal-title">
+                                    Aviso de Privacidad
+                                </h2>
 
-                            <p class="privacy-modal-subtitle">
-                                Selecciona el documento que deseas consultar. El archivo se abrirá en una nueva pestaña.
-                            </p>
+                                <p class="privacy-modal-subtitle">
+                                    Selecciona el documento que deseas consultar. El archivo se abrirá en una nueva pestaña.
+                                </p>
+                            </div>
                         </div>
 
                         <div class="privacy-modal-body">
@@ -442,7 +1179,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <div class="privacy-modal-footer">
                             <p class="privacy-modal-note">
-                                Los documentos corresponden a los avisos oficiales publicados por IMSS-Bienestar.
+                                <i class="fa fa-info-circle"></i>
+                                <span>Los documentos corresponden a los avisos oficiales publicados por IMSS-Bienestar.</span>
                             </p>
                         </div>
                     </div>
@@ -484,6 +1222,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmButtonColor: '#235B4E',
                 cancelButtonColor: '#6c757d',
                 reverseButtons: true,
+                customClass: {
+                    popup: 'swal-logout-popup',
+                    title: 'swal-logout-title',
+                    confirmButton: 'swal-logout-confirm',
+                    cancelButton: 'swal-logout-cancel',
+                },
             }).then((result) => {
                 if (result.isConfirmed) {
                     window.location.href = this.href;

@@ -50,31 +50,37 @@
               </div>
             </div>
 
-            <!-- NUEVOS FILTROS -->
-            <div class="row g-2">
-              <inputField
-                :grid="gridx3"
-                label="Entidad"
-                id="entidad"
-                v-model="f_entidad"
-                :uppercase="true"
-              />
+            <!-- Filtros administrativos: solo ADMIN -->
+            <div v-if="isAdminConstancias" class="row g-2">
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">Entidad</label>
+                <select v-model="f_entidad" class="form-select">
+                  <option value="">Todas</option>
+                  <option v-for="op in opcionesEntidades" :key="op" :value="op">
+                    {{ op }}
+                  </option>
+                </select>
+              </div>
 
-              <inputField
-                :grid="gridx3"
-                label="Tipo nómina"
-                id="tipo_nomina"
-                v-model="f_tipo_nomina"
-                :uppercase="true"
-              />
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">Tipo nómina</label>
+                <select v-model="f_tipo_nomina" class="form-select">
+                  <option value="">Todos</option>
+                  <option v-for="op in opcionesTiposNomina" :key="op" :value="op">
+                    {{ op }}
+                  </option>
+                </select>
+              </div>
 
-              <inputField
-                :grid="gridx3"
-                label="CLUES"
-                id="clues"
-                v-model="f_clues"
-                :uppercase="true"
-              />
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">CLUES</label>
+                <select v-model="f_clues" class="form-select">
+                  <option value="">Todas</option>
+                  <option v-for="op in opcionesClues" :key="op" :value="op">
+                    {{ op }}
+                  </option>
+                </select>
+              </div>
             </div>
 
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
@@ -107,15 +113,19 @@
             <tableRow value="Acciones" />
             <tableRow value="CURP" />
             <tableRow value="Nombre del curso" />
-            <tableRow value="Entidad" />
-            <tableRow value="Tipo nómina" />
-            <tableRow value="CLUES" />
+
+            <template v-if="isAdminConstancias">
+              <tableRow value="Entidad" />
+              <tableRow value="Tipo nómina" />
+              <tableRow value="CLUES" />
+            </template>
+
             <tableRow value="Estatus" />
           </tr>
         </thead>
 
         <tbody>
-          <tableEmpty v-if="item.length === 0" :colspan="7" />
+          <tableEmpty v-if="item.length === 0" :colspan="tableColspan" />
 
           <tr v-for="row in item" :key="row.id_respuesta">
             <td class="text-center" style="width: 90px;">
@@ -145,26 +155,28 @@
               </span>
             </td>
 
-            <td class="align-middle text-center" style="min-width: 180px;">
-              <span
-                class="text-secondary text-xs"
-                style="font-weight:600; white-space:normal; overflow-wrap:anywhere;"
-              >
-                {{ row.entidad || '—' }}
-              </span>
-            </td>
+            <template v-if="isAdminConstancias">
+              <td class="align-middle text-center" style="min-width: 180px;">
+                <span
+                  class="text-secondary text-xs"
+                  style="font-weight:600; white-space:normal; overflow-wrap:anywhere;"
+                >
+                  {{ row.entidad || '—' }}
+                </span>
+              </td>
 
-            <td class="align-middle text-center" style="width: 130px;">
-              <span class="text-secondary text-xs" style="font-weight:600;">
-                {{ row.tipo_nomina || '—' }}
-              </span>
-            </td>
+              <td class="align-middle text-center" style="width: 130px;">
+                <span class="text-secondary text-xs" style="font-weight:600;">
+                  {{ row.tipo_nomina || '—' }}
+                </span>
+              </td>
 
-            <td class="align-middle text-center" style="width: 140px;">
-              <span class="text-secondary text-xs" style="font-weight:600;">
-                {{ row.clues || '—' }}
-              </span>
-            </td>
+              <td class="align-middle text-center" style="width: 140px;">
+                <span class="text-secondary text-xs" style="font-weight:600;">
+                  {{ row.clues || '—' }}
+                </span>
+              </td>
+            </template>
 
             <td class="align-middle text-center" style="width: 130px;">
               <span class="text-secondary text-xs" style="font-weight:600;">
@@ -585,7 +597,6 @@ import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputField from '@helpers/form/input-field.vue'
 
 const gridx2 = ref('col-12 col-md-6 mb-2')
-const gridx3 = ref('col-12 col-md-4 mb-2')
 
 // filtros
 const f_curp = ref('')
@@ -593,10 +604,17 @@ const f_curso = ref('')
 const f_anio = ref('')
 const f_estatus = ref('')
 
-// nuevos filtros
+// filtros administrativos
 const f_entidad = ref('')
 const f_tipo_nomina = ref('')
 const f_clues = ref('')
+
+const isAdminConstancias = ref(false)
+const opcionesEntidades = ref([])
+const opcionesTiposNomina = ref([])
+const opcionesClues = ref([])
+
+const tableColspan = computed(() => isAdminConstancias.value ? 7 : 4)
 
 // tabla
 const item = ref([])
@@ -658,6 +676,39 @@ function formatCalificacion(value) {
   return num.toFixed(2).replace(/\.00$/, '')
 }
 
+async function fetchFilterOptions() {
+  try {
+    const { data } = await axios.post('/constancias/filter-options')
+
+    isAdminConstancias.value = !!data.is_admin
+
+    if (!isAdminConstancias.value) {
+      opcionesEntidades.value = []
+      opcionesTiposNomina.value = []
+      opcionesClues.value = []
+
+      f_entidad.value = ''
+      f_tipo_nomina.value = ''
+      f_clues.value = ''
+
+      return
+    }
+
+    opcionesEntidades.value = data.entidades || []
+    opcionesTiposNomina.value = data.tipos_nomina || []
+    opcionesClues.value = data.clues || []
+  } catch (e) {
+    isAdminConstancias.value = false
+    opcionesEntidades.value = []
+    opcionesTiposNomina.value = []
+    opcionesClues.value = []
+
+    f_entidad.value = ''
+    f_tipo_nomina.value = ''
+    f_clues.value = ''
+  }
+}
+
 const fetchTableData = async () => {
   const MIN_SPINNER_DURATION = 1000
   const startTime = Date.now()
@@ -666,7 +717,7 @@ const fetchTableData = async () => {
   const offset = (currentPage.value - 1) * limit.value
 
   try {
-    const { data } = await axios.post('/constancias/table', {
+    const payload = {
       limit: limit.value,
       offset,
       search: searchTerm.value,
@@ -674,28 +725,38 @@ const fetchTableData = async () => {
       curso: f_curso.value,
       anio: f_anio.value,
       estatus: f_estatus.value,
-
-      // nuevos filtros
-      entidad: f_entidad.value,
-      tipo_nomina: f_tipo_nomina.value,
-      clues: f_clues.value,
-
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
-    })
+    }
+
+    if (isAdminConstancias.value) {
+      payload.entidad = f_entidad.value
+      payload.tipo_nomina = f_tipo_nomina.value
+      payload.clues = f_clues.value
+    }
+
+    const { data } = await axios.post('/constancias/table', payload)
 
     item.value = data.list || []
     rowsAll.value = data.allRow || 0
     row.value = data.row || 0
+
+    if (typeof data.is_admin !== 'undefined') {
+      isAdminConstancias.value = !!data.is_admin
+    }
+
+    const hasAdminFilters = isAdminConstancias.value && (
+      f_entidad.value ||
+      f_tipo_nomina.value ||
+      f_clues.value
+    )
 
     const hasFilters = !!(
       f_curp.value ||
       f_curso.value ||
       f_anio.value ||
       f_estatus.value ||
-      f_entidad.value ||
-      f_tipo_nomina.value ||
-      f_clues.value ||
-      searchTerm.value
+      searchTerm.value ||
+      hasAdminFilters
     )
 
     if (hasFilters && (data.allRow || 0) === 0) {
@@ -710,8 +771,10 @@ const fetchTableData = async () => {
   }
 }
 
-onMounted(() => {
-  fetchTableData()
+onMounted(async () => {
+  await fetchFilterOptions()
+  await fetchTableData()
+
   setupTableEvents({
     fetchTableData,
     searchTerm,
