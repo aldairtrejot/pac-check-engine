@@ -40,34 +40,19 @@
         | No se expone password, remember_token ni datos sensibles.
         */
         $datosSesion = null;
-        $rolesSesion = [];
 
         if (auth()->check()) {
             try {
                 $datosSesion = \Illuminate\Support\Facades\DB::table('administracion.users as u')
                     ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
-                    ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
-                    ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
                     ->where('u.id', $user->id)
                     ->select([
                         'u.name',
                         'u.email',
                         'u.status',
                         \Illuminate\Support\Facades\DB::raw("COALESCE(ce.nombre, 'No asignado') as entidad_nombre"),
-                        \Illuminate\Support\Facades\DB::raw("COALESCE(ctn.codigo, 'No asignado') as tipo_nomina_codigo"),
-                        \Illuminate\Support\Facades\DB::raw("COALESCE(cc.clues, 'No asignado') as clues_codigo"),
                     ])
                     ->first();
-
-                $rolesSesion = \Illuminate\Support\Facades\DB::table('administracion.user_roles as ur')
-                    ->join('administracion.roles as r', 'r.id', '=', 'ur.role_id')
-                    ->where('ur.user_id', $user->id)
-                    ->where('r.is_active', true)
-                    ->orderBy('r.code')
-                    ->pluck('r.code')
-                    ->filter(fn ($rol) => trim((string) $rol) !== '')
-                    ->values()
-                    ->all();
 
             } catch (\Throwable $e) {
                 $datosSesion = (object) [
@@ -75,11 +60,7 @@
                     'email' => $user->email ?? 'No asignado',
                     'status' => $user->status ?? false,
                     'entidad_nombre' => 'No asignado',
-                    'tipo_nomina_codigo' => 'No asignado',
-                    'clues_codigo' => 'No asignado',
                 ];
-
-                $rolesSesion = [];
             }
         }
 
@@ -575,13 +556,13 @@
     }
 
     .session-modal-body {
-        padding: 1.1rem;
+        padding: 1.15rem;
     }
 
     .session-info-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.78rem;
+        gap: 0.82rem;
         align-items: stretch;
     }
 
@@ -591,16 +572,12 @@
         grid-template-columns: auto minmax(0, 1fr);
         gap: 0.72rem;
         align-items: center;
-        min-height: 4.35rem;
-        padding: 0.82rem 0.88rem;
+        min-height: 4.55rem;
+        padding: 0.9rem 0.95rem;
         border-radius: 1rem;
         background: #ffffff;
         border: 1px solid rgba(35, 91, 78, 0.12);
         box-shadow: 0 0.45rem 1.1rem rgba(16, 49, 43, 0.055);
-    }
-
-    .session-info-item-full {
-        grid-column: 1 / -1;
     }
 
     .session-info-icon {
@@ -675,50 +652,6 @@
 
     .session-status-chip.is-inactive::before {
         background: #7f1d1d;
-    }
-
-    .session-role-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.42rem;
-    }
-
-    .session-role-chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.34rem 0.58rem;
-        border-radius: 999px;
-        color: #10312B;
-        background: rgba(188, 149, 92, 0.14);
-        border: 1px solid rgba(188, 149, 92, 0.22);
-        font-size: 0.74rem;
-        font-weight: 850;
-        line-height: 1;
-    }
-
-    .session-role-chip-empty {
-        color: #667085;
-        background: rgba(102, 112, 133, 0.08);
-        border-color: rgba(102, 112, 133, 0.12);
-    }
-
-    .session-modal-note {
-        display: flex;
-        gap: 0.55rem;
-        align-items: flex-start;
-        margin: 0.95rem 0 0 0;
-        padding: 0.78rem 0.86rem;
-        border-radius: 0.95rem;
-        background: rgba(188, 149, 92, 0.12);
-        color: #6f4e21;
-        font-size: 0.75rem;
-        line-height: 1.38;
-        border: 1px solid rgba(188, 149, 92, 0.16);
-    }
-
-    .session-modal-note i {
-        color: #BC955C;
-        margin-top: 0.12rem;
     }
 
     /*
@@ -968,16 +901,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .replaceAll("'", '&#039;');
     };
 
-    const buildRoleChips = (roles) => {
-        if (!Array.isArray(roles) || !roles.length) {
-            return '<span class="session-role-chip session-role-chip-empty">Sin rol asignado</span>';
-        }
-
-        return roles.map((rol) => {
-            return `<span class="session-role-chip">${escapeHtml(rol)}</span>`;
-        }).join('');
-    };
-
     /*
     |--------------------------------------------------------------------------
     | Mi sesión
@@ -985,7 +908,6 @@ document.addEventListener('DOMContentLoaded', () => {
     */
 
     const datosSesion = @json($datosSesion);
-    const rolesSesion = @json($rolesSesion);
     const btnMiSesion = document.getElementById('btnMiSesion');
 
     if (btnMiSesion && datosSesion) {
@@ -1010,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </h2>
 
                                 <p class="session-modal-subtitle">
-                                    Información del usuario actualmente autenticado.
+                                    Información principal del usuario actualmente autenticado.
                                 </p>
                             </div>
                         </div>
@@ -1049,26 +971,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 <div class="session-info-item">
                                     <span class="session-info-icon">
-                                        <i class="fa fa-briefcase"></i>
-                                    </span>
-                                    <div>
-                                        <span class="session-info-label">Tipo de nómina</span>
-                                        <div class="session-info-value">${escapeHtml(datosSesion.tipo_nomina_codigo || 'No asignado')}</div>
-                                    </div>
-                                </div>
-
-                                <div class="session-info-item">
-                                    <span class="session-info-icon">
-                                        <i class="fa fa-hospital"></i>
-                                    </span>
-                                    <div>
-                                        <span class="session-info-label">CLUES</span>
-                                        <div class="session-info-value">${escapeHtml(datosSesion.clues_codigo || 'No asignado')}</div>
-                                    </div>
-                                </div>
-
-                                <div class="session-info-item">
-                                    <span class="session-info-icon">
                                         <i class="fa fa-check-circle"></i>
                                     </span>
                                     <div>
@@ -1078,28 +980,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <div class="session-info-item session-info-item-full">
-                                    <span class="session-info-icon">
-                                        <i class="fa fa-user-shield"></i>
-                                    </span>
-                                    <div>
-                                        <span class="session-info-label"></span>
-                                        <div class="session-info-value session-role-wrap">
-                                            ${buildRoleChips(rolesSesion)}
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
-
-                            <p class="session-modal-note">
-                                <i class="fa fa-info-circle"></i>
-                                <span>Esta ventana es únicamente informativa. No permite capturar ni modificar información.</span>
-                            </p>
                         </div>
                     </div>
                 `,
-                width: '45rem',
+                width: '39rem',
                 padding: 0,
                 showConfirmButton: false,
                 showCloseButton: true,
