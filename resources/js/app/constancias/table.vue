@@ -24,22 +24,22 @@
           aria-labelledby="headingFiltersConst"
           data-bs-parent="#accordionFiltersConst"
         >
-          <div class="accordion-body bg-light rounded-bottom p-2">
-            <div class="row g-1 mb-0">
-              <inputField :grid="gridx3" label="CURP" id="curp" v-model="f_curp" :uppercase="true" />
-              <inputField :grid="gridx3" label="Nombre del curso" id="curso" v-model="f_curso" :uppercase="true" />
+          <div class="accordion-body bg-light rounded-bottom p-3">
+            <div class="row g-2">
+              <inputField :grid="gridx2" label="CURP" id="curp" v-model="f_curp" :uppercase="true" />
+              <inputField :grid="gridx2" label="Nombre del curso" id="curso" v-model="f_curso" :uppercase="true" />
             </div>
 
-            <div class="row" style="margin-top: -70px !important;">
+            <div class="row g-2">
               <inputField
-                grid="col-12 col-md-6 mb-6"
+                grid="col-12 col-md-6 mb-2"
                 type="number"
                 label="Año"
                 id="anio"
                 v-model="f_anio"
               />
 
-              <div class="col-12 col-md-6 mb-6">
+              <div class="col-12 col-md-6 mb-2">
                 <label class="form-label">Estatus</label>
                 <select v-model="f_estatus" class="form-select">
                   <option value="">Todos</option>
@@ -48,6 +48,33 @@
                   <option :value="3">Rechazado</option>
                 </select>
               </div>
+            </div>
+
+            <!-- NUEVOS FILTROS -->
+            <div class="row g-2">
+              <inputField
+                :grid="gridx3"
+                label="Entidad"
+                id="entidad"
+                v-model="f_entidad"
+                :uppercase="true"
+              />
+
+              <inputField
+                :grid="gridx3"
+                label="Tipo nómina"
+                id="tipo_nomina"
+                v-model="f_tipo_nomina"
+                :uppercase="true"
+              />
+
+              <inputField
+                :grid="gridx3"
+                label="CLUES"
+                id="clues"
+                v-model="f_clues"
+                :uppercase="true"
+              />
             </div>
 
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
@@ -80,15 +107,18 @@
             <tableRow value="Acciones" />
             <tableRow value="CURP" />
             <tableRow value="Nombre del curso" />
+            <tableRow value="Entidad" />
+            <tableRow value="Tipo nómina" />
+            <tableRow value="CLUES" />
             <tableRow value="Estatus" />
           </tr>
         </thead>
 
         <tbody>
-          <tableEmpty v-if="item.length === 0" :colspan="4" />
+          <tableEmpty v-if="item.length === 0" :colspan="7" />
 
           <tr v-for="row in item" :key="row.id_respuesta">
-            <td class="text-center">
+            <td class="text-center" style="width: 90px;">
               <div class="button-container">
                 <tableButtonDefault
                   color="#081F5E"
@@ -100,16 +130,46 @@
               </div>
             </td>
 
-            <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.curp }}</span>
+            <td class="align-middle text-center" style="width: 170px;">
+              <span class="text-secondary text-xs" style="font-weight:600;">
+                {{ row.curp || '—' }}
+              </span>
             </td>
 
-            <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.nombre_curso }}</span>
+            <td class="align-middle text-start" style="min-width: 360px;">
+              <span
+                class="text-secondary text-xs"
+                style="font-weight:600; white-space:normal; overflow-wrap:anywhere;"
+              >
+                {{ row.nombre_curso || '—' }}
+              </span>
             </td>
 
-            <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ row.estatus_txt }}</span>
+            <td class="align-middle text-center" style="min-width: 180px;">
+              <span
+                class="text-secondary text-xs"
+                style="font-weight:600; white-space:normal; overflow-wrap:anywhere;"
+              >
+                {{ row.entidad || '—' }}
+              </span>
+            </td>
+
+            <td class="align-middle text-center" style="width: 130px;">
+              <span class="text-secondary text-xs" style="font-weight:600;">
+                {{ row.tipo_nomina || '—' }}
+              </span>
+            </td>
+
+            <td class="align-middle text-center" style="width: 140px;">
+              <span class="text-secondary text-xs" style="font-weight:600;">
+                {{ row.clues || '—' }}
+              </span>
+            </td>
+
+            <td class="align-middle text-center" style="width: 130px;">
+              <span class="text-secondary text-xs" style="font-weight:600;">
+                {{ row.estatus_txt || '—' }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -280,7 +340,7 @@
                     <div class="col-6 col-md-3">
                       <div class="text-xs text-secondary" style="font-weight:800;">Horas</div>
                       <div class="text-sm" style="font-weight:900; color:#111;">
-                        {{ d.horas_realizadas || '—' }}
+                        {{ d.horas_realizadas ?? '—' }}
                       </div>
                     </div>
 
@@ -524,13 +584,19 @@ import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputField from '@helpers/form/input-field.vue'
 
-const gridx3 = ref('col-12 col-md-6 mb-6')
+const gridx2 = ref('col-12 col-md-6 mb-2')
+const gridx3 = ref('col-12 col-md-4 mb-2')
 
 // filtros
 const f_curp = ref('')
 const f_curso = ref('')
 const f_anio = ref('')
 const f_estatus = ref('')
+
+// nuevos filtros
+const f_entidad = ref('')
+const f_tipo_nomina = ref('')
+const f_clues = ref('')
 
 // tabla
 const item = ref([])
@@ -608,6 +674,12 @@ const fetchTableData = async () => {
       curso: f_curso.value,
       anio: f_anio.value,
       estatus: f_estatus.value,
+
+      // nuevos filtros
+      entidad: f_entidad.value,
+      tipo_nomina: f_tipo_nomina.value,
+      clues: f_clues.value,
+
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     })
 
@@ -615,7 +687,17 @@ const fetchTableData = async () => {
     rowsAll.value = data.allRow || 0
     row.value = data.row || 0
 
-    const hasFilters = !!(f_curp.value || f_curso.value || f_anio.value || f_estatus.value || searchTerm.value)
+    const hasFilters = !!(
+      f_curp.value ||
+      f_curso.value ||
+      f_anio.value ||
+      f_estatus.value ||
+      f_entidad.value ||
+      f_tipo_nomina.value ||
+      f_clues.value ||
+      searchTerm.value
+    )
+
     if (hasFilters && (data.allRow || 0) === 0) {
       notyf.error('No se encontraron constancias con los filtros seleccionados.')
     }
@@ -645,6 +727,9 @@ function clear_search() {
   f_curso.value = ''
   f_anio.value = ''
   f_estatus.value = ''
+  f_entidad.value = ''
+  f_tipo_nomina.value = ''
+  f_clues.value = ''
   fetchTableData()
 }
 

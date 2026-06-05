@@ -31,13 +31,18 @@ class TableConstanciasController extends Controller
         }
 
         $request->validate([
-            'limit'   => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
-            'offset'  => 'nullable|integer|min:0',
-            'curp'    => 'nullable|string|max:255',
-            'curso'   => 'nullable|string|max:255',
-            'anio'    => 'nullable',
-            'estatus' => 'nullable',
-            'search'  => 'nullable|string|max:255',
+            'limit'       => 'nullable|integer|min:1|max:' . self::MAX_LIMIT,
+            'offset'      => 'nullable|integer|min:0',
+            'curp'        => 'nullable|string|max:255',
+            'curso'       => 'nullable|string|max:255',
+            'anio'        => 'nullable',
+            'estatus'     => 'nullable',
+            'search'      => 'nullable|string|max:255',
+
+            // NUEVOS FILTROS
+            'entidad'     => 'nullable|string|max:255',
+            'tipo_nomina' => 'nullable|string|max:255',
+            'clues'       => 'nullable|string|max:255',
         ]);
 
         $limit  = (int) $request->input('limit', self::DEFAULT_LIMIT);
@@ -51,6 +56,11 @@ class TableConstanciasController extends Controller
         $anioRaw    = trim((string) $request->input('anio', ''));
         $estatusRaw = trim((string) $request->input('estatus', ''));
         $search     = trim((string) $request->input('search', ''));
+
+        // NUEVOS FILTROS
+        $entidadFiltro    = trim((string) $request->input('entidad', ''));
+        $tipoNominaFiltro = trim((string) $request->input('tipo_nomina', ''));
+        $cluesFiltro      = trim((string) $request->input('clues', ''));
 
         $anio    = ($anioRaw !== '' && is_numeric($anioRaw)) ? (int) $anioRaw : null;
         $estatus = ($estatusRaw !== '' && is_numeric($estatusRaw)) ? (int) $estatusRaw : null;
@@ -83,6 +93,11 @@ class TableConstanciasController extends Controller
                 'c.nombre_curso',
                 'c.anio',
                 'c.estatus',
+
+                // NUEVAS COLUMNAS PARA MOSTRAR EN LA TABLA
+                'c.entidad',
+                'c.tipo_nomina',
+                'c.clues',
 
                 /*
                 |--------------------------------------------------------------------------
@@ -126,7 +141,7 @@ class TableConstanciasController extends Controller
         // - sin id_puesto
         // - sin estatus
         $q->whereNotNull('c.id_puesto')
-          ->whereRaw("BTRIM(COALESCE(c.id_puesto, '')) <> ''")
+          ->whereRaw("BTRIM(COALESCE(c.id_puesto::text, '')) <> ''")
           ->whereNotNull('c.estatus');
 
         if ($curp !== '') {
@@ -145,10 +160,26 @@ class TableConstanciasController extends Controller
             $q->where('c.estatus', $estatus);
         }
 
+        // NUEVOS FILTROS
+        if ($entidadFiltro !== '') {
+            $q->where('c.entidad', 'ILIKE', "%{$entidadFiltro}%");
+        }
+
+        if ($tipoNominaFiltro !== '') {
+            $q->where('c.tipo_nomina', 'ILIKE', "%{$tipoNominaFiltro}%");
+        }
+
+        if ($cluesFiltro !== '') {
+            $q->where('c.clues', 'ILIKE', "%{$cluesFiltro}%");
+        }
+
         if ($search !== '') {
             $q->where(function ($w) use ($search) {
                 $w->where('c.curp', 'ILIKE', "%{$search}%")
                   ->orWhere('c.nombre_curso', 'ILIKE', "%{$search}%")
+                  ->orWhere('c.entidad', 'ILIKE', "%{$search}%")
+                  ->orWhere('c.tipo_nomina', 'ILIKE', "%{$search}%")
+                  ->orWhere('c.clues', 'ILIKE', "%{$search}%")
                   ->orWhereRaw("CAST(c.anio AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("CAST(c.estatus AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("
