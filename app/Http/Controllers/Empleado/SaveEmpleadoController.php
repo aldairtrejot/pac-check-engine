@@ -46,8 +46,8 @@ class SaveEmpleadoController extends Controller
             // CURP nuevo
             $curpNuevo = strtoupper(trim($validated['curp']));
 
-            // 🔹 CURP base por defecto (aunque no venga en el form)
-            //    Se usa siempre OIJN850210MMCRMN07 como plantilla.
+            // CURP base por defecto, aunque no venga en el formulario.
+            // Se usa siempre OIJN850210MMCRMN07 como plantilla.
             $curpBase = strtoupper(trim($validated['curp_base'] ?? 'OIJN850210MMCRMN07'));
 
             // 2) Checar duplicado en plantilla
@@ -60,24 +60,26 @@ class SaveEmpleadoController extends Controller
 
                 return back()
                     ->withInput()
-                    ->withErrors(['curp' => 'Ya existe un empleado con esta CURP en la plantilla.']);
+                    ->withErrors([
+                        'curp' => 'Ya existe un empleado con esta CURP en la plantilla.',
+                    ]);
             }
 
-            // 3) Tomar registro base (usando la CURP fija OIJN850210MMCRMN07)
+            // 3) Tomar registro base usando la CURP fija OIJN850210MMCRMN07
             $datosBase = DB::table('public.a2_acciones_capacitacion')
                 ->whereRaw('UPPER(TRIM(curp)) = ?', [$curpBase])
                 ->first();
 
             // 4) Siguiente id_cat y id_puesto
             $maxIdCat  = DB::table('public.a2_acciones_capacitacion')->max('id_cat');
-            $nextIdCat = ((int)($maxIdCat ?? 9999)) + 1;
+            $nextIdCat = ((int) ($maxIdCat ?? 9999)) + 1;
 
             $maxIdPuesto  = DB::table('public.a2_acciones_capacitacion')->max('id_puesto');
             $nextIdPuesto = ($maxIdPuesto ?? 0) + 1;
 
-            // 5) Datos para plantilla (a2_acciones_capacitacion)
+            // 5) Datos para plantilla: public.a2_acciones_capacitacion
             $insertCap = [
-                'id_cat'            => (string)$nextIdCat,
+                'id_cat'            => (int) $nextIdCat,
                 'ramo'              => $datosBase->ramo ?? null,
                 'ur'                => $datosBase->ur ?? null,
                 'id_puesto'         => $nextIdPuesto,
@@ -85,68 +87,168 @@ class SaveEmpleadoController extends Controller
                 'sexo'              => strtoupper($validated['sexo']),
                 'nombre_puesto'     => strtoupper(trim($validated['nombre_puesto'])),
                 'puesto'            => strtoupper(trim($validated['nombre_puesto'])),
+
                 'nivel_salarial'    => !empty($validated['nivel_salarial'])
                                         ? strtoupper(trim($validated['nivel_salarial']))
                                         : ($datosBase->nivel_salarial ?? null),
+
                 'tipo_personal'     => $datosBase->tipo_personal ?? null,
+
                 'quincena'          => $validated['quincena'] ?? ($datosBase->quincena ?? 18),
+
                 'rfc'               => !empty($validated['rfc'])
                                         ? strtoupper(trim($validated['rfc']))
                                         : ($datosBase->rfc ?? null),
+
                 'codigo_puesto'     => !empty($validated['codigo_puesto'])
                                         ? strtoupper(trim($validated['codigo_puesto']))
                                         : ($datosBase->codigo_puesto ?? null),
+
                 'clave_clues'       => !empty($validated['clave_clues'])
                                         ? strtoupper(trim($validated['clave_clues']))
                                         : ($datosBase->clave_clues ?? null),
+
                 'descripcion_clues' => !empty($validated['descripcion_clues'])
                                         ? strtoupper(trim($validated['descripcion_clues']))
                                         : ($datosBase->descripcion_clues ?? null),
+
                 'tipo_contratacion' => !empty($validated['tipo_contratacion'])
                                         ? $validated['tipo_contratacion']
                                         : ($datosBase->tipo_contratacion ?? null),
+
                 'nomina'            => !empty($validated['nomina'])
                                         ? $validated['nomina']
                                         : ($datosBase->nomina ?? null),
+
                 'nombre'            => strtoupper(trim($validated['nombre'])),
+
                 'apellido_paterno'  => strtoupper(trim($validated['apellido_paterno'])),
+
                 'apellido_materno'  => !empty($validated['apellido_materno'])
                                         ? strtoupper(trim($validated['apellido_materno']))
                                         : null,
+
                 'nivel_atencion'    => !empty($validated['nivel_atencion'])
                                         ? $validated['nivel_atencion']
                                         : ($datosBase->nivel_atencion ?? null),
+
                 'entidad'           => !empty($validated['entidad'])
                                         ? $validated['entidad']
                                         : ($datosBase->entidad ?? null),
-                'num_cursos'        => 0,
+
+                // Nuevos valores por defecto solicitados
+                'num_cursos'        => 1210,
                 'activo'            => 2,
+                'id_unidad'         => 12,
+                'id_coordinacion'   => 10,
             ];
 
-            // Copiar campos de acciones/finalidades si hay base (de la CURP fija)
+            // Copiar campos de acciones/finalidades si hay base
             if ($datosBase) {
                 $camposACopiar = [
-                    'id_accion_1','id_finalidad_1','id_finalidad_1_bis','col_l',
-                    'id_accion_2','id_finalidad_2','id_finalidad_2_bis','col_p',
-                    'id_accion_3','id_finalidad_3','id_finalidad_3_bis','col_t',
-                    'id_accion_4','id_finalidad_4','id_finalidad_4_bis','col_x',
-                    'id_accion_5','id_finalidad_5','id_finalidad_5_bis','col_ab',
-                    'id_accion_6','id_finalidad_6','id_finalidad_6_bis','col_af',
-                    'id_accion_7','id_finalidad_7','id_finalidad_7_bis','col_aj',
-                    'id_accion_8','id_finalidad_8','id_finalidad_8_bis','col_an',
-                    'id_accion_9','id_finalidad_9','id_finalidad_9_bis','col_ar',
-                    'id_accion_10','id_finalidad_10','id_finalidad_10_bis','col_av',
-                    'id_accion_11','id_finalidad_11','id_finalidad_11_bis','col_az',
-                    'id_accion_12','id_finalidad_12','id_finalidad_12_bis','col_bd',
-                    'id_accion_13','id_finalidad_13','id_finalidad_13_bis','col_bh',
-                    'id_accion_14','id_finalidad_14','id_finalidad_14_bis','col_bl',
-                    'id_accion_15','id_finalidad_15','id_finalidad_15_bis','col_bp',
-                    'id_accion_16','id_finalidad_16','id_finalidad_16_bis','col_bt',
-                    'id_accion_17','id_finalidad_17','id_finalidad_17_bis','col_bx',
-                    'id_accion_18','id_finalidad_18','id_finalidad_18_bis','col_cb',
-                    'id_accion_19','id_finalidad_19','id_finalidad_19_bis','col_cf',
-                    'id_accion_20','id_finalidad_20','id_finalidad_20_bis','col_cj',
-                    'col_ck','codigo_claves_de_acciones_de_capacitacion','contador',
+                    'id_accion_1',
+                    'id_finalidad_1',
+                    'id_finalidad_1_bis',
+                    'col_l',
+
+                    'id_accion_2',
+                    'id_finalidad_2',
+                    'id_finalidad_2_bis',
+                    'col_p',
+
+                    'id_accion_3',
+                    'id_finalidad_3',
+                    'id_finalidad_3_bis',
+                    'col_t',
+
+                    'id_accion_4',
+                    'id_finalidad_4',
+                    'id_finalidad_4_bis',
+                    'col_x',
+
+                    'id_accion_5',
+                    'id_finalidad_5',
+                    'id_finalidad_5_bis',
+                    'col_ab',
+
+                    'id_accion_6',
+                    'id_finalidad_6',
+                    'id_finalidad_6_bis',
+                    'col_af',
+
+                    'id_accion_7',
+                    'id_finalidad_7',
+                    'id_finalidad_7_bis',
+                    'col_aj',
+
+                    'id_accion_8',
+                    'id_finalidad_8',
+                    'id_finalidad_8_bis',
+                    'col_an',
+
+                    'id_accion_9',
+                    'id_finalidad_9',
+                    'id_finalidad_9_bis',
+                    'col_ar',
+
+                    'id_accion_10',
+                    'id_finalidad_10',
+                    'id_finalidad_10_bis',
+                    'col_av',
+
+                    'id_accion_11',
+                    'id_finalidad_11',
+                    'id_finalidad_11_bis',
+                    'col_az',
+
+                    'id_accion_12',
+                    'id_finalidad_12',
+                    'id_finalidad_12_bis',
+                    'col_bd',
+
+                    'id_accion_13',
+                    'id_finalidad_13',
+                    'id_finalidad_13_bis',
+                    'col_bh',
+
+                    'id_accion_14',
+                    'id_finalidad_14',
+                    'id_finalidad_14_bis',
+                    'col_bl',
+
+                    'id_accion_15',
+                    'id_finalidad_15',
+                    'id_finalidad_15_bis',
+                    'col_bp',
+
+                    'id_accion_16',
+                    'id_finalidad_16',
+                    'id_finalidad_16_bis',
+                    'col_bt',
+
+                    'id_accion_17',
+                    'id_finalidad_17',
+                    'id_finalidad_17_bis',
+                    'col_bx',
+
+                    'id_accion_18',
+                    'id_finalidad_18',
+                    'id_finalidad_18_bis',
+                    'col_cb',
+
+                    'id_accion_19',
+                    'id_finalidad_19',
+                    'id_finalidad_19_bis',
+                    'col_cf',
+
+                    'id_accion_20',
+                    'id_finalidad_20',
+                    'id_finalidad_20_bis',
+                    'col_cj',
+
+                    'col_ck',
+                    'codigo_claves_de_acciones_de_capacitacion',
+                    'contador',
                 ];
 
                 foreach ($camposACopiar as $campo) {
@@ -156,19 +258,26 @@ class SaveEmpleadoController extends Controller
                 }
             }
 
-            // Insertar en plantilla
+            // Insertar empleado en plantilla
             DB::table('public.a2_acciones_capacitacion')->insert($insertCap);
 
             // =========================================================================
-            // 6) Insertar cursos base en a2_acciones_empleados (OBLIGATORIOS)
-            //    ✅ AHORA SON: 1000001 y 1000002
+            // 6) Insertar cursos base en public.a2_acciones_empleados
+            //    Cursos obligatorios: 1000001 y 1000002
             // =========================================================================
             $configCursos = [
-                ['id_accion' => 1000001, 'id_finalidad' => 3],
-                ['id_accion' => 1000002, 'id_finalidad' => 6],
+                [
+                    'id_accion'    => 1000001,
+                    'id_finalidad' => 3,
+                ],
+                [
+                    'id_accion'    => 1000002,
+                    'id_finalidad' => 6,
+                ],
             ];
 
-            $maxIdEmpl = DB::table('public.a2_acciones_empleados')->max('id_empl_accion') ?? 0;
+            $maxIdEmpl = DB::table('public.a2_acciones_empleados')
+                ->max('id_empl_accion') ?? 0;
 
             foreach ($configCursos as $cfg) {
                 // Datos de la acción
@@ -178,12 +287,13 @@ class SaveEmpleadoController extends Controller
                     ->first();
 
                 if (! $accion) {
-                    // Si no existe el curso, lo saltamos (si prefieres que truene, dime y lo cambiamos)
+                    // Si no existe el curso, se omite para no romper el alta del empleado.
                     continue;
                 }
 
-                // id_tematica según tematica de la acción
+                // id_tematica según la temática de la acción
                 $idTematica = null;
+
                 if (!empty($accion->tematica)) {
                     $idTematica = DB::table('public.cat_tematica')
                         ->whereRaw('TRIM(UPPER(tematica)) = TRIM(UPPER(?))', [$accion->tematica])
