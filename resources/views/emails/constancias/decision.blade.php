@@ -73,7 +73,7 @@
 
         $value = str_replace(',', '.', $value);
 
-        if (! is_numeric($value)) {
+        if (!is_numeric($value)) {
             return 0.0;
         }
 
@@ -388,67 +388,67 @@
 
                                                 <tbody>
                                                     @foreach ($historialRows as $historial)
-                                                                                                @php
-                                                                                                    $hNombre = trim((string) data_get($historial, 'nombre_accion', ''));
-                                                                                                    $hHorasReal = data_get($historial, 'horas_real', null);
-                                                                                                    $hInicio = data_get($historial, 'fecha_ini', null);
-                                                                                                    $hFin = data_get($historial, 'fecha_fin', null);
-                                                                                                    $hCalificacion = data_get($historial, 'calificacion', null);
-                                                                                                    $hObservaciones = trim((string) data_get($historial, 'observaciones', ''));
-                                                                                                    $hEstatus = trim((string) data_get($historial, 'estatus_accion', ''));
+                                                        @php
+                                                            $hNombre = trim((string) data_get($historial, 'nombre_accion', ''));
+                                                            $hHorasReal = data_get($historial, 'horas_real', null);
+                                                            $hInicio = data_get($historial, 'fecha_ini', null);
+                                                            $hFin = data_get($historial, 'fecha_fin', null);
+                                                            $hCalificacion = data_get($historial, 'calificacion', null);
+                                                            $hObservaciones = trim((string) data_get($historial, 'observaciones', ''));
+                                                            $hEstatus = trim((string) data_get($historial, 'estatus_accion', ''));
 
-                                                                                                    if ($hEstatus === '') {
-                                                                                                        $hEstatus = !empty($hFin) ? 'CONCLUIDO' : 'PENDIENTE';
-                                                                                                    }
+                                                            if ($hEstatus === '') {
+                                                                $hEstatus = !empty($hFin) ? 'CONCLUIDO' : 'PENDIENTE';
+                                                            }
 
-                                                                                                    $hEstatusNormalizado = strtoupper($hEstatus);
-                                                                                                    $hEstatusColor = $hEstatusNormalizado === 'CONCLUIDO' ? '#1e5b4f' : '#777777';
-                                                                                                    $hEstatusFondo = $hEstatusNormalizado === 'CONCLUIDO' ? '#e5f4ef' : '#f2f2f2';
+                                                            $hEstatusNormalizado = strtoupper($hEstatus);
+                                                            $hEstatusColor = $hEstatusNormalizado === 'CONCLUIDO' ? '#1e5b4f' : '#777777';
+                                                            $hEstatusFondo = $hEstatusNormalizado === 'CONCLUIDO' ? '#e5f4ef' : '#f2f2f2';
 
-                                                                                                    // Para registros pendientes no se muestran horas reales acumuladas ni calificación.
-                                                                                                    // Se muestra 0 horas para dejar claro que aún no aporta al total.
-                                                                                                    $hHorasVista = $hEstatusNormalizado === 'CONCLUIDO'
-                                                                                                        ? $formatNumero($parseHorasNumero($hHorasReal))
-                                                                                                        : '0';
+                                                            // Para registros pendientes no se muestran horas reales acumuladas ni calificación.
+                                                            // Se muestra 0 horas para dejar claro que aún no aporta al total.
+                                                            $hHorasVista = $hEstatusNormalizado === 'CONCLUIDO'
+                                                                ? $formatNumero($parseHorasNumero($hHorasReal))
+                                                                : '0';
 
-                                                                                                    $hCalificacionVista = $hEstatusNormalizado === 'CONCLUIDO'
-                                                                                                        ? $formatNumero($hCalificacion)
-                                                                                                        : '';
-                                                                                                @endphp
+                                                            $hCalificacionVista = $hEstatusNormalizado === 'CONCLUIDO'
+                                                                ? $formatNumero($hCalificacion)
+                                                                : '';
+                                                        @endphp
 
-                                                         <tr>
-                                                                                                    <td valign="top"
-                                                                                                        style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:400; line-height:1.4; text-transform:uppercase;">
-                                                                                                        {{ $hNombre !== '' ? $hNombre : 'SIN NOMBRE' }}
-                                                                                                    </td>
-                                                                                                    <td align="center" valign="top"
-                                                                                                        style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700;">
-                                                                                                        {{ $hHorasVista }}
-                                                                                                    </td>
-                                                                                                    <td align="center" valign="top"
-                                                                                                        style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
-                                                                                                        {{ $formatFecha($hInicio) }}
-                                                                                                    </td>
-                                                                                                    <td align="center" valign="top"
-                                                                                                        style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
-                                                                                                        {{ $formatFecha($hFin) }}
-                                                                                                    </td>
-                                                                                                    <td align="center" valign="top"
-                                                                                                        style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#9b2247; font-size:10.5px; font-weight:800;">
-                                                                                                        {{ $hCalificacionVista }}
-                                                                                                    </td>
-                                                                                                    <td align="center" valign="top"
-                                                                                                        style="padding:9px 6px; border-bottom:1px solid #eeeeee;">
-                                                                                                        <span
-                                                                                                            style="display:inline-block; background-color:{{ $hEstatusFondo }}; color:{{ $hEstatusColor }}; font-size:8.8px; font-weight:800; padding:4px 6px; border-radius:4px; text-transform:uppercase;">
-                                                                                                            {{ $hEstatusNormalizado }}
-                                                                                                        </span>
-                                                                                                    </td>
-                                                                                                    <td valign="top"
-                                                                                                        style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#555555; font-size:10px; line-height:1.4; font-style:italic; text-transform:uppercase;">
-                                                                                                        {{ $hObservaciones !== '' ? $hObservaciones : '-' }}
-                                                                                                    </td>
-                                                                                                </tr>
+                                                        <tr>
+                                                            <td valign="top"
+                                                                style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:400; line-height:1.4; text-transform:uppercase;">
+                                                                {{ $hNombre !== '' ? $hNombre : 'SIN NOMBRE' }}
+                                                            </td>
+                                                            <td align="center" valign="top"
+                                                                style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#333333; font-size:10.5px; font-weight:700;">
+                                                                {{ $hHorasVista }}
+                                                            </td>
+                                                            <td align="center" valign="top"
+                                                                style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
+                                                                {{ $formatFecha($hInicio) }}
+                                                            </td>
+                                                            <td align="center" valign="top"
+                                                                style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#444444; font-size:10px;">
+                                                                {{ $formatFecha($hFin) }}
+                                                            </td>
+                                                            <td align="center" valign="top"
+                                                                style="padding:9px 6px; border-bottom:1px solid #eeeeee; color:#9b2247; font-size:10.5px; font-weight:800;">
+                                                                {{ $hCalificacionVista }}
+                                                            </td>
+                                                            <td align="center" valign="top"
+                                                                style="padding:9px 6px; border-bottom:1px solid #eeeeee;">
+                                                                <span
+                                                                    style="display:inline-block; background-color:{{ $hEstatusFondo }}; color:{{ $hEstatusColor }}; font-size:8.8px; font-weight:800; padding:4px 6px; border-radius:4px; text-transform:uppercase;">
+                                                                    {{ $hEstatusNormalizado }}
+                                                                </span>
+                                                            </td>
+                                                            <td valign="top"
+                                                                style="padding:9px 8px; border-bottom:1px solid #eeeeee; color:#555555; font-size:10px; line-height:1.4; font-style:italic; text-transform:uppercase;">
+                                                                {{ $hObservaciones !== '' ? $hObservaciones : '-' }}
+                                                            </td>
+                                                        </tr>
                                                     @endforeach
                                                 </tbody>
                                             </table>
@@ -495,7 +495,8 @@
                                         <strong style="color:#611232;">CAPACITACIÓN</strong><br>
                                         <strong>RECURSOS HUMANOS</strong><br>
                                         Calle Gustavo E. Campa 54, piso 3, Guadalupe Inn.<br>
-                                        Álvaro Obregón, 01020, Ciudad de México, México.<br>
+                                        Álvaro Obregón, 01020, Ciudad de México, México.<br> 
+                                        Para cualquier duda o aclaración, comunicate al: <br>
                                         Tel: 01(55) 9160 8100 Ext. 111106
                                     </td>
                                 </tr>
