@@ -65,6 +65,7 @@
                   </div>
 
                   <label for="captcha">Captcha</label>
+
                   <div class="mb-2 text-center">
                     <img
                       v-if="captchaSrc"
@@ -151,7 +152,10 @@ function togglePassword() {
 async function refreshCaptcha() {
   try {
     const response = await axios.get('/auth/captcha')
-    captchaSrc.value = response.data.captcha_src + '&_t=' + Date.now()
+    const captchaUrl = response.data?.captcha_src ?? ''
+    const separator = captchaUrl.includes('?') ? '&' : '?'
+
+    captchaSrc.value = captchaUrl ? `${captchaUrl}${separator}_t=${Date.now()}` : ''
     captcha.value = ''
   } catch (error) {
     notyf.error('No se pudo cargar el captcha.')
@@ -176,7 +180,7 @@ async function sendData() {
       return
     }
 
-    window.location.href = `${BASE_URL}/pac`
+    window.location.href = `${String(BASE_URL).replace(/\/$/, '')}/pac`
   } catch (error) {
     clearErrors()
 

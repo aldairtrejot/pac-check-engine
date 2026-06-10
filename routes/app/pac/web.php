@@ -27,9 +27,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/empleado', [ViewEmpleadoController::class, 'view'])->name('empleado');
         Route::post('/empleado/save', [SaveEmpleadoController::class, 'save'])->name('empleado.save');
     });
-Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades']);
-Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones']);
-Route::post('/pac/asignacion-unidad/data', [UnidadCoordinacionPacController::class, 'dataAsignacion']);
-Route::post('/pac/asignacion-unidad/save', [UnidadCoordinacionPacController::class, 'saveAsignacion']);
+    Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades']);
+    Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones']);
+    Route::post('/pac/asignacion-unidad/data', [UnidadCoordinacionPacController::class, 'dataAsignacion']);
+    Route::post('/pac/asignacion-unidad/save', [UnidadCoordinacionPacController::class, 'saveAsignacion']);
 
 });

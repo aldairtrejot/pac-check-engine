@@ -914,7 +914,15 @@ document.addEventListener('DOMContentLoaded', () => {
         btnMiSesion.addEventListener('click', function (e) {
             e.preventDefault();
 
-            const cuentaActiva = Boolean(datosSesion.status);
+            const cuentaActiva =
+                datosSesion.status === true ||
+                datosSesion.status === 1 ||
+                datosSesion.status === '1' ||
+                datosSesion.status === 'true' ||
+                datosSesion.status === 'TRUE' ||
+                datosSesion.status === 'activo' ||
+                datosSesion.status === 'ACTIVO';
+
             const estatusTexto = cuentaActiva ? 'Cuenta activa' : 'Cuenta inactiva';
             const estatusClass = cuentaActiva ? 'is-active' : 'is-inactive';
 

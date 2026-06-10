@@ -102,13 +102,14 @@ class UnidadCoordinacionPacController extends Controller
             }
 
             $cap = DB::table('public.a2_acciones_capacitacion')
-                ->select('id_unidad', 'id_coordinacion')
+                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
                 ->where('id_puesto', (int) $emp->id_puesto)
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
                 ->first();
 
             $idUnidad = $cap->id_unidad ?? null;
             $idCoord  = $cap->id_coordinacion ?? null;
+            $numCursos = $cap->num_cursos ?? null;
 
             $unidadTxt = '';
             $coordTxt  = '';
@@ -129,6 +130,7 @@ class UnidadCoordinacionPacController extends Controller
                 'status'          => true,
                 'id_unidad'       => $idUnidad,
                 'id_coordinacion' => $idCoord,
+                'num_cursos'      => $numCursos,
                 'unidad_txt'      => $unidadTxt,
                 'coordinacion_txt'=> $coordTxt,
             ], 200);
@@ -186,12 +188,27 @@ class UnidadCoordinacionPacController extends Controller
                 ], 200);
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | NUEVO:
+            |--------------------------------------------------------------------------
+            | Se concatena id_unidad + id_coordinacion para guardar el valor
+            | en num_cursos.
+            |
+            | Ejemplo:
+            | id_unidad = 12
+            | id_coordinacion = 10
+            | num_cursos = 1210
+            */
+            $numCursos = (int) ((string) $validated['id_unidad'] . (string) $validated['id_coordinacion']);
+
             $updated = DB::table('public.a2_acciones_capacitacion')
                 ->where('id_puesto', (int) $emp->id_puesto)
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
                 ->update([
                     'id_unidad'       => (int) $validated['id_unidad'],
                     'id_coordinacion' => (int) $validated['id_coordinacion'],
+                    'num_cursos'      => $numCursos,
                 ]);
 
             if (! $updated) {
@@ -213,7 +230,7 @@ class UnidadCoordinacionPacController extends Controller
                 userId: (int) $user->id,
                 modulo: 'PAC',
                 accion: 'ASIGNAR_UNIDAD_COORDINACION',
-                descripcion: 'Se actualizó la unidad y coordinación del empleado',
+                descripcion: 'Se actualizó la unidad, coordinación y num_cursos del empleado',
                 idReferencia: (string) $validated['id'],
                 payload: [
                     'id_empl_accion'  => (int) $validated['id'],
@@ -221,14 +238,16 @@ class UnidadCoordinacionPacController extends Controller
                     'unidad'          => $unidadTxt,
                     'id_coordinacion' => (int) $validated['id_coordinacion'],
                     'coordinacion'    => $coordTxt,
+                    'num_cursos'      => $numCursos,
                 ]
             );
 
             return response()->json([
                 'status'       => true,
-                'message'      => 'Unidad y coordinación asignadas correctamente.',
+                'message'      => 'Unidad y coordinación asignados correctamente.',
                 'unidad'       => $unidadTxt,
                 'coordinacion' => $coordTxt,
+                'num_cursos'   => $numCursos,
             ], 200);
 
         } catch (\Throwable $th) {
