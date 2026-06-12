@@ -37,28 +37,51 @@ class DataPacController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Validación para no mostrar cursos NO VIGENTES
+            | Validación de visibilidad del curso
             |--------------------------------------------------------------------------
-            | Se valida contra:
-            | - public.a1_cat_acciones.estatus = VIGENTE
-            | - public.a2_acciones_empleados.id_cat_estatus:
-            |       NULL = pendiente sin atender
-            |       1    = VIGENTE
-            |       2    = ALTA
+            | Se muestra si:
+            | 1. El curso está VIGENTE en catálogo y el registro del empleado
+            |    está pendiente/vigente/alta.
+            | 2. El curso ya fue CONCLUIDO, aunque el catálogo ahora esté
+            |    NO VIGENTE.
             |
-            | Oculta:
-            |       3    = BAJA
-            |       4    = NO VIGENTE
-            |
-            | No usamos solo id_cat_estatus = 1 porque eso oculta pendientes.
+            | Esto permite conservar historial concluido sin permitir pendientes
+            | de cursos dados de baja.
             */
             $accionVisible = DB::table('public.a2_acciones_empleados as a')
                 ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
                 ->where('a.id_empl_accion', (int) $request->id)
-                ->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
                 ->where(function ($q) {
-                    $q->whereNull('a.id_cat_estatus')
-                        ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Cursos vigentes actuales
+                    |--------------------------------------------------------------------------
+                    */
+                    $q->where(function ($vigente) {
+                        $vigente->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
+                            ->where(function ($estadoEmpleado) {
+                                $estadoEmpleado->whereNull('a.id_cat_estatus')
+                                    ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                            });
+                    })
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Cursos históricos concluidos
+                    |--------------------------------------------------------------------------
+                    | Aunque el catálogo esté NO VIGENTE, si el empleado ya lo concluyó,
+                    | debe seguir apareciendo como historial.
+                    */
+                    ->orWhere(function ($historico) {
+                        $historico->whereNotNull('a.id_cat_estatus')
+                            ->whereNotNull('a.fecha_ini')
+                            ->whereNotNull('a.fecha_fin')
+                            ->whereNotNull('a.id_trimestre')
+                            ->whereNotNull('a.id_instancia')
+                            ->whereRaw("TRIM(a.id_instancia) <> ''")
+                            ->whereNotNull('a.id_cat_tematica')
+                            ->whereRaw("TRIM(a.id_cat_tematica) <> ''");
+                    });
                 })
                 ->exists();
 
@@ -77,16 +100,44 @@ class DataPacController extends Controller
             |--------------------------------------------------------------------------
             | Total de horas reales
             |--------------------------------------------------------------------------
-            | Solo suma cursos vigentes o pendientes válidos.
-            | No suma cursos NO VIGENTES ni dados de baja.
+            | Suma:
+            | - Cursos vigentes actuales.
+            | - Cursos históricos concluidos, aunque el catálogo ya esté NO VIGENTE.
+            |
+            | No suma pendientes de cursos dados de baja / no vigentes.
             */
             $totalHorasReal = DB::table('public.a2_acciones_empleados as a')
                 ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
                 ->whereRaw('UPPER(TRIM(a.curp)) = UPPER(TRIM(?))', [$data->curp])
-                ->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
                 ->where(function ($q) {
-                    $q->whereNull('a.id_cat_estatus')
-                        ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Cursos vigentes actuales
+                    |--------------------------------------------------------------------------
+                    */
+                    $q->where(function ($vigente) {
+                        $vigente->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
+                            ->where(function ($estadoEmpleado) {
+                                $estadoEmpleado->whereNull('a.id_cat_estatus')
+                                    ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                            });
+                    })
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Cursos históricos concluidos
+                    |--------------------------------------------------------------------------
+                    */
+                    ->orWhere(function ($historico) {
+                        $historico->whereNotNull('a.id_cat_estatus')
+                            ->whereNotNull('a.fecha_ini')
+                            ->whereNotNull('a.fecha_fin')
+                            ->whereNotNull('a.id_trimestre')
+                            ->whereNotNull('a.id_instancia')
+                            ->whereRaw("TRIM(a.id_instancia) <> ''")
+                            ->whereNotNull('a.id_cat_tematica')
+                            ->whereRaw("TRIM(a.id_cat_tematica) <> ''");
+                    });
                 })
                 ->sum('a.horas_real');
 

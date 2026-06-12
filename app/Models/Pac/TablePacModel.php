@@ -77,38 +77,51 @@ class TablePacModel extends Model
 
         /*
         |--------------------------------------------------------------------------
-        | FILTRO PRINCIPAL: estatus del catálogo de acciones/cursos
+        | Filtro de visibilidad de cursos
         |--------------------------------------------------------------------------
-        | Este es el filtro que faltaba.
+        | Se muestra si:
         |
-        | Si una acción/curso en public.a1_cat_acciones está como NO VIGENTE,
-        | ya no se muestra en "Mi plantilla", aunque siga asociada al empleado
-        | en public.a2_acciones_empleados.
-        */
-        $query->whereRaw("TRIM(UPPER(COALESCE(a.estatus, ''))) = 'VIGENTE'");
-
-        /*
-        |--------------------------------------------------------------------------
-        | Filtro de estatus del registro PAC del empleado
-        |--------------------------------------------------------------------------
-        | Oculta BAJA y NO VIGENTE del registro asignado al empleado.
+        | 1. El curso está VIGENTE en catálogo y el registro del empleado
+        |    está pendiente/vigente/alta.
         |
-        | Solo muestra registros con:
-        | - NULL = pendiente sin atender
-        | - 1    = VIGENTE
-        | - 2    = ALTA
+        | 2. El curso ya fue CONCLUIDO, aunque después el catálogo se haya
+        |    cambiado a NO VIGENTE.
         |
-        | Oculta:
-        | - 3 = BAJA
-        | - 4 = NO VIGENTE
-        |
-        | IMPORTANTE:
-        | No usar solamente e.id_cat_estatus = 1 porque eso ocultaría cursos
-        | pendientes que todavía vienen con id_cat_estatus NULL.
+        | Esto permite conservar el historial concluido sin permitir pendientes
+        | de cursos dados de baja/no vigentes.
         */
         $query->where(function ($q) {
-            $q->whereNull('e.id_cat_estatus')
-                ->orWhereIn('e.id_cat_estatus', [1, 2]);
+            /*
+            |--------------------------------------------------------------------------
+            | Cursos vigentes actuales
+            |--------------------------------------------------------------------------
+            | Estos pueden estar pendientes o en proceso.
+            */
+            $q->where(function ($vigente) {
+                $vigente->whereRaw("TRIM(UPPER(COALESCE(a.estatus, ''))) = 'VIGENTE'")
+                    ->where(function ($estadoEmpleado) {
+                        $estadoEmpleado->whereNull('e.id_cat_estatus')
+                            ->orWhereIn('e.id_cat_estatus', [1, 2]);
+                    });
+            })
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cursos históricos concluidos
+            |--------------------------------------------------------------------------
+            | Aunque el catálogo esté NO VIGENTE, si el trabajador ya lo concluyó,
+            | debe seguir apareciendo como historial.
+            */
+            ->orWhere(function ($historico) {
+                $historico->whereNotNull('e.id_cat_estatus')
+                    ->whereNotNull('e.fecha_ini')
+                    ->whereNotNull('e.fecha_fin')
+                    ->whereNotNull('e.id_trimestre')
+                    ->whereNotNull('e.id_instancia')
+                    ->whereRaw("TRIM(e.id_instancia) <> ''")
+                    ->whereNotNull('e.id_cat_tematica')
+                    ->whereRaw("TRIM(e.id_cat_tematica) <> ''");
+            });
         });
 
         /*
