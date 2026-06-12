@@ -14,7 +14,7 @@ class CoursePacController extends Controller
 
     /**
      * Catálogo de cursos para el modal "Agregar curso".
-     * Solo muestra cursos con estatus VIGENTE o ALTA.
+     * Solo muestra cursos con estatus VIGENTE.
      */
     public function listCourses(Request $request)
     {
@@ -28,10 +28,7 @@ class CoursePacController extends Controller
                     a.nombre_accion as text,
                     a.estatus as estatus
                 ")
-                ->where(function ($q) {
-                    $q->whereRaw("UPPER(TRIM(a.estatus)) = 'VIGENTE'")
-                      ->orWhereRaw("UPPER(TRIM(a.estatus)) = 'ALTA'");
-                })
+                ->whereRaw("TRIM(UPPER(COALESCE(a.estatus, ''))) = 'VIGENTE'")
                 ->orderBy('a.nombre_accion', 'ASC')
                 ->get();
 
@@ -55,7 +52,7 @@ class CoursePacController extends Controller
 
     /**
      * Agrega un curso (acción) a un empleado.
-     * Solo permite cursos con estatus VIGENTE o ALTA.
+     * Solo permite cursos con estatus VIGENTE.
      */
     public function addCourseToEmployee(Request $request)
     {
@@ -103,10 +100,10 @@ class CoursePacController extends Controller
 
                 $estatusAccion = mb_strtoupper(trim((string) $accion->estatus), 'UTF-8');
 
-                if (! in_array($estatusAccion, ['VIGENTE', 'ALTA'], true)) {
+                if ($estatusAccion !== 'VIGENTE') {
                     return [
                         'status'  => false,
-                        'message' => 'Solo se pueden agregar cursos con estatus VIGENTE o ALTA.',
+                        'message' => 'Solo se pueden agregar cursos con estatus VIGENTE.',
                     ];
                 }
 

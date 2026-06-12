@@ -826,52 +826,82 @@ class UpdateEstatusConstanciasController extends Controller
         return self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT;
     }
 
-    private function historialCapacitacionPorCurp(string $curp): array
-    {
-        $curp = trim($curp);
+   private function historialCapacitacionPorCurp(string $curp): array
+{
+    $curp = trim($curp);
 
-        if ($curp === '') {
-            return [];
-        }
-
-        try {
-            return DB::table('public.a2_acciones_empleados as a')
-                ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
-                ->leftJoin('public.cat_estatus as c', 'a.id_cat_estatus', '=', 'c.id_cat_estatus')
-                ->whereRaw('TRIM(UPPER(a.curp)) = TRIM(UPPER(?))', [$curp])
-                ->select([
-                    'a.id_accion',
-                    'b.nombre_accion',
-                    'b.duracion_hrs',
-                    'a.horas_real',
-                    'a.fecha_ini',
-                    'a.fecha_fin',
-                    'a.calificacion',
-                    DB::raw("COALESCE(c.descripcion, 'SIN ESTATUS') AS descripcion_estatus"),
-                    DB::raw("COALESCE(a.observaciones, '') AS observaciones"),
-                    DB::raw("
-                        CASE
-                            WHEN a.fecha_fin IS NOT NULL THEN 'CONCLUIDO'
-                            ELSE 'PENDIENTE'
-                        END AS estatus_accion
-                    "),
-                ])
-                ->orderByRaw("CASE WHEN a.fecha_fin IS NULL THEN 1 ELSE 0 END")
-                ->orderByDesc('a.fecha_fin')
-                ->orderByDesc('a.fecha_ini')
-                ->get()
-                ->map(fn ($row) => (array) $row)
-                ->toArray();
-
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo obtener historial de capacitación para correo de constancias.', [
-                'curp'    => $curp,
-                'message' => $e->getMessage(),
-            ]);
-
-            return [];
-        }
+    if ($curp === '') {
+        return [];
     }
+
+    try {
+        /*
+        |--------------------------------------------------------------------------
+        | Historial de capacitación para correo
+        |--------------------------------------------------------------------------
+        | Debe mostrar:
+        | - Cursos concluidos vigentes.
+        | - Cursos pendientes vigentes.
+        | - Cursos en ALTA.
+        |
+        | Debe ocultar:
+        | - Cursos cuyo catálogo esté NO VIGENTE.
+        | - Cursos del empleado con estatus BAJA o NO VIGENTE.
+        |
+        | Reglas:
+        | - public.a1_cat_acciones.estatus debe ser VIGENTE.
+        | - public.a2_acciones_empleados.id_cat_estatus puede ser:
+        |       NULL = pendiente sin atender
+        |       1    = VIGENTE
+        |       2    = ALTA
+        */
+        return DB::table('public.a2_acciones_empleados as a')
+            ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
+            ->leftJoin('public.cat_estatus as c', 'a.id_cat_estatus', '=', 'c.id_cat_estatus')
+            ->whereRaw('TRIM(UPPER(a.curp)) = TRIM(UPPER(?))', [$curp])
+
+            // El curso/acción del catálogo debe estar vigente.
+            ->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
+
+            // El registro del empleado debe estar vigente, en alta o pendiente sin estatus.
+            ->where(function ($q) {
+                $q->whereNull('a.id_cat_estatus')
+                    ->orWhereIn('a.id_cat_estatus', [1, 2]);
+            })
+
+            ->select([
+                'a.id_accion',
+                'b.nombre_accion',
+                'b.duracion_hrs',
+                'a.horas_real',
+                'a.fecha_ini',
+                'a.fecha_fin',
+                'a.calificacion',
+                DB::raw("COALESCE(c.descripcion, 'SIN ESTATUS') AS descripcion_estatus"),
+                DB::raw("COALESCE(a.observaciones, '') AS observaciones"),
+                DB::raw("
+                    CASE
+                        WHEN a.fecha_fin IS NOT NULL THEN 'CONCLUIDO'
+                        ELSE 'PENDIENTE'
+                    END AS estatus_accion
+                "),
+            ])
+            ->orderByRaw("CASE WHEN a.fecha_fin IS NULL THEN 1 ELSE 0 END")
+            ->orderByDesc('a.fecha_fin')
+            ->orderByDesc('a.fecha_ini')
+            ->get()
+            ->map(fn ($row) => (array) $row)
+            ->toArray();
+
+    } catch (\Throwable $e) {
+        Log::warning('No se pudo obtener historial de capacitación para correo de constancias.', [
+            'curp'    => $curp,
+            'message' => $e->getMessage(),
+        ]);
+
+        return [];
+    }
+}
 
     private function resolveHorasProgramadasSafe(
         int $idAccion,

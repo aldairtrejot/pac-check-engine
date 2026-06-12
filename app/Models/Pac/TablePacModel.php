@@ -77,13 +77,34 @@ class TablePacModel extends Model
 
         /*
         |--------------------------------------------------------------------------
-        | Filtro de estatus del registro PAC
+        | FILTRO PRINCIPAL: estatus del catálogo de acciones/cursos
         |--------------------------------------------------------------------------
-        | Oculta BAJA (3).
+        | Este es el filtro que faltaba.
+        |
+        | Si una acción/curso en public.a1_cat_acciones está como NO VIGENTE,
+        | ya no se muestra en "Mi plantilla", aunque siga asociada al empleado
+        | en public.a2_acciones_empleados.
+        */
+        $query->whereRaw("TRIM(UPPER(COALESCE(a.estatus, ''))) = 'VIGENTE'");
+
+        /*
+        |--------------------------------------------------------------------------
+        | Filtro de estatus del registro PAC del empleado
+        |--------------------------------------------------------------------------
+        | Oculta BAJA y NO VIGENTE del registro asignado al empleado.
+        |
         | Solo muestra registros con:
-        | - NULL
-        | - 1
-        | - 2
+        | - NULL = pendiente sin atender
+        | - 1    = VIGENTE
+        | - 2    = ALTA
+        |
+        | Oculta:
+        | - 3 = BAJA
+        | - 4 = NO VIGENTE
+        |
+        | IMPORTANTE:
+        | No usar solamente e.id_cat_estatus = 1 porque eso ocultaría cursos
+        | pendientes que todavía vienen con id_cat_estatus NULL.
         */
         $query->where(function ($q) {
             $q->whereNull('e.id_cat_estatus')

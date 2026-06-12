@@ -91,13 +91,32 @@ class DataPacModel extends Model
 
         /*
         |--------------------------------------------------------------------------
-        | Blindaje por estatus del registro PAC
+        | Blindaje por estatus del catálogo de acciones/cursos
         |--------------------------------------------------------------------------
-        | Oculta registros dados de baja.
+        | Este es el filtro clave para NO mostrar cursos dados de baja desde
+        | public.a1_cat_acciones.
+        |
+        | Si el curso está como NO VIGENTE en el catálogo, no se muestra aunque
+        | esté asociado al empleado en public.a2_acciones_empleados.
+        */
+        $query->whereRaw("TRIM(UPPER(COALESCE(a.estatus, ''))) = 'VIGENTE'");
+
+        /*
+        |--------------------------------------------------------------------------
+        | Blindaje por estatus del registro PAC del empleado
+        |--------------------------------------------------------------------------
         | Solo permite:
-        | - NULL
-        | - 1
-        | - 2
+        | - NULL = pendiente sin atender
+        | - 1    = VIGENTE
+        | - 2    = ALTA
+        |
+        | Oculta:
+        | - 3 = BAJA
+        | - 4 = NO VIGENTE
+        |
+        | IMPORTANTE:
+        | No usar solamente e.id_cat_estatus = 1 porque eso ocultaría cursos
+        | pendientes que todavía vienen con id_cat_estatus NULL.
         */
         $query->where(function ($q) {
             $q->whereNull('e.id_cat_estatus')

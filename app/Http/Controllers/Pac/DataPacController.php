@@ -35,13 +35,60 @@ class DataPacController extends Controller
                 ], 200);
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Validación para no mostrar cursos NO VIGENTES
+            |--------------------------------------------------------------------------
+            | Se valida contra:
+            | - public.a1_cat_acciones.estatus = VIGENTE
+            | - public.a2_acciones_empleados.id_cat_estatus:
+            |       NULL = pendiente sin atender
+            |       1    = VIGENTE
+            |       2    = ALTA
+            |
+            | Oculta:
+            |       3    = BAJA
+            |       4    = NO VIGENTE
+            |
+            | No usamos solo id_cat_estatus = 1 porque eso oculta pendientes.
+            */
+            $accionVisible = DB::table('public.a2_acciones_empleados as a')
+                ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
+                ->where('a.id_empl_accion', (int) $request->id)
+                ->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
+                ->where(function ($q) {
+                    $q->whereNull('a.id_cat_estatus')
+                        ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                })
+                ->exists();
+
+            if (! $accionVisible) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Este curso ya no está vigente y no puede mostrarse.',
+                ], 200);
+            }
+
             if (empty($data->horas_real)) {
                 $data->horas_real = $data->duracion_hrs;
             }
 
-            $totalHorasReal = DB::table('public.a2_acciones_empleados')
-                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$data->curp])
-                ->sum('horas_real');
+            /*
+            |--------------------------------------------------------------------------
+            | Total de horas reales
+            |--------------------------------------------------------------------------
+            | Solo suma cursos vigentes o pendientes válidos.
+            | No suma cursos NO VIGENTES ni dados de baja.
+            */
+            $totalHorasReal = DB::table('public.a2_acciones_empleados as a')
+                ->join('public.a1_cat_acciones as b', 'a.id_accion', '=', 'b.id_accion')
+                ->whereRaw('UPPER(TRIM(a.curp)) = UPPER(TRIM(?))', [$data->curp])
+                ->whereRaw("TRIM(UPPER(COALESCE(b.estatus, ''))) = 'VIGENTE'")
+                ->where(function ($q) {
+                    $q->whereNull('a.id_cat_estatus')
+                        ->orWhereIn('a.id_cat_estatus', [1, 2]);
+                })
+                ->sum('a.horas_real');
 
             $listOptionStatus = DB::table('public.cat_estatus')
                 ->select('id_cat_estatus as id', 'descripcion')
