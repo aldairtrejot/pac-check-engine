@@ -495,9 +495,10 @@
                                         <strong style="color:#611232;">CAPACITACIÓN</strong><br>
                                         <strong>RECURSOS HUMANOS</strong><br>
                                         Calle Gustavo E. Campa 54, piso 3, Guadalupe Inn.<br>
-                                        Álvaro Obregón, 01020, Ciudad de México, México.<br> 
+                                        Álvaro Obregón, 01020, Ciudad de México.<br> 
                                         Para cualquier duda o aclaración, comunicate al: <br>
-                                        Tel: 01(55) 9160 8100 Ext. 111106
+                                        Tel: 01(55) 9160 8100 Ext. 111106<br>
+                                        Correo: capacitacionrh@imssbienestar.gob.mx
                                     </td>
                                 </tr>
                             </table>
