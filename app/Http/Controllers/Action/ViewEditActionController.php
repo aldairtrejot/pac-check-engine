@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Action;
 
 use App\Http\Controllers\Controller;
+use App\Models\Action\CollectionActionModel;
 use App\Models\Action\EntityActionModel;
+use App\Models\Pac\Collection\CollectionFinalidadModel;
 use App\Models\Pac\Collection\CollectionStatusModel;
 use App\Models\Pac\Collection\CollectionTematicaModel;
-use App\Models\Action\CollectionActionModel;
 
 class ViewEditActionController extends Controller
 {
@@ -16,25 +17,25 @@ class ViewEditActionController extends Controller
             abort(404);
         }
 
-        $accion = EntityActionModel::find($id);
-        if (!$accion) {
-            abort(404);
-        }
+        $accion = EntityActionModel::findOrFail($id);
 
-        $statusList   = (new CollectionStatusModel)->listCollection();
-        $tematicaList = (new CollectionTematicaModel)->listCollection();
+        $statusList    = (new CollectionStatusModel)->listCollection();
+        $tematicaList  = (new CollectionTematicaModel)->listCollection();
+        $finalidadList = (new CollectionFinalidadModel)->listCollection();
 
         $collectionAction = new CollectionActionModel;
-        $tipoCapList      = $collectionAction->listTipoCapacitacion();
-        $modalidadList    = $collectionAction->listModalidades();
-        $ramoList         = $collectionAction->listRamos();
-        $urList           = $collectionAction->listURs();
-        $instList         = $collectionAction->listInstituciones();
+
+        $tipoCapList   = $collectionAction->listTipoCapacitacion();
+        $modalidadList = $collectionAction->listModalidades();
+        $ramoList      = $collectionAction->listRamos();
+        $urList        = $collectionAction->listURs();
+        $instList      = $collectionAction->listInstituciones();
 
         return view('action.form', compact(
             'accion',
             'statusList',
             'tematicaList',
+            'finalidadList',
             'tipoCapList',
             'modalidadList',
             'ramoList',
