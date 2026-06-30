@@ -68,16 +68,29 @@ class SaveActionController extends Controller
             |--------------------------------------------------------------------------
             */
             } else {
+                /*
+                |--------------------------------------------------------------------------
+                | Bloqueo seguro para PostgreSQL
+                |--------------------------------------------------------------------------
+                | PostgreSQL no permite usar FOR UPDATE con MAX().
+                | Por eso NO usamos lockForUpdate() sobre max().
+                |
+                | Este bloqueo evita que dos usuarios creen una acción al mismo tiempo
+                | y calculen el mismo id_accion.
+                |
+                | El bloqueo se libera automáticamente al terminar la transacción.
+                */
+                DB::statement('SELECT pg_advisory_xact_lock(2026062901)');
+
                 // Siguiente id_accion: MAX + 1, excluyendo cursos especiales
                 $maxId = EntityActionModel::query()
                     ->whereNotIn('id_accion', [
                         1000001, 1000002, 1000003, 1000004, 1000005,
                         1000006, 1000007, 1000008, 1000009, 1000010,
                     ])
-                    ->lockForUpdate()
                     ->max('id_accion');
 
-                $nextId = ($maxId ?? 0) + 1;
+                $nextId = ((int) ($maxId ?? 0)) + 1;
 
                 $validated['id_accion'] = $nextId;
 
