@@ -582,6 +582,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import axios from '@axios'
+import Swal from 'sweetalert2'
 import { notyf } from '@components/notyf.js'
 import { showSpinner, hideSpinner } from '@components/spinner.js'
 
@@ -861,7 +862,87 @@ async function confirmReject() {
   await updateStatus('RECHAZAR', rejectReason.value.trim())
 }
 
-async function updateStatus(accion, motivo = '') {
+function isDuplicateConfirmationResponse(data) {
+  return !!(
+    data &&
+    data.requires_confirmation &&
+    data.duplicate_concluido
+  )
+}
+
+async function handleDuplicateConstanciaConfirmation() {
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: 'Curso ya concluido',
+    html: `
+      <div style="text-align:left; font-size:14px; line-height:1.45;">
+        <p>
+          Este curso ya se encuentra concluido para el trabajador.
+        </p>
+
+        <p>
+          Si seleccionas <b>Continuar</b>, la información será actualizada
+          o se realizará nuevamente el proceso de generación de la constancia.
+        </p>
+
+        <p>
+          Si seleccionas <b>Cancelar/Rechazar</b>, se enviará automáticamente
+          un correo electrónico informando que la constancia ya había sido
+          generada y enviada con anterioridad, evitando duplicidades en el proceso.
+        </p>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Continuar',
+    cancelButtonText: 'Cancelar/Rechazar',
+    reverseButtons: true,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    confirmButtonColor: '#235B4E',
+    cancelButtonColor: '#8B0000',
+  })
+
+  if (result.isConfirmed) {
+    await updateStatus('ACEPTAR', '', {
+      confirmar_duplicado: true,
+    })
+
+    return
+  }
+
+  await updateStatus('ACEPTAR', '', {
+    rechazar_duplicado: true,
+  })
+}
+
+async function processSuccessfulStatusResponse(data, accion) {
+  if (!data.status) {
+    if (isDuplicateConfirmationResponse(data)) {
+      await handleDuplicateConstanciaConfirmation()
+      return
+    }
+
+    notyf.error(data.message ?? 'No se pudo actualizar el estatus.')
+    return
+  }
+
+  notyf.success(data.message ?? 'Estatus actualizado.')
+
+  await fetchTableData()
+
+  if (accion === 'RECHAZAR') {
+    $('#modal_constancia_rechazo').modal('hide')
+    resetRejectForm()
+    await loadDetails(selectedId.value, false)
+    return
+  }
+
+  $('#modal_constancia_rechazo').modal('hide')
+  resetRejectForm()
+  $('#modal_constancia_detalles').modal('hide')
+}
+
+async function updateStatus(accion, motivo = '', extraPayload = {}) {
   if (!selectedId.value) return
 
   try {
@@ -870,6 +951,7 @@ async function updateStatus(accion, motivo = '') {
     const payload = {
       id_respuesta: selectedId.value,
       accion,
+      ...extraPayload,
     }
 
     if (accion === 'RECHAZAR') {
@@ -878,25 +960,18 @@ async function updateStatus(accion, motivo = '') {
 
     const { data } = await axios.post('/constancias/estatus', payload)
 
-    if (!data.status) {
-      notyf.error(data.message ?? 'No se pudo actualizar el estatus.')
-      return
-    }
+    await processSuccessfulStatusResponse(data, accion)
 
-    notyf.success(data.message ?? 'Estatus actualizado.')
-
-    await fetchTableData()
-
-    if (accion === 'RECHAZAR') {
-      $('#modal_constancia_rechazo').modal('hide')
-      resetRejectForm()
-      await loadDetails(selectedId.value, false)
-      return
-    }
-
-    $('#modal_constancia_detalles').modal('hide')
   } catch (e) {
-    notyf.error('Error al actualizar el estatus.')
+    const data = e.response?.data || {}
+
+    if (isDuplicateConfirmationResponse(data)) {
+      hideSpinner()
+      await handleDuplicateConstanciaConfirmation()
+      return
+    }
+
+    notyf.error(data.message ?? 'Error al actualizar el estatus.')
   } finally {
     hideSpinner()
   }

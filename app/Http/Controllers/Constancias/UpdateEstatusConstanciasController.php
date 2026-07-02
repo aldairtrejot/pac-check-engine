@@ -40,14 +40,26 @@ class UpdateEstatusConstanciasController extends Controller
             }
 
             $request->validate([
-                'id_respuesta' => 'required',
-                'accion'       => 'required|string',
-                'motivo'       => 'nullable|string|max:2000',
+                'id_respuesta'        => 'required',
+                'accion'              => 'required|string',
+                'motivo'              => 'nullable|string|max:2000',
+                'confirmar_duplicado' => 'nullable|boolean',
+                'rechazar_duplicado'  => 'nullable|boolean',
             ]);
 
             $idRespuesta = trim((string) $request->input('id_respuesta'));
             $accion      = strtoupper(trim((string) $request->input('accion')));
             $motivo      = trim((string) $request->input('motivo', ''));
+
+            $confirmarDuplicado = filter_var(
+                $request->input('confirmar_duplicado', false),
+                FILTER_VALIDATE_BOOLEAN
+            );
+
+            $rechazarDuplicado = filter_var(
+                $request->input('rechazar_duplicado', false),
+                FILTER_VALIDATE_BOOLEAN
+            );
 
             if ($idRespuesta === '') {
                 return response()->json([
@@ -74,7 +86,12 @@ class UpdateEstatusConstanciasController extends Controller
                 return $this->rejectConstancia($idRespuesta, $motivo, $user);
             }
 
-            return $this->acceptConstancia($idRespuesta, $user);
+            return $this->acceptConstancia(
+                idRespuesta: $idRespuesta,
+                user: $user,
+                confirmarDuplicado: $confirmarDuplicado,
+                rechazarDuplicado: $rechazarDuplicado
+            );
 
         } catch (\Throwable $th) {
             Log::error('Constancias update error: ' . $th->getMessage(), [
@@ -203,9 +220,13 @@ class UpdateEstatusConstanciasController extends Controller
         ], 200);
     }
 
-    private function acceptConstancia(string $idRespuesta, $user)
-    {
-        $resultado = DB::transaction(function () use ($idRespuesta, $user) {
+    private function acceptConstancia(
+        string $idRespuesta,
+        $user,
+        bool $confirmarDuplicado = false,
+        bool $rechazarDuplicado = false
+    ) {
+        $resultado = DB::transaction(function () use ($idRespuesta, $user, $confirmarDuplicado, $rechazarDuplicado) {
             $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
             $colSet  = array_flip($colsEmp);
 
@@ -391,13 +412,18 @@ class UpdateEstatusConstanciasController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Nueva validación contra constancias duplicadas
+            | Validación de constancia duplicada
             |--------------------------------------------------------------------------
-            | Si el trabajador ya tiene este curso concluido en a2_acciones_empleados,
-            | no se permite aceptar otra constancia pendiente del mismo curso.
+            | Si el curso ya está concluido para este trabajador, se pide confirmación:
             |
-            | Esto evita que, por error, una constancia duplicada vuelva a actualizar
-            | el historial del trabajador y vuelva a enviar correo de aceptación.
+            | - Sin confirmar:
+            |   Responde al frontend que debe mostrar alerta.
+            |
+            | - Confirmar / Continuar:
+            |   Permite actualizar/procesar nuevamente la constancia.
+            |
+            | - Cancelar / Rechazar:
+            |   Marca la constancia como rechazada y prepara correo de duplicidad.
             */
             $yaConcluido = $this->actionAlreadyConcludedForEmployee(
                 idPuestoTxt: $idPuestoTxt,
@@ -405,11 +431,21 @@ class UpdateEstatusConstanciasController extends Controller
                 idAccion: $idAccion
             );
 
-            if ($yaConcluido) {
+            if ($yaConcluido && ! $confirmarDuplicado) {
+                if ($rechazarDuplicado) {
+                    return $this->rejectDuplicatedConstanciaInsideTransaction(
+                        idRespuesta: $idRespuesta,
+                        user: $user,
+                        curp: $curp
+                    );
+                }
+
                 return [
-                    'status'  => false,
-                    'code'    => 409,
-                    'message' => 'Este curso ya se encuentra concluido para el trabajador. La constancia parece estar duplicada y no puede aceptarse nuevamente.',
+                    'status'                => false,
+                    'code'                  => 409,
+                    'requires_confirmation' => true,
+                    'duplicate_concluido'   => true,
+                    'message'               => 'Este curso ya se encuentra concluido para el trabajador. Si seleccionas Continuar, la información será actualizada o se realizará nuevamente el proceso de generación de la constancia. Si seleccionas Cancelar o Rechazar, se enviará un correo informando que la constancia ya había sido generada y enviada con anterioridad.',
                 ];
             }
 
@@ -551,10 +587,42 @@ class UpdateEstatusConstanciasController extends Controller
         });
 
         if (! $resultado['status']) {
-            return response()->json([
+            $response = [
                 'status'  => false,
                 'message' => $resultado['message'],
-            ], $resultado['code'] ?? 422);
+            ];
+
+            if (! empty($resultado['requires_confirmation'])) {
+                $response['requires_confirmation'] = true;
+            }
+
+            if (! empty($resultado['duplicate_concluido'])) {
+                $response['duplicate_concluido'] = true;
+            }
+
+            return response()->json($response, $resultado['code'] ?? 422);
+        }
+
+        if (! empty($resultado['duplicate_rejected'])) {
+            $ahora = Carbon::now('America/Mexico_City');
+
+            $emailEnviado = $this->sendConstanciaDecisionEmail(
+                correoDestinatario: (string) ($resultado['correo_electronico'] ?? ''),
+                nombrePersona: (string) ($resultado['nombre_persona'] ?? ''),
+                nombreCurso: (string) ($resultado['nombre_curso'] ?? ''),
+                folio: (string) ($resultado['folio'] ?? ''),
+                fechaHora: $ahora->format('d/m/Y H:i:s'),
+                tipo: 'duplicada',
+                motivo: (string) ($resultado['motivo'] ?? 'La constancia ya había sido generada y enviada con anterioridad.'),
+                curp: (string) ($resultado['curp'] ?? '')
+            );
+
+            return response()->json([
+                'status'  => true,
+                'message' => $emailEnviado
+                    ? 'Constancia duplicada rechazada y correo enviado correctamente.'
+                    : 'Constancia duplicada rechazada correctamente. No fue posible enviar el correo.',
+            ], 200);
         }
 
         $ahora = Carbon::now('America/Mexico_City');
@@ -691,13 +759,17 @@ class UpdateEstatusConstanciasController extends Controller
         }
 
         try {
-            $decision = $tipo === 'rechazo'
-                ? 'RECHAZADO'
-                : 'ACEPTADO';
+            $decision = match ($tipo) {
+                'rechazo'   => 'RECHAZADO',
+                'duplicada' => 'DUPLICADA',
+                default     => 'ACEPTADO',
+            };
 
-            $ccRaw = $tipo === 'rechazo'
-                ? trim((string) env('CONSTANCIAS_RECHAZO_CC', ''))
-                : trim((string) env('CONSTANCIAS_ACEPTACION_CC', ''));
+            $ccRaw = match ($tipo) {
+                'rechazo'   => trim((string) env('CONSTANCIAS_RECHAZO_CC', '')),
+                'duplicada' => trim((string) env('CONSTANCIAS_DUPLICADA_CC', env('CONSTANCIAS_RECHAZO_CC', ''))),
+                default     => trim((string) env('CONSTANCIAS_ACEPTACION_CC', '')),
+            };
 
             $ccList = $this->parseMailList($ccRaw);
 
@@ -1085,6 +1157,69 @@ class UpdateEstatusConstanciasController extends Controller
             ->where('id_accion', $idAccion)
             ->whereNotNull('fecha_fin')
             ->exists();
+    }
+
+    private function rejectDuplicatedConstanciaInsideTransaction(
+        string $idRespuesta,
+        $user,
+        string $curp
+    ): array {
+        $motivoDuplicado = 'La constancia ya había sido generada y enviada con anterioridad. Para evitar duplicidades en el proceso, este registro fue marcado como rechazado.';
+
+        $colsConstancias = $this->columnsFor('public', 'tbl_constancias');
+        $colSetConst = array_flip($colsConstancias);
+
+        $motivoColumn = $this->firstExistingColumnFromSet($colSetConst, [
+            'motivo_rechazo',
+            'motivo',
+            'observaciones',
+            'comentarios',
+        ]);
+
+        $fechaRechazoColumn = $this->firstExistingColumnFromSet($colSetConst, [
+            'fecha_rechazo',
+            'fecha_rechazo_at',
+        ]);
+
+        $updateData = [
+            'estatus'             => self::CONST_RECHAZADO,
+            'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
+            'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
+        ];
+
+        if ($motivoColumn) {
+            $updateData[$motivoColumn] = $motivoDuplicado;
+        }
+
+        if ($fechaRechazoColumn) {
+            $updateData[$fechaRechazoColumn] = DB::raw("CURRENT_TIMESTAMP");
+        }
+
+        $updated = DB::table('public.tbl_constancias')
+            ->where('id_respuesta', $idRespuesta)
+            ->where('estatus', self::CONST_PENDIENTE)
+            ->update($updateData);
+
+        if ($updated < 1) {
+            return [
+                'status'  => false,
+                'code'    => 409,
+                'message' => 'La constancia cambió de estatus mientras se procesaba. Intenta recargar la tabla.',
+            ];
+        }
+
+        $notify = $this->notificationDataForConstancia($idRespuesta, $user);
+
+        return [
+            'status'             => true,
+            'duplicate_rejected' => true,
+            'curp'               => $curp,
+            'correo_electronico' => (string) ($notify['correo_electronico'] ?? ''),
+            'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
+            'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
+            'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
+            'motivo'             => $motivoDuplicado,
+        ];
     }
 
     private function columnsFor(string $schema, string $table): array

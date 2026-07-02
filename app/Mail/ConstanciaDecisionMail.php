@@ -39,7 +39,10 @@ class ConstanciaDecisionMail extends Mailable
         $this->folio = trim($folio) !== '' ? trim($folio) : 'S/F';
         $this->fechaHora = trim($fechaHora) !== '' ? trim($fechaHora) : 'No especificada';
         $this->decision = strtoupper(trim($decision));
-        $this->motivo = $motivo;
+
+        $motivo = $motivo !== null ? trim($motivo) : null;
+        $this->motivo = $motivo !== '' ? $motivo : null;
+
         $this->historialCapacitacion = $historialCapacitacion;
     }
 
@@ -47,9 +50,19 @@ class ConstanciaDecisionMail extends Mailable
     {
         $esAceptado = in_array($this->decision, ['ACEPTADO', 'ACEPTADA'], true);
 
-        $subject = $esAceptado
-            ? 'Constancia aceptada - ' . $this->nombreCurso . ' - Folio ' . $this->folio
-            : 'Constancia rechazada - ' . $this->nombreCurso . ' - Folio ' . $this->folio;
+        $esDuplicada = in_array($this->decision, [
+            'DUPLICADA',
+            'DUPLICADO',
+            'CONSTANCIA DUPLICADA',
+        ], true);
+
+        if ($esAceptado) {
+            $subject = 'Constancia aceptada - ' . $this->nombreCurso . ' - Folio ' . $this->folio;
+        } elseif ($esDuplicada) {
+            $subject = 'Constancia duplicada - ' . $this->nombreCurso . ' - Folio ' . $this->folio;
+        } else {
+            $subject = 'Constancia rechazada - ' . $this->nombreCurso . ' - Folio ' . $this->folio;
+        }
 
         $subject = str_replace(["\r", "\n"], ' ', $subject);
 
@@ -65,6 +78,10 @@ class ConstanciaDecisionMail extends Mailable
                 'decision' => $this->decision,
                 'motivo' => $this->motivo,
                 'historialCapacitacion' => $this->historialCapacitacion,
+
+                // Variables extra para controlar textos en la vista Blade.
+                'esAceptado' => $esAceptado,
+                'esDuplicada' => $esDuplicada,
             ]);
     }
 }
