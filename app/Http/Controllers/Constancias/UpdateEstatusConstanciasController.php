@@ -227,15 +227,6 @@ class UpdateEstatusConstanciasController extends Controller
         bool $rechazarDuplicado = false
     ) {
         $resultado = DB::transaction(function () use ($idRespuesta, $user, $confirmarDuplicado, $rechazarDuplicado) {
-            $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
-            $colSet  = array_flip($colsEmp);
-
-            $hasCalificacion = isset($colSet['calificacion']);
-            $hasHorasProg    = isset($colSet['horas_progamadas']);
-            $hasEvalApr      = isset($colSet['eval_aprendizaje']);
-
-            $idCatEstatusVigente = $this->resolveIdCatEstatusVigente();
-
             $c = $this->baseConstanciaOnlyQuery($user)
                 ->select([
                     'c.id_respuesta',
@@ -297,6 +288,49 @@ class UpdateEstatusConstanciasController extends Controller
             }
 
             $idAccion = (int) $accionCat->id_accion;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Confirmación rápida de constancia duplicada
+            |--------------------------------------------------------------------------
+            | Esta validación se realiza antes de resolver horas, instancia, temática,
+            | trimestre y calificación para que el SweetAlert2 aparezca de inmediato.
+            */
+            DB::select("SELECT pg_advisory_xact_lock(5001)");
+            DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
+
+            $yaConcluido = $this->actionAlreadyConcludedForEmployee(
+                idPuestoTxt: $idPuestoTxt,
+                curp: $curp,
+                idAccion: $idAccion
+            );
+
+            if ($yaConcluido && ! $confirmarDuplicado) {
+                if ($rechazarDuplicado) {
+                    return $this->rejectDuplicatedConstanciaInsideTransaction(
+                        idRespuesta: $idRespuesta,
+                        user: $user,
+                        curp: $curp
+                    );
+                }
+
+                return [
+                    'status'                => false,
+                    'code'                  => 200,
+                    'requires_confirmation' => true,
+                    'duplicate_concluido'   => true,
+                    'message'               => 'Este curso ya se encuentra concluido para el trabajador. Si seleccionas Continuar, la información será actualizada o se realizará nuevamente el proceso de generación de la constancia. Si seleccionas Cancelar/Rechazar, se enviará un correo informando que la constancia ya había sido generada y enviada con anterioridad.',
+                ];
+            }
+
+            $colsEmp = $this->columnsFor('public', 'a2_acciones_empleados');
+            $colSet  = array_flip($colsEmp);
+
+            $hasCalificacion = isset($colSet['calificacion']);
+            $hasHorasProg    = isset($colSet['horas_progamadas']);
+            $hasEvalApr      = isset($colSet['eval_aprendizaje']);
+
+            $idCatEstatusVigente = $this->resolveIdCatEstatusVigente();
 
             /*
             |--------------------------------------------------------------------------
@@ -406,48 +440,6 @@ class UpdateEstatusConstanciasController extends Controller
             }
 
             $calTexto = rtrim(rtrim(number_format($cal, 2, '.', ''), '0'), '.');
-
-            DB::select("SELECT pg_advisory_xact_lock(5001)");
-            DB::select("SELECT pg_advisory_xact_lock(hashtext(?))", [$curp]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Validación de constancia duplicada
-            |--------------------------------------------------------------------------
-            | Si el curso ya está concluido para este trabajador, se pide confirmación:
-            |
-            | - Sin confirmar:
-            |   Responde al frontend que debe mostrar alerta.
-            |
-            | - Confirmar / Continuar:
-            |   Permite actualizar/procesar nuevamente la constancia.
-            |
-            | - Cancelar / Rechazar:
-            |   Marca la constancia como rechazada y prepara correo de duplicidad.
-            */
-            $yaConcluido = $this->actionAlreadyConcludedForEmployee(
-                idPuestoTxt: $idPuestoTxt,
-                curp: $curp,
-                idAccion: $idAccion
-            );
-
-            if ($yaConcluido && ! $confirmarDuplicado) {
-                if ($rechazarDuplicado) {
-                    return $this->rejectDuplicatedConstanciaInsideTransaction(
-                        idRespuesta: $idRespuesta,
-                        user: $user,
-                        curp: $curp
-                    );
-                }
-
-                return [
-    'status'                => false,
-    'code'                  => 200,
-    'requires_confirmation' => true,
-    'duplicate_concluido'   => true,
-    'message'               => 'Este curso ya se encuentra concluido para el trabajador. Si seleccionas Continuar, la información será actualizada o se realizará nuevamente el proceso de generación de la constancia. Si seleccionas Cancelar o Rechazar, se enviará un correo informando que la constancia ya había sido generada y enviada con anterioridad.',
-];
-            }
 
             $existe = DB::table('public.a2_acciones_empleados')
                 ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
@@ -587,32 +579,32 @@ class UpdateEstatusConstanciasController extends Controller
         });
 
         if (! $resultado['status']) {
-    $response = [
-        'status'  => false,
-        'message' => $resultado['message'],
-    ];
+            $response = [
+                'status'  => false,
+                'message' => $resultado['message'],
+            ];
 
-    if (! empty($resultado['requires_confirmation'])) {
-        $response['requires_confirmation'] = true;
-    }
+            if (! empty($resultado['requires_confirmation'])) {
+                $response['requires_confirmation'] = true;
+            }
 
-    if (! empty($resultado['duplicate_concluido'])) {
-        $response['duplicate_concluido'] = true;
-    }
+            if (! empty($resultado['duplicate_concluido'])) {
+                $response['duplicate_concluido'] = true;
+            }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Importante:
-    |--------------------------------------------------------------------------
-    | Cuando se detecta duplicidad, no debe regresar 409 porque no es un error
-    | final. Es una confirmación que debe resolver el usuario con SweetAlert2.
-    */
-    $httpCode = ! empty($resultado['requires_confirmation'])
-        ? 200
-        : ($resultado['code'] ?? 422);
+            /*
+            |--------------------------------------------------------------------------
+            | Importante:
+            |--------------------------------------------------------------------------
+            | Cuando se detecta duplicidad, no debe regresar 409 porque no es un error
+            | final. Es una confirmación que debe resolver el usuario con SweetAlert2.
+            */
+            $httpCode = ! empty($resultado['requires_confirmation'])
+                ? 200
+                : ($resultado['code'] ?? 422);
 
-    return response()->json($response, $httpCode);
-}
+            return response()->json($response, $httpCode);
+        }
 
         if (! empty($resultado['duplicate_rejected'])) {
             $ahora = Carbon::now('America/Mexico_City');

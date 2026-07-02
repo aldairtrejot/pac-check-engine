@@ -634,6 +634,7 @@ const extraPretty = ref('Pendiente de definición por el equipo.')
 // modal rechazo
 const rejectReason = ref('')
 const rejectReasonTouched = ref(false)
+const duplicatePromptOpen = ref(false)
 
 const rejectReasonValid = computed(() => rejectReason.value.trim().length > 0)
 
@@ -862,15 +863,29 @@ async function confirmReject() {
   await updateStatus('RECHAZAR', rejectReason.value.trim())
 }
 
+function isTruthy(value) {
+  return value === true || value === 1 || value === '1' || value === 'true' || value === 'TRUE'
+}
+
 function isDuplicateConfirmationResponse(data) {
   return !!(
     data &&
-    data.requires_confirmation &&
-    data.duplicate_concluido
+    isTruthy(data.requires_confirmation) &&
+    isTruthy(data.duplicate_concluido)
   )
 }
 
 async function handleDuplicateConstanciaConfirmation() {
+  if (duplicatePromptOpen.value) return
+
+  duplicatePromptOpen.value = true
+
+  // Muy importante: quitar el overlay global antes de abrir SweetAlert2.
+  // Si se deja activo, puede parecer que la ventana tarda o queda bloqueada.
+  hideSpinner()
+
+  await new Promise((resolve) => setTimeout(resolve, 80))
+
   const result = await Swal.fire({
     icon: 'warning',
     title: 'Curso ya concluido',
@@ -900,7 +915,14 @@ async function handleDuplicateConstanciaConfirmation() {
     allowEscapeKey: false,
     confirmButtonColor: '#235B4E',
     cancelButtonColor: '#8B0000',
+    customClass: {
+      popup: 'swal2-constancia-duplicada',
+      confirmButton: 'swal2-confirm-constancia',
+      cancelButton: 'swal2-cancel-constancia',
+    },
   })
+
+  duplicatePromptOpen.value = false
 
   if (result.isConfirmed) {
     await updateStatus('ACEPTAR', '', {
@@ -918,6 +940,7 @@ async function handleDuplicateConstanciaConfirmation() {
 async function processSuccessfulStatusResponse(data, accion) {
   if (!data.status) {
     if (isDuplicateConfirmationResponse(data)) {
+      hideSpinner()
       await handleDuplicateConstanciaConfirmation()
       return
     }
@@ -971,7 +994,7 @@ async function updateStatus(accion, motivo = '', extraPayload = {}) {
       return
     }
 
-    notyf.error(data.message ?? 'Error al actualizar el estatus.')
+    notyf.error(data.message || data.error || 'Error al actualizar el estatus.')
   } finally {
     hideSpinner()
   }
