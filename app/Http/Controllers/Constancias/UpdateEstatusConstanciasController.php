@@ -441,12 +441,12 @@ class UpdateEstatusConstanciasController extends Controller
                 }
 
                 return [
-                    'status'                => false,
-                    'code'                  => 409,
-                    'requires_confirmation' => true,
-                    'duplicate_concluido'   => true,
-                    'message'               => 'Este curso ya se encuentra concluido para el trabajador. Si seleccionas Continuar, la información será actualizada o se realizará nuevamente el proceso de generación de la constancia. Si seleccionas Cancelar o Rechazar, se enviará un correo informando que la constancia ya había sido generada y enviada con anterioridad.',
-                ];
+    'status'                => false,
+    'code'                  => 200,
+    'requires_confirmation' => true,
+    'duplicate_concluido'   => true,
+    'message'               => 'Este curso ya se encuentra concluido para el trabajador. Si seleccionas Continuar, la información será actualizada o se realizará nuevamente el proceso de generación de la constancia. Si seleccionas Cancelar o Rechazar, se enviará un correo informando que la constancia ya había sido generada y enviada con anterioridad.',
+];
             }
 
             $existe = DB::table('public.a2_acciones_empleados')
@@ -587,21 +587,32 @@ class UpdateEstatusConstanciasController extends Controller
         });
 
         if (! $resultado['status']) {
-            $response = [
-                'status'  => false,
-                'message' => $resultado['message'],
-            ];
+    $response = [
+        'status'  => false,
+        'message' => $resultado['message'],
+    ];
 
-            if (! empty($resultado['requires_confirmation'])) {
-                $response['requires_confirmation'] = true;
-            }
+    if (! empty($resultado['requires_confirmation'])) {
+        $response['requires_confirmation'] = true;
+    }
 
-            if (! empty($resultado['duplicate_concluido'])) {
-                $response['duplicate_concluido'] = true;
-            }
+    if (! empty($resultado['duplicate_concluido'])) {
+        $response['duplicate_concluido'] = true;
+    }
 
-            return response()->json($response, $resultado['code'] ?? 422);
-        }
+    /*
+    |--------------------------------------------------------------------------
+    | Importante:
+    |--------------------------------------------------------------------------
+    | Cuando se detecta duplicidad, no debe regresar 409 porque no es un error
+    | final. Es una confirmación que debe resolver el usuario con SweetAlert2.
+    */
+    $httpCode = ! empty($resultado['requires_confirmation'])
+        ? 200
+        : ($resultado['code'] ?? 422);
+
+    return response()->json($response, $httpCode);
+}
 
         if (! empty($resultado['duplicate_rejected'])) {
             $ahora = Carbon::now('America/Mexico_City');
