@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
 use App\Mail\ConstanciaDecisionMail;
+use App\Models\Pac\Helpers\GetTrimestreModel;
 use App\Support\ConstanciaVisibilityByName;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -378,8 +379,8 @@ class UpdateEstatusConstanciasController extends Controller
 
             $idTrimestre = null;
             if (! empty($c->fecha_inicio)) {
-                $m = (int) date('n', strtotime((string) $c->fecha_inicio));
-                $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
+                $idTrimestre = (new GetTrimestreModel())->getTrimestre((string) $c->fecha_inicio);
+                $idTrimestre = ! empty($idTrimestre) ? (int) $idTrimestre : null;
             }
 
             if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
