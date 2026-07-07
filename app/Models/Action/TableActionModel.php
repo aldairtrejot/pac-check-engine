@@ -8,23 +8,34 @@ use Illuminate\Support\Facades\DB;
 class TableActionModel extends Model
 {
     /**
-     * The function returns the table apart from its query, however it expects the limit, offset,
-     * search and select as parameters, returning the generated query, the total and the iterator.
+     * Retorna los registros de la tabla de acciones con paginación y búsqueda.
      *
      * @param  mixed  $limit
      * @param  mixed  $offset
      * @param  mixed  $search
      * @param  mixed  $select
-     * @return array{allRow: int, list: \Illuminate\Support\Collection<int, \stdClass>, row: float|int}
+     * @return array{allRow: int, list: \Illuminate\Support\Collection<int, \stdClass>, row: int}
      */
-        public function list($limit, $offset, $search, $select)
+    public function list($limit, $offset, $search, $select)
     {
-        // Query para contar
+        $limit  = (int) $limit;
+        $offset = (int) $offset;
+        $select = (int) $select;
+        $search = trim((string) $search);
+
+        /*
+         * Query para contar registros.
+         */
         $countQuery = DB::table('public.a1_cat_acciones');
+
         $this->applySearch($countQuery, $search);
+
         $allRow = $countQuery->count();
 
-        // Query para datos
+        /*
+         * Query para obtener datos.
+         * Se usa id_accion AS id porque el Vue usa row.id.
+         */
         $query = DB::table('public.a1_cat_acciones')
             ->selectRaw('
                 public.a1_cat_acciones.id_accion AS id,
@@ -35,35 +46,50 @@ class TableActionModel extends Model
 
         $this->applySearch($query, $search);
 
-        $row = abs(($allRow < ($offset + $select)) ? $allRow : ($offset + $select));
+        /*
+         * Cantidad mostrada actualmente en la tabla.
+         */
+        $row = min($allRow, $offset + $limit);
 
-        $list = $query->orderBy('public.a1_cat_acciones.id_accion', 'DESC')
+        /*
+         * Lista paginada.
+         */
+        $list = $query
+            ->orderBy('public.a1_cat_acciones.id_accion', 'DESC')
             ->offset($offset)
             ->limit($limit)
             ->get();
 
         return [
-            'row' => $row,
+            'row'    => $row,
             'allRow' => $allRow,
-            'list'  => $list,
+            'list'   => $list,
         ];
     }
+
     /**
-     * Private helper to apply the search filters using unaccent and case-insensitive comparison
+     * Aplica filtros de búsqueda usando unaccent y comparación sin importar mayúsculas/minúsculas.
      *
      * @param  mixed  $query
-     * @param  mixed  $search
+     * @param  string $search
+     * @return mixed
      */
-    private function applySearch($query, $search)
+    private function applySearch($query, string $search)
     {
+        if ($search === '') {
+            return $query;
+        }
+
         return $query->where(function ($query) use ($search) {
             $query->whereRaw(
                 'UPPER(TRIM(public.unaccent(public.a1_cat_acciones.estatus))) LIKE UPPER(TRIM(public.unaccent(?)))',
                 ['%' . $search . '%']
-            )->orWhereRaw(
+            )
+            ->orWhereRaw(
                 'UPPER(TRIM(public.unaccent(public.a1_cat_acciones.nombre_accion))) LIKE UPPER(TRIM(public.unaccent(?)))',
                 ['%' . $search . '%']
-            )->orWhereRaw(
+            )
+            ->orWhereRaw(
                 'UPPER(TRIM(public.unaccent(public.a1_cat_acciones.tematica))) LIKE UPPER(TRIM(public.unaccent(?)))',
                 ['%' . $search . '%']
             );

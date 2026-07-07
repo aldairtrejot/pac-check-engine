@@ -16,15 +16,15 @@
             <tableRow value="Temática" />
           </tr>
         </thead>
+
         <tbody>
-          <tableEmpty v-if="item.length === 0" :colspan="5" />
+          <tableEmpty v-if="item.length === 0" :colspan="4" />
 
           <tr v-for="row in item" :key="row.id">
             <td class="text-center">
               <div class="button-container">
-                <!-- 🔹 Aquí corregimos el href -->
                 <tableButtonEdit
-                  :href="`${BASE_URL}/action/edit/` + row.id"
+                  :href="`${BASE_URL.replace(/\/$/, '')}/action/edit/${row.id}`"
                   icon="fa fa-edit"
                   label="Editar"
                   bgColor="#10312B"
@@ -104,10 +104,24 @@ const fetchTableData = async () => {
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     })
 
-    item.value = data.list
-    rowsAll.value = data.allRow
-    row.value = data.row
+    if (data.status) {
+      item.value = data.list ?? []
+      rowsAll.value = data.allRow ?? 0
+      row.value = data.row ?? 0
+    } else {
+      item.value = []
+      rowsAll.value = 0
+      row.value = 0
+
+      notyf.error(data.message || 'No se pudo cargar la información.')
+    }
   } catch (error) {
+    console.error(error)
+
+    item.value = []
+    rowsAll.value = 0
+    row.value = 0
+
     notyf.error('No se pudo completar la acción. Por favor, vuelve a intentarlo.')
   } finally {
     const elapsed = Date.now() - startTime
