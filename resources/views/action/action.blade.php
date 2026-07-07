@@ -2,7 +2,7 @@
 
     <x-template.app-header tittle="Acción">
         <x-button.button-header-action
-            route="{{ route('action.create') }}"
+            route="{{ route('action.create', [], false) }}"
             icon="fa fa-plus me-sm-1"
             tittle="Agregar"
         />

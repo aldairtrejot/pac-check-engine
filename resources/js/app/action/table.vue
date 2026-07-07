@@ -24,7 +24,7 @@
             <td class="text-center">
               <div class="button-container">
                 <tableButtonEdit
-                  :href="`${BASE_URL.replace(/\/$/, '')}/action/edit/${row.id}`"
+                  :href="`/action/edit/${row.id}`"
                   icon="fa fa-edit"
                   label="Editar"
                   bgColor="#10312B"
@@ -61,7 +61,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { notyf } from '@components/notyf.js'
-import { BASE_URL } from '@/components/url.js'
 
 // Helpers tabla
 import { setupTableEvents } from '@helpers/table/table-events.vue'

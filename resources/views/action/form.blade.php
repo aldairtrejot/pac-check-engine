@@ -2,6 +2,7 @@
 
     {{-- Catálogo de finalidades (opcional) --}}
     @inject('finalidadModel', 'App\Models\Pac\Collection\CollectionFinalidadModel')
+
     @php
         $finalidadList = $finalidadModel->listCollection();
 
@@ -13,21 +14,24 @@
         :tittle="isset($accion) ? 'Editar acción' : 'Agregar acción'"
     >
         <x-button.button-header-action
-            route="{{ route('action') }}"
+            route="{{ route('action', [], false) }}"
             icon="fa fa-arrow-left me-sm-1"
             tittle="Regresar"
         />
 
-        {{-- ✅ NUEVO: Revisión de constancias --}}
+        {{-- Revisión de constancias --}}
         <x-button.button-header-action
-            route="{{ route('constancias') }}"
+            route="{{ route('constancias', [], false) }}"
             icon="fa fa-file-pdf me-sm-1"
             tittle="Revisión de constancias"
         />
     </x-template.app-header>
 
     <x-template.app-card>
-        <form action="{{ route('action.save') }}" method="POST">
+        <form id="form_action"
+              action="{{ route('action.save', [], false) }}"
+              method="POST"
+              autocomplete="off">
             @csrf
 
             @isset($accion)
@@ -110,6 +114,7 @@
                     <label class="form-label">Nombre de la acción</label>
                     <input type="text"
                            name="nombre_accion"
+                           autocomplete="off"
                            class="form-control @error('nombre_accion') is-invalid @enderror"
                            value="{{ old('nombre_accion', $accion->nombre_accion ?? '') }}">
                     @error('nombre_accion')
@@ -142,6 +147,7 @@
                     <input type="number"
                            step="0.5"
                            name="duracion_hrs"
+                           autocomplete="off"
                            class="form-control @error('duracion_hrs') is-invalid @enderror"
                            value="{{ old('duracion_hrs', $accion->duracion_hrs ?? '') }}">
                     @error('duracion_hrs')
@@ -187,7 +193,7 @@
                 </div>
             </div>
 
-            {{-- 5) FINALIDAD (combo, guarda la DESCRIPCIÓN, default F6-SENSIBILIZACION) --}}
+            {{-- 5) FINALIDAD --}}
             <div class="row mb-3">
                 <div class="col-md-12">
                     <label class="form-label">Finalidad</label>
@@ -208,11 +214,12 @@
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-3">
-                <a href="{{ route('action') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('action', [], false) }}" class="btn btn-sm btn-outline-secondary">
                     <i class="fa fa-times me-1"></i> Cancelar
                 </a>
 
                 <button type="submit"
+                        form="form_action"
                         class="btn btn-sm text-white"
                         style="background-color:#235B4E;border-color:#235B4E;">
                     <i class="fa fa-save me-1"></i>
