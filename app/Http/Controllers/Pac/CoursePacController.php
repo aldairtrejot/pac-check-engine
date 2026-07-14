@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
+use App\Support\PacVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -68,6 +69,13 @@ class CoursePacController extends Controller
 
             $idBase   = (int) $validated['id_empl_accion_base'];
             $idAccion = (int) $validated['id_accion'];
+
+            if (! $this->canAccessEmployeeAction($idBase)) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Acceso denegado o registro no encontrado.',
+                ], 200);
+            }
 
             $result = DB::transaction(function () use ($idBase, $idAccion) {
                 $base = DB::table('public.a2_acciones_empleados')
@@ -289,6 +297,42 @@ class CoursePacController extends Controller
         }
 
         abort(403, 'No tienes permisos para agregar cursos.');
+    }
+
+    private function canAccessEmployeeAction(int $idEmplAccion): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || $idEmplAccion <= 0) {
+            return false;
+        }
+
+        $query = DB::table('public.a2_acciones_empleados as e')
+            ->join('public.a2_acciones_capacitacion as c', function ($join) {
+                $join->on(
+                    DB::raw("
+                        CASE
+                            WHEN TRIM(e.id_puesto) ~ '^[0-9]+$'
+                            THEN TRIM(e.id_puesto)::INTEGER
+                            ELSE NULL
+                        END
+                    "),
+                    '=',
+                    'c.id_puesto'
+                )->whereRaw(
+                    'UPPER(TRIM(public.unaccent(e.curp))) = UPPER(TRIM(public.unaccent(c.curp)))'
+                );
+            })
+            ->where('e.id_empl_accion', $idEmplAccion);
+
+        PacVisibility::apply(
+            $query,
+            $user,
+            'c',
+            'public.a2_acciones_capacitacion'
+        );
+
+        return $query->exists();
     }
 
     private function isAdminOrRevisorEst($user): bool

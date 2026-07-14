@@ -283,6 +283,23 @@
                 </div>
             </div>
 
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label class="form-label">Observaciones <span class="text-danger">*</span></label>
+                    <textarea
+                        name="observaciones"
+                        class="form-control @error('observaciones') is-invalid @enderror"
+                        rows="3"
+                        maxlength="1000"
+                        style="text-transform: uppercase;"
+                        required
+                    >{{ old('observaciones') }}</textarea>
+                    @error('observaciones')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+
             <div class="d-flex justify-content-end gap-2 mt-3">
                 <a href="{{ route('pac') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="fa fa-times me-1"></i> Cancelar
@@ -315,7 +332,7 @@
             }
 
             // Mayúsculas automáticas
-            const upperCaseInputs = document.querySelectorAll('input[style*="text-transform: uppercase"]');
+            const upperCaseInputs = document.querySelectorAll('input[style*="text-transform: uppercase"], textarea[style*="text-transform: uppercase"]');
             upperCaseInputs.forEach(function(input) {
                 input.addEventListener('input', function() {
                     this.value = this.value.toUpperCase();

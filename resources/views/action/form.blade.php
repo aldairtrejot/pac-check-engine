@@ -8,20 +8,28 @@
 
         // Estatus por defecto: VIGENTE
         $estatusActual = old('estatus', $accion->estatus ?? 'VIGENTE');
+
+        $hasRamoActual = isset($accion) && collect($ramoList)->contains(fn ($r) => (string) $r->ramo === (string) ($accion->ramo ?? ''));
+        $hasUrActual = isset($accion) && collect($urList)->contains(fn ($ur) => (string) $ur->descripcion === (string) ($accion->ur ?? ''));
+        $hasInstitucionActual = isset($accion) && collect($instList)->contains(fn ($ins) => (string) $ins->descripcion === (string) ($accion->institucion ?? ''));
+        $hasTematicaActual = isset($accion) && collect($tematicaList)->contains(fn ($tm) => (string) $tm->descripcion === (string) ($accion->tematica ?? ''));
+        $hasTipoCapActual = isset($accion) && collect($tipoCapList)->contains(fn ($tipo) => (string) $tipo->descripcion === (string) ($accion->tipo_capacitacion ?? ''));
+        $hasModalidadActual = isset($accion) && collect($modalidadList)->contains(fn ($mod) => (string) $mod->descripcion === (string) ($accion->modalidad ?? ''));
+        $hasFinalidadActual = isset($accion) && collect($finalidadList)->contains(fn ($fin) => (string) $fin->descripcion === (string) ($accion->finalidad ?? ''));
     @endphp
 
     <x-template.app-header
         :tittle="isset($accion) ? 'Editar acción' : 'Agregar acción'"
     >
         <x-button.button-header-action
-            route="{{ route('action', [], false) }}"
+            route="{{ route('action') }}"
             icon="fa fa-arrow-left me-sm-1"
             tittle="Regresar"
         />
 
         {{-- Revisión de constancias --}}
         <x-button.button-header-action
-            route="{{ route('constancias', [], false) }}"
+            route="{{ route('constancias') }}"
             icon="fa fa-file-pdf me-sm-1"
             tittle="Revisión de constancias"
         />
@@ -29,7 +37,7 @@
 
     <x-template.app-card>
         <form id="form_action"
-              action="{{ route('action.save', [], false) }}"
+              action="{{ route('action.save') }}"
               method="POST"
               autocomplete="off">
             @csrf
@@ -44,6 +52,9 @@
                     <label class="form-label">Ramo</label>
                     <select name="ramo" class="form-select @error('ramo') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasRamoActual && trim((string) ($accion->ramo ?? '')) !== '')
+                            <option value="{{ $accion->ramo }}" selected>{{ $accion->ramo }}</option>
+                        @endif
                         @foreach($ramoList as $r)
                             <option value="{{ $r->ramo }}"
                                 {{ old('ramo', $accion->ramo ?? '') == $r->ramo ? 'selected' : '' }}>
@@ -60,6 +71,9 @@
                     <label class="form-label">UR</label>
                     <select name="ur" class="form-select @error('ur') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasUrActual && trim((string) ($accion->ur ?? '')) !== '')
+                            <option value="{{ $accion->ur }}" selected>{{ $accion->ur }}</option>
+                        @endif
                         @foreach($urList as $ur)
                             <option value="{{ $ur->descripcion }}"
                                 {{ old('ur', $accion->ur ?? '') == $ur->descripcion ? 'selected' : '' }}>
@@ -76,6 +90,9 @@
                     <label class="form-label">Institución</label>
                     <select name="institucion" class="form-select @error('institucion') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasInstitucionActual && trim((string) ($accion->institucion ?? '')) !== '')
+                            <option value="{{ $accion->institucion }}" selected>{{ $accion->institucion }}</option>
+                        @endif
                         @foreach($instList as $ins)
                             <option value="{{ $ins->descripcion }}"
                                 {{ old('institucion', $accion->institucion ?? '') == $ins->descripcion ? 'selected' : '' }}>
@@ -130,6 +147,9 @@
                     <select name="tematica"
                             class="form-select @error('tematica') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasTematicaActual && trim((string) ($accion->tematica ?? '')) !== '')
+                            <option value="{{ $accion->tematica }}" selected>{{ $accion->tematica }}</option>
+                        @endif
                         @foreach($tematicaList as $tm)
                             <option value="{{ $tm->descripcion }}"
                                 {{ old('tematica', $accion->tematica ?? '') == $tm->descripcion ? 'selected' : '' }}>
@@ -163,6 +183,9 @@
                     <select name="tipo_capacitacion"
                             class="form-select @error('tipo_capacitacion') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasTipoCapActual && trim((string) ($accion->tipo_capacitacion ?? '')) !== '')
+                            <option value="{{ $accion->tipo_capacitacion }}" selected>{{ $accion->tipo_capacitacion }}</option>
+                        @endif
                         @foreach($tipoCapList as $tipo)
                             <option value="{{ $tipo->descripcion }}"
                                 {{ old('tipo_capacitacion', $accion->tipo_capacitacion ?? '') == $tipo->descripcion ? 'selected' : '' }}>
@@ -180,6 +203,9 @@
                     <select name="modalidad"
                             class="form-select @error('modalidad') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasModalidadActual && trim((string) ($accion->modalidad ?? '')) !== '')
+                            <option value="{{ $accion->modalidad }}" selected>{{ $accion->modalidad }}</option>
+                        @endif
                         @foreach($modalidadList as $mod)
                             <option value="{{ $mod->descripcion }}"
                                 {{ old('modalidad', $accion->modalidad ?? '') == $mod->descripcion ? 'selected' : '' }}>
@@ -200,6 +226,9 @@
                     <select name="finalidad"
                             class="form-select @error('finalidad') is-invalid @enderror">
                         <option value="">Seleccione...</option>
+                        @if(isset($accion) && !$hasFinalidadActual && trim((string) ($accion->finalidad ?? '')) !== '')
+                            <option value="{{ $accion->finalidad }}" selected>{{ $accion->finalidad }}</option>
+                        @endif
                         @foreach($finalidadList as $fin)
                             <option value="{{ $fin->descripcion }}"
                                 {{ old('finalidad', $accion->finalidad ?? 'F6-SENSIBILIZACION') == $fin->descripcion ? 'selected' : '' }}>
@@ -214,7 +243,7 @@
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-3">
-                <a href="{{ route('action', [], false) }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('action') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="fa fa-times me-1"></i> Cancelar
                 </a>
 

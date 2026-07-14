@@ -11,16 +11,22 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         $email = 'soporte_rh@imssbienestar.gob.mx';
+        $password = trim((string) env('ADMIN_SEEDER_PASSWORD', ''));
+
+        if ($password === '') {
+            $this->command?->warn('ADMIN_SEEDER_PASSWORD no definido; no se creó/actualizó el usuario admin base.');
+            return;
+        }
 
         // Crea o actualiza el usuario admin base
-        // OJO: tu modelo User tiene cast 'password' => 'hashed'
-        // así que puedes pasar la contraseña en texto plano.
+        // OJO: tu modelo User tiene cast 'password' => 'hashed'.
         $user = User::updateOrCreate(
             ['email' => $email],
             [
                 'name' => 'SOPORTE RH',
-                'password' => 'soporte2025@',
+                'password' => $password,
                 'status' => true,
+                'is_admin' => true,
 
                 // Estas pueden quedarse null
                 'id_entidad' => null,

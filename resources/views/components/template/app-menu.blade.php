@@ -175,6 +175,10 @@
                 title="Salir"
             />
 
+            <form id="logoutForm" action="{{ route('logout') }}" method="POST" class="d-none">
+                @csrf
+            </form>
+
             {{-- Espacio automático: solo empuja Aviso de Privacidad hasta abajo --}}
             <li class="nav-item sidebar-bottom-spacer" aria-hidden="true"></li>
 
@@ -1100,6 +1104,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const logoutUrl = @json(route('logout'));
     const logoutLink = document.querySelector(`a[href="${logoutUrl}"]`);
+    const logoutForm = document.getElementById('logoutForm');
 
     if (logoutLink) {
         logoutLink.addEventListener('click', function (e) {
@@ -1123,7 +1128,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    window.location.href = this.href;
+                    if (logoutForm) {
+                        logoutForm.submit();
+                    }
                 }
             });
         });

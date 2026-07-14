@@ -863,7 +863,7 @@ function validateEmployeeModalRequiredFields() {
     {
       label: 'Evaluación de aprendizaje',
       id: 'm_eval_aprendizaje',
-      valid: !!m_eval_aprendizaje.value,
+      valid: m_eval_aprendizaje.value === true || m_eval_aprendizaje.value === false,
     },
   ]
 

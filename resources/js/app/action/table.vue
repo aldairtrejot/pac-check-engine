@@ -24,7 +24,7 @@
             <td class="text-center">
               <div class="button-container">
                 <tableButtonEdit
-                  :href="`/action/edit/${row.id}`"
+                  :href="`action/edit/${row.id}`"
                   icon="fa fa-edit"
                   label="Editar"
                   bgColor="#10312B"

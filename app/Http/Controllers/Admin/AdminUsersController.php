@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -17,8 +18,8 @@ class AdminUsersController extends Controller
 
     public function table(Request $request)
     {
-        $limit  = (int) $request->input('limit', 5);
-        $offset = (int) $request->input('offset', 0);
+        $limit  = max(1, min((int) $request->input('limit', 5), 50));
+        $offset = max(0, (int) $request->input('offset', 0));
         $search = trim((string) $request->input('search', ''));
 
         $q = User::query()
@@ -84,16 +85,31 @@ class AdminUsersController extends Controller
             'id_clues' => ['nullable', 'integer'],
         ]);
 
-        User::create([
-            'name' => mb_strtoupper(trim($data['name']), 'UTF-8'),
-            'email' => strtolower(trim($data['email'])),
-            'password' => Hash::make($data['password']),
-            'is_admin' => (int) $data['is_admin'],
-            'status' => isset($data['status']) ? (int) $data['status'] : 1,
-            'id_entidad' => $data['id_entidad'] ?? null,
-            'id_tipo_nomina' => $data['id_tipo_nomina'] ?? null,
-            'id_clues' => $data['id_clues'] ?? null,
-        ]);
+        DB::transaction(function () use ($data) {
+            $user = User::create([
+                'name' => mb_strtoupper(trim($data['name']), 'UTF-8'),
+                'email' => strtolower(trim($data['email'])),
+                'password' => Hash::make($data['password']),
+                'is_admin' => (int) $data['is_admin'],
+                'status' => isset($data['status']) ? (int) $data['status'] : 1,
+                'id_entidad' => $data['id_entidad'] ?? null,
+                'id_tipo_nomina' => $data['id_tipo_nomina'] ?? null,
+                'id_clues' => $data['id_clues'] ?? null,
+            ]);
+
+            if ((int) $data['is_admin'] === 1) {
+                $roleId = DB::table('administracion.roles')
+                    ->whereRaw('UPPER(TRIM(code)) = ?', ['ADMIN_OC'])
+                    ->value('id');
+
+                if ($roleId) {
+                    DB::table('administracion.user_roles')->updateOrInsert(
+                        ['user_id' => $user->id, 'role_id' => (int) $roleId],
+                        []
+                    );
+                }
+            }
+        });
 
         return response()->json([
             'status' => true,

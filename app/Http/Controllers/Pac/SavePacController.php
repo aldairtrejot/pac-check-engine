@@ -69,7 +69,13 @@ class SavePacController extends Controller
             $allowed = DB::table('public.a2_acciones_empleados as e')
                 ->join('public.a2_acciones_capacitacion as c', function ($join) {
                     $join->on(
-                        DB::raw('e.id_puesto::INTEGER'),
+                        DB::raw("
+                            CASE
+                                WHEN TRIM(e.id_puesto) ~ '^[0-9]+$'
+                                THEN TRIM(e.id_puesto)::INTEGER
+                                ELSE NULL
+                            END
+                        "),
                         '=',
                         'c.id_puesto'
                     )->whereRaw(

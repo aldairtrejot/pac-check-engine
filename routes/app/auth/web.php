@@ -13,7 +13,7 @@ use App\Http\Controllers\Auth\ViewLoginController;
 // get
 Route::get('/login', [ViewLoginController::class, 'viewLogin'])->name('login');
 // logout
-Route::get('/logout', [AuthLoginController::class, 'logout'])->name('logout');
+Route::post('/logout', [AuthLoginController::class, 'logout'])->name('logout');
 // post
 Route::post('/auth/login', [AuthLoginController::class, 'authLogin'])->name('auth.login');
 // captcha

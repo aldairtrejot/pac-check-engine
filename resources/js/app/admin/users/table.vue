@@ -116,6 +116,8 @@
             label="Contraseña"
             id="password"
             v-model="m_password"
+            type="password"
+            autocomplete="new-password"
           />
         </div>
 
@@ -125,6 +127,8 @@
             label="Confirmar contraseña"
             id="password_confirmation"
             v-model="m_password_confirmation"
+            type="password"
+            autocomplete="new-password"
           />
         </div>
 

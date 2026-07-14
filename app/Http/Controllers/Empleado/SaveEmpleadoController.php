@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Log;
 
 class SaveEmpleadoController extends Controller
 {
+    private const OBSERVACION_CURSO_OBLIGATORIO = 'OBLIGATORIO';
+
     public function save(Request $request)
     {
         // 1) Validación
@@ -30,6 +32,7 @@ class SaveEmpleadoController extends Controller
             'clave_clues'       => 'nullable|string|max:50',
             'descripcion_clues' => 'nullable|string|max:255',
             'quincena'          => 'nullable|integer|min:1|max:24',
+            'observaciones'     => 'required|string|max:1000',
         ], [
             'curp.required' => 'El campo CURP es obligatorio.',
             'curp.regex'    => 'El CURP solo puede contener letras mayúsculas y números.',
@@ -38,6 +41,7 @@ class SaveEmpleadoController extends Controller
             'nombre.required' => 'El campo Nombre es obligatorio.',
             'apellido_paterno.required' => 'El campo Apellido Paterno es obligatorio.',
             'nombre_puesto.required' => 'El campo Nombre del Puesto es obligatorio.',
+            'observaciones.required' => 'El campo Observaciones es obligatorio.',
         ]);
 
         try {
@@ -49,6 +53,16 @@ class SaveEmpleadoController extends Controller
             // CURP base por defecto, aunque no venga en el formulario.
             // Se usa siempre OIJN850210MMCRMN07 como plantilla.
             $curpBase = strtoupper(trim($validated['curp_base'] ?? 'OIJN850210MMCRMN07'));
+
+            /*
+            |--------------------------------------------------------------------------
+            | Bloqueo de alta de empleado
+            |--------------------------------------------------------------------------
+            | Este flujo calcula ids con MAX + 1 por compatibilidad con tablas
+            | existentes. El advisory lock evita duplicados si dos usuarios dan de
+            | alta empleados al mismo tiempo dentro de PostgreSQL.
+            */
+            DB::statement('SELECT pg_advisory_xact_lock(2026071401)');
 
             // 2) Checar duplicado en plantilla
             $existeNuevo = DB::table('public.a2_acciones_capacitacion')
@@ -287,14 +301,16 @@ class SaveEmpleadoController extends Controller
                     ->first();
 
                 if (! $accion) {
-                    // Si no existe el curso, se omite para no romper el alta del empleado.
-                    continue;
+                    Log::warning('Curso obligatorio no encontrado en a1_cat_acciones al alta de empleado; se insertará sin datos de catálogo.', [
+                        'curp' => $curpNuevo,
+                        'id_accion' => $cfg['id_accion'],
+                    ]);
                 }
 
                 // id_tematica según la temática de la acción
                 $idTematica = null;
 
-                if (!empty($accion->tematica)) {
+                if (!empty($accion?->tematica)) {
                     $idTematica = DB::table('public.cat_tematica')
                         ->whereRaw('TRIM(UPPER(tematica)) = TRIM(UPPER(?))', [$accion->tematica])
                         ->value('id_tematica');
@@ -324,10 +340,10 @@ class SaveEmpleadoController extends Controller
                     'id_trimestre'     => null,
                     'id_num_curso'     => $nextNumCurso,
                     'eval_aprendizaje' => null,
-                    'observaciones'    => null,
+                    'observaciones'    => self::OBSERVACION_CURSO_OBLIGATORIO,
                     'id_cat_estatus'   => null,
                     'id_cat_tematica'  => $idTematica,
-                    'horas_progamadas' => $accion->duracion_hrs,
+                    'horas_progamadas' => $accion?->duracion_hrs,
                 ]);
             }
 

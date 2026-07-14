@@ -49,6 +49,7 @@ class AuthLoginController extends Controller
             if (!Auth::guard('web')->attempt([
                 'email' => $validated['email'],
                 'password' => $validated['password'],
+                'status' => true,
             ], $request->boolean('remember'))) {
                 RateLimiter::hit($key, 60);
 

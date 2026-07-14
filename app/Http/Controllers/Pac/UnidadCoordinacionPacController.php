@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
+use App\Support\PacVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -89,6 +90,13 @@ class UnidadCoordinacionPacController extends Controller
                 'id' => 'required|integer',
             ]);
 
+            if (! $this->canAccessEmployeeAction((int) $validated['id'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Acceso denegado o registro no encontrado.',
+                ], 200);
+            }
+
             $emp = DB::table('public.a2_acciones_empleados')
                 ->select('id_puesto', 'curp')
                 ->where('id_empl_accion', (int) $validated['id'])
@@ -162,6 +170,13 @@ class UnidadCoordinacionPacController extends Controller
                 'id_unidad'       => 'required|integer',
                 'id_coordinacion' => 'required|integer',
             ]);
+
+            if (! $this->canAccessEmployeeAction((int) $validated['id'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Acceso denegado o registro no encontrado.',
+                ], 200);
+            }
 
             $relOk = DB::table('public.rel_unidad_coordinacion')
                 ->where('id_unidad', (int) $validated['id_unidad'])
@@ -317,6 +332,42 @@ class UnidadCoordinacionPacController extends Controller
         }
 
         return self::$eventLogTableExists;
+    }
+
+    private function canAccessEmployeeAction(int $idEmplAccion): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || $idEmplAccion <= 0) {
+            return false;
+        }
+
+        $query = DB::table('public.a2_acciones_empleados as e')
+            ->join('public.a2_acciones_capacitacion as c', function ($join) {
+                $join->on(
+                    DB::raw("
+                        CASE
+                            WHEN TRIM(e.id_puesto) ~ '^[0-9]+$'
+                            THEN TRIM(e.id_puesto)::INTEGER
+                            ELSE NULL
+                        END
+                    "),
+                    '=',
+                    'c.id_puesto'
+                )->whereRaw(
+                    'UPPER(TRIM(public.unaccent(e.curp))) = UPPER(TRIM(public.unaccent(c.curp)))'
+                );
+            })
+            ->where('e.id_empl_accion', $idEmplAccion);
+
+        PacVisibility::apply(
+            $query,
+            $user,
+            'c',
+            'public.a2_acciones_capacitacion'
+        );
+
+        return $query->exists();
     }
 
     /**
