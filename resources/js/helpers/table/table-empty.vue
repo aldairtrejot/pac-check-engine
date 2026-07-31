@@ -1,11 +1,12 @@
 <template>
     <tr>
-        <!-- Table cell spanning multiple columns, centered and vertically aligned -->
-        <td :colspan="colspan" class="align-middle text-center">
-            <!-- Message displayed in secondary color, small font, and bold weight -->
-            <span class="text-secondary text-xs font-weight-bold">
-                {{ message }}
-            </span>
+        <td :colspan="colspan" class="align-middle text-center cap-table-empty-cell">
+            <div class="cap-empty-state">
+                <span class="cap-empty-icon">
+                    <i class="fa fa-magnifying-glass"></i>
+                </span>
+                <span class="cap-empty-text">{{ message }}</span>
+            </div>
         </td>
     </tr>
 </template>

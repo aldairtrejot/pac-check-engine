@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <title>Validación de Plantillas PAC</title>
+    <title>Sistema de Capacitación</title>
 
     <link rel="shortcut icon" href="{{ asset('assets/images/bienestar/favicon.png') }}" />
     <link id="pagestyle" href="{{ asset('assets/app/css/soft-ui-dashboard.css') }}" rel="stylesheet" />
@@ -18,10 +18,20 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    @vite(['resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        .cap-auth-document,
+        .cap-auth-page {
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.38)),
+                url('{{ asset('assets/app/images/backgroud_imss_white12.png') }}') center/cover no-repeat;
+            background-attachment: fixed;
+        }
+    </style>
 </head>
 
-<body>
+<body class="cap-auth-document">
     @include('components.message.error-messages')
 
     <div id="spinnerOverlay" class="spinner-overlay">

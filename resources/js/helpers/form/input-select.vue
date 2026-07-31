@@ -77,21 +77,22 @@ function onUpdateValue(value) {
 
 <style scoped>
 .multiselect-wrapper .multiselect {
-    border-radius: 0.5rem;
-    border: 1px solid #d2d6da;
+    border-radius: 0.65rem;
+    border: 1px solid #d7dedb;
     font-size: 14px;
 }
 
 .multiselect-wrapper .multiselect__tags {
-    border-radius: 0.5rem;
-    padding: 6px 10px;
-    background-color: #d2d6da;
+    border-radius: 0.65rem;
+    padding: 7px 11px;
+    background-color: #ffffff;
+    border-color: transparent;
 }
 </style>
 
 <style>
 .multiselect__option--highlight {
-    background: #ddc9a3;
+    background: #235B4E;
     outline: 0;
     color: #fff;
 }
@@ -104,7 +105,7 @@ function onUpdateValue(value) {
     margin-right: 10px;
     color: #fff;
     line-height: 1;
-    background: #ac6d14;
+    background: #235B4E;
     margin-bottom: 5px;
     white-space: nowrap;
     overflow: hidden;
@@ -113,7 +114,7 @@ function onUpdateValue(value) {
 }
 
 .multiselect__option--selected.multiselect__option--highlight {
-    background: #ddc9a3;
+    background: #10312B;
     color: #fff;
 }
 

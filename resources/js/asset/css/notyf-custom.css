@@ -1,9 +1,19 @@
-/* Bordes redondeados en la “burbuja” */
 .notyf__toast {
-    border-radius: 12px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 16px 32px rgba(16, 49, 43, 0.18) !important;
+    padding: 0 2px !important;
 }
 
-/* Texto en negrita */
 .notyf__message {
-    font-weight: bold !important;
+    font-size: 0.86rem !important;
+    font-weight: 800 !important;
+    line-height: 1.35 !important;
+}
+
+.notyf__toast--success {
+    background: #235B4E !important;
+}
+
+.notyf__toast--error {
+    background: #8B1E2D !important;
 }

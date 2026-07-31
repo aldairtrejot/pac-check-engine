@@ -92,7 +92,8 @@
                 color_icon="#777777"
                 :clickEventPayload="null"
               />
-              <button type="button" class="btn btn-sm btn-secondary" @click="search_function">
+              <button type="button" class="btn btn-sm cap-btn-primary" @click="search_function">
+                <i class="fa fa-search"></i>
                 <span class="d-none d-sm-inline">Buscar</span>
               </button>
             </div>
@@ -179,7 +180,7 @@
             </template>
 
             <td class="align-middle text-center" style="width: 130px;">
-              <span class="text-secondary text-xs" style="font-weight:600;">
+              <span class="cap-status-pill" :class="statusPillClass(row.estatus_txt)">
                 {{ row.estatus_txt || '—' }}
               </span>
             </td>
@@ -487,15 +488,14 @@
 
           <!-- Footer -->
           <div class="modal-footer" style="background:#fff; border-top:1px solid #e9ecef;">
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+            <button type="button" class="btn btn-sm cap-btn-outline" data-bs-dismiss="modal">
               Cerrar
             </button>
 
             <template v-if="canShowDecisionButtons(d.estatus_txt)">
               <button
                 type="button"
-                class="btn btn-sm text-white"
-                style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
+                class="btn btn-sm cap-btn-danger"
                 @click="openRejectModal"
               >
                 <i class="fa fa-times me-1"></i> Rechazar
@@ -503,8 +503,7 @@
 
               <button
                 type="button"
-                class="btn btn-sm text-white"
-                style="background:#235B4E;border-color:#235B4E;border-radius:12px;"
+                class="btn btn-sm cap-btn-primary"
                 @click="updateStatus('ACEPTAR')"
               >
                 <i class="fa fa-check me-1"></i> Aceptar
@@ -556,7 +555,7 @@
           <div class="modal-footer" style="background:#fff; border-top:1px solid #e9ecef;">
             <button
               type="button"
-              class="btn btn-sm btn-outline-secondary"
+              class="btn btn-sm cap-btn-outline"
               data-bs-dismiss="modal"
               @click="resetRejectForm"
             >
@@ -565,8 +564,7 @@
 
             <button
               type="button"
-              class="btn btn-sm text-white"
-              style="background:#8B0000;border-color:#8B0000;border-radius:12px;"
+              class="btn btn-sm cap-btn-danger"
               @click="confirmReject"
             >
               Confirmar rechazo
@@ -662,6 +660,14 @@ function statusBadgeClass(statusTxt) {
   if (s === 'RECHAZADO' || s === 'RECHAZADA') return 'bg-danger'
   if (s === 'PENDIENTE') return 'bg-secondary'
   return 'bg-dark'
+}
+
+function statusPillClass(statusTxt) {
+  const s = normalizeStatus(statusTxt)
+  if (s === 'ACEPTADO' || s === 'ACEPTADA') return 'cap-status-success'
+  if (s === 'RECHAZADO' || s === 'RECHAZADA') return 'cap-status-danger'
+  if (s === 'PENDIENTE') return 'cap-status-pending'
+  return 'cap-status-pending'
 }
 
 function formatCalificacion(value) {

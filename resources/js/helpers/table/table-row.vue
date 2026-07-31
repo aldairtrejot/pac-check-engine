@@ -1,6 +1,5 @@
 <template>
-    <!-- Table header cell styled with center alignment, secondary color, very small bold text, and low opacity -->
-    <th style="color:black" class="text-center text-secondary text-xs font-weight-bold">
+    <th class="text-center text-xs font-weight-bold cap-table-heading">
         {{ value }}
     </th>
 </template>

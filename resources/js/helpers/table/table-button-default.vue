@@ -1,9 +1,13 @@
 <template>
-    <!-- Button with dynamic background color and Bootstrap modal toggle attributes -->
-    <button class="icon-button" :style="{ backgroundColor: color }" v-bind="modalAttrs" @click="handleClick">
-        <!-- Icon inside the button -->
+    <button
+        class="icon-button cap-icon-button"
+        :style="{ backgroundColor: color }"
+        v-bind="modalAttrs"
+        @click="handleClick"
+        :aria-label="label"
+        type="button"
+    >
         <i :class="icon" :style="{ color: color_icon }"></i>
-        <!-- Tooltip text shown on hover -->
         <span class="custom-tooltip">{{ label }}</span>
     </button>
 </template>
@@ -40,7 +44,8 @@ const props = defineProps({
         default: null,   // Optional: value for Bootstrap's data-bs-target attribute
     },
     color_icon: {
-        color: 'White'
+        type: String,
+        default: 'White'
     }
 })
 

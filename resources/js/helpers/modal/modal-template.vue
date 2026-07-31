@@ -1,27 +1,30 @@
 <template>
     <div class="modal fade" :id="modalId" tabindex="-1" role="dialog" :aria-labelledby="modalId + '_label'"
-        aria-hidden="false"> <!-- Modal container with dynamic ID and ARIA attributes -->
+        aria-hidden="false">
         <div :class="['modal-dialog', modalSizeClass, 'modal-dialog-centered']" role="document">
-            <!-- Modal dialog with size and centering -->
-            <div class="modal-content" style="border-radius: 0; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);">
-                <!-- Modal box with custom styling -->
-                <div class="modal-header" style="border-bottom: none;"> <!-- Header without border -->
-                    <h5 class="modal-title" :id="modalId + '_label'" style="color:black"> <!-- Modal title -->
-                        {{ title }} <!-- Display the title passed via props -->
-                    </h5>
+            <div class="modal-content cap-modal">
+                <div class="modal-header cap-modal-header">
+                    <div class="cap-modal-title-wrap">
+                        <span class="cap-modal-icon">
+                            <i class="fa fa-clipboard-check"></i>
+                        </span>
+                        <h5 class="modal-title cap-modal-title" :id="modalId + '_label'">
+                            {{ title }}
+                        </h5>
+                    </div>
                 </div>
 
-                <!-- Optional content slot -->
-                <div v-if="$slots.default" class="modal-body" style="margin-top: 0; padding-top: 0;">
-                    <!-- Only render body if slot is passed -->
-                    <slot /> <!-- Slot content -->
+                <div v-if="$slots.default" class="modal-body cap-modal-body">
+                    <slot />
                 </div>
 
-                <div class="modal-footer" style="border-top: none;"> <!-- Footer without border -->
-                    <button type="button" class="btn btn-sm btn" data-bs-dismiss="modal">Cancelar</button>
-                    <!-- Cancel button -->
-                    <button type="button" class="btn btn-sm btn-secondary" @click="onConfirm">Confirmar</button>
-                    <!-- Confirm button with event -->
+                <div class="modal-footer cap-modal-footer">
+                    <button type="button" class="btn btn-sm cap-btn-outline" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-sm cap-btn-primary" @click="onConfirm">
+                        Confirmar
+                    </button>
                 </div>
             </div>
         </div>

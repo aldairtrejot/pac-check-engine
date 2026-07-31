@@ -1,30 +1,32 @@
 <template>
-  <div style="margin:0; padding:0;">
-    <main class="main-content" style="padding:0; margin:0;">
-      <section style="padding:0; margin:0;">
+  <div class="cap-auth-shell">
+    <main class="main-content cap-auth-main">
+      <section class="cap-auth-section">
         <div
-          class="page-header d-flex justify-content-center align-items-center"
-          style="padding:0; margin:0; min-height:100vh; overflow:visible;"
+          class="page-header cap-auth-page d-flex justify-content-center align-items-center"
         >
-          <div class="col-xl-3 col-lg-4 col-md-5 col-sm-8 col-10" style="padding:0;">
+          <div class="col-xl-3 col-lg-4 col-md-6 col-sm-8 col-11">
             <div
-              class="card card-plain"
-              style="
-                background-color: transparent !important;
-                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
-                border-radius: 12px !important;
-              "
+              class="card card-plain cap-auth-card"
             >
-              <div class="card-header pb-0 text-left bg-transparent">
-                <h3 class="font-weight-bolder text-info text-gradient text-center">
-                  Validación de Plantillas PAC
+              <div class="card-header pb-0 text-center bg-transparent cap-auth-header">
+                <div class="cap-auth-logo-wrap mx-auto">
+                  <img
+                    :src="logoSrc"
+                    alt="Sistema de Capacitación"
+                    class="cap-auth-logo"
+                  >
+                </div>
+
+                <h3 class="font-weight-bolder text-center cap-auth-title">
+                  Sistema de Capacitación
                 </h3>
-                <p class="mb-0 text-center">
-                  Introduce tu correo y contraseña para iniciar sesión.
+                <p class="mb-0 text-center cap-auth-subtitle">
+                  Ingresa con tu cuenta institucional para continuar.
                 </p>
               </div>
 
-              <div class="card-body">
+              <div class="card-body cap-auth-body">
                 <form id="data_form" @submit.prevent="sendData">
                   <label for="email">Correo electrónico</label>
                   <div class="mb-3">
@@ -66,21 +68,22 @@
 
                   <label for="captcha">Captcha</label>
 
-                  <div class="mb-2 text-center">
+                  <div class="mb-2 text-center cap-captcha-box">
                     <img
                       v-if="captchaSrc"
                       :src="captchaSrc"
                       alt="Captcha"
-                      style="height:80px; border-radius:8px; border:1px solid #dcdcdc; max-width:100%;"
+                      class="cap-captcha-image"
                     >
                   </div>
 
                   <div class="mb-2 text-center">
                     <button
                       type="button"
-                      class="btn btn-sm btn-outline-dark"
+                      class="btn btn-sm btn-outline-secondary cap-btn-soft"
                       @click="refreshCaptcha"
                     >
+                      <i class="fa fa-rotate-right me-1"></i>
                       Recargar Captcha
                     </button>
                   </div>
@@ -101,19 +104,19 @@
                   <div class="text-center">
                     <button
                       type="submit"
-                      class="btn bg-gradient-info w-100 mt-4 mb-0"
+                      class="btn w-100 mt-4 mb-0 cap-btn-primary"
                       :disabled="isSubmitting"
                     >
+                      <i class="fa fa-right-to-bracket me-1"></i>
                       {{ isSubmitting ? 'Validando...' : 'Ingresar' }}
                     </button>
                   </div>
                 </form>
               </div>
 
-              <div class="card-footer text-center pt-0 px-lg-2 px-1">
-                <p class="mb-4 text-sm mx-auto">
-                  <!-- ¿Olvidaste tu contraseña?-->
-                  <!-- <a href="" class="text-info text-gradient font-weight-bold">accede aqui</a>-->
+              <div class="card-footer text-center pt-0 px-lg-2 px-1 cap-auth-footer">
+                <p class="mb-0 text-sm mx-auto">
+                  Coordinación Técnica de Capacitación y Evaluación
                 </p>
               </div>
             </div>
@@ -139,6 +142,7 @@ const captcha = ref('')
 const captchaSrc = ref('')
 const showPassword = ref(false)
 const isSubmitting = ref(false)
+const logoSrc = `${String(BASE_URL).replace(/\/$/, '')}/assets/images/bienestar/logo-v-color.png`
 
 onMounted(async () => {
   hideSpinner()

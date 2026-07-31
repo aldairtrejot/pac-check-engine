@@ -50,7 +50,8 @@
                 color_icon="#777777"
                 :clickEventPayload="null"
               />
-              <button type="button" class="btn btn-sm btn-secondary" @click="search_function">
+              <button type="button" class="btn btn-sm cap-btn-primary" @click="search_function">
+                <i class="fa fa-search"></i>
                 <span class="d-none d-sm-inline">Buscar</span>
               </button>
             </div>
@@ -68,7 +69,7 @@
         <thead>
           <tr>
             <tableRow value="Acciones" />
-            <tableRow value="¿Es atentido?" />
+            <tableRow value="Atendido" />
             <tableRow value="Nombre" />
             <tableRow value="CURP" />
             <tableRow value="Acción" />
@@ -101,7 +102,9 @@
             </td>
 
             <td class="align-middle text-center">
-              <span class="text-secondary text-xs font-weight-bold">{{ rowx.atendido }}</span>
+              <span class="cap-status-pill" :class="statusPillClass(rowx.atendido)">
+                {{ rowx.atendido || '—' }}
+              </span>
             </td>
             <td class="align-middle text-center">
               <p class="text-xs font-weight-bold mb-0">{{ rowx.nombre }}</p>
@@ -545,6 +548,16 @@ const asignacionActual = ref({
 
 function getRowId(rowx) {
   return rowx?.id ?? rowx?.id_empl_accion ?? null
+}
+
+function statusPillClass(statusTxt) {
+  const status = String(statusTxt || '').toUpperCase().trim()
+
+  if (status === 'CONCLUIDO') {
+    return 'cap-status-success'
+  }
+
+  return 'cap-status-pending'
 }
 
 function getApiErrorMessage(error, fallback = 'No se pudo completar la acción. Por favor, vuelve a intentarlo.') {
