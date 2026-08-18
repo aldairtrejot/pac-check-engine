@@ -87,6 +87,7 @@ class SaveActionController extends Controller
                     ->whereNotIn('id_accion', [
                         1000001, 1000002, 1000003, 1000004, 1000005,
                         1000006, 1000007, 1000008, 1000009, 1000010,
+                        1000011,
                     ])
                     ->max('id_accion');
 

@@ -8,7 +8,7 @@ use App\Http\Controllers\Constancias\DataConstanciasController;
 use App\Http\Controllers\Constancias\UpdateEstatusConstanciasController;
 use App\Http\Controllers\Constancias\ConstanciasFilterOptionsController;
 
-Route::middleware(['auth', 'role:admin_oc,supervisor_oc,revisor_est'])->group(function () {
+Route::middleware(['auth', 'role:admin_oc,supervisor_oc,revisor_est,supervisor_est'])->group(function () {
 
     Route::get('/constancias', [ViewConstanciasController::class, 'view'])
         ->name('constancias');
@@ -25,4 +25,3 @@ Route::middleware(['auth', 'role:admin_oc,supervisor_oc,revisor_est'])->group(fu
         Route::post('/constancias/filter-options', [ConstanciasFilterOptionsController::class, 'options'])
     ->name('constancias.filter-options');
 });
-

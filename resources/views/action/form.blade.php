@@ -26,7 +26,7 @@
             icon="fa fa-arrow-left me-sm-1"
             tittle="Regresar"
         />
-
+    
         {{-- Revisión de constancias --}}
         <x-button.button-header-action
             route="{{ route('constancias') }}"
