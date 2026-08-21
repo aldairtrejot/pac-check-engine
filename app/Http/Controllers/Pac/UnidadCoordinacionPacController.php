@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Support\PacVisibility;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -108,6 +109,12 @@ class UnidadCoordinacionPacController extends Controller
                     'message' => 'No se encontró el empleado (a2_acciones_empleados).',
                 ], 200);
             }
+
+            $oldAssignment = DB::table('public.a2_acciones_capacitacion')
+                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
+                ->where('id_puesto', (int) $emp->id_puesto)
+                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+                ->first();
 
             $cap = DB::table('public.a2_acciones_capacitacion')
                 ->select('id_unidad', 'id_coordinacion', 'num_cursos')
@@ -254,6 +261,12 @@ class UnidadCoordinacionPacController extends Controller
                     'id_coordinacion' => (int) $validated['id_coordinacion'],
                     'coordinacion'    => $coordTxt,
                     'num_cursos'      => $numCursos,
+                ],
+                oldValues: $oldAssignment ? (array) $oldAssignment : null,
+                newValues: [
+                    'id_unidad' => (int) $validated['id_unidad'],
+                    'id_coordinacion' => (int) $validated['id_coordinacion'],
+                    'num_cursos' => $numCursos,
                 ]
             );
 
@@ -283,37 +296,20 @@ class UnidadCoordinacionPacController extends Controller
         string $accion,
         ?string $descripcion = null,
         ?string $idReferencia = null,
-        ?array $payload = null
+        ?array $payload = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
     ): void {
-        try {
-            if ($this->eventLogTableExists()) {
-                DB::table('log.log_eventos_usuario')->insert([
-                    'modulo'        => $modulo,
-                    'accion'        => $accion,
-                    'descripcion'   => $descripcion,
-                    'id_usuario'    => $userId,
-                    'id_referencia' => $idReferencia,
-                    'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
-                    'creado_en'     => now(),
-                ]);
-                return;
-            }
-
-            Log::info('AUDITORIA_USUARIO', [
-                'modulo'        => $modulo,
-                'accion'        => $accion,
-                'descripcion'   => $descripcion,
-                'id_usuario'    => $userId,
-                'id_referencia' => $idReferencia,
-                'payload'       => $payload,
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo guardar log_eventos_usuario', [
-                'message' => $e->getMessage(),
-                'modulo'  => $modulo,
-                'accion'  => $accion,
-            ]);
-        }
+        UserActionLogger::write(
+            idUsuario: $userId,
+            modulo: $modulo,
+            accion: $accion,
+            descripcion: $descripcion,
+            idReferencia: $idReferencia,
+            payload: $payload,
+            oldValues: $oldValues,
+            newValues: $newValues
+        );
     }
 
     private function eventLogTableExists(): bool

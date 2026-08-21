@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pac;
 use App\Http\Controllers\Controller;
 use App\Models\Pac\EntityPacModel;
 use App\Support\PacVisibility;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -99,6 +100,7 @@ class SavePacController extends Controller
             }
 
             $row = EntityPacModel::findOrFail($id);
+            $old = $row->toArray();
 
             $idEstatus   = ($validated['id_cat_estatus'] ?? '') !== '' ? (int) $validated['id_cat_estatus'] : null;
             $idFinalidad = ($validated['id_finalidad'] ?? '') !== '' ? (int) $validated['id_finalidad'] : null;
@@ -231,6 +233,7 @@ class SavePacController extends Controller
             $row->calificacion     = $cal;
 
             $row->save();
+            $row = $row->fresh();
 
             $this->safeWritePacLog(
                 userId: (int) $user->id,
@@ -263,7 +266,9 @@ class SavePacController extends Controller
                     'eval_aprendizaje' => $eval,
                     'calificacion'     => $cal,
                     'observaciones'    => $obs,
-                ]
+                ],
+                oldValues: $old,
+                newValues: $row->toArray()
             );
 
             return response()->json([
@@ -338,38 +343,20 @@ class SavePacController extends Controller
         string $accion,
         ?string $descripcion = null,
         ?string $idReferencia = null,
-        ?array $payload = null
+        ?array $payload = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
     ): void {
-        try {
-            if ($this->eventLogTableExists()) {
-                DB::table('log.log_eventos_usuario')->insert([
-                    'modulo'        => $modulo,
-                    'accion'        => $accion,
-                    'descripcion'   => $descripcion,
-                    'id_usuario'    => $userId,
-                    'id_referencia' => $idReferencia,
-                    'payload'       => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
-                    'creado_en'     => now(),
-                ]);
-
-                return;
-            }
-
-            Log::info('AUDITORIA_USUARIO', [
-                'modulo'        => $modulo,
-                'accion'        => $accion,
-                'descripcion'   => $descripcion,
-                'id_usuario'    => $userId,
-                'id_referencia' => $idReferencia,
-                'payload'       => $payload,
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo guardar log_eventos_usuario', [
-                'message' => $e->getMessage(),
-                'modulo'  => $modulo,
-                'accion'  => $accion,
-            ]);
-        }
+        UserActionLogger::write(
+            idUsuario: $userId,
+            modulo: $modulo,
+            accion: $accion,
+            descripcion: $descripcion,
+            idReferencia: $idReferencia,
+            payload: $payload,
+            oldValues: $oldValues,
+            newValues: $newValues
+        );
     }
 
     private function eventLogTableExists(): bool

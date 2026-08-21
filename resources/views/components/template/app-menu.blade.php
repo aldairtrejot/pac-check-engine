@@ -105,6 +105,16 @@
                 <li class="nav-item menu-after-session-spacer" aria-hidden="true"></li>
             @endauth
 
+            {{-- Usuarios: solo Admin OC --}}
+            @if($isAdminCentral)
+                <x-button.button-nav-menu
+                    active="usuarios"
+                    route="usuarios"
+                    icon="fa fa-users-cog fa-lg"
+                    title="Usuarios"
+                />
+            @endif
+
             {{-- Siempre visible --}}
             <x-button.button-nav-menu
                 active="pac"
@@ -143,17 +153,6 @@
                     icon="fa fa-university fa-lg"
                     title="Instancias"
                 />
-
-                {{--
-                @if($isAdminCentral)
-                    <x-button.button-nav-menu
-                        active="usuarios"
-                        route="usuarios"
-                        icon="fa fa-users-cog fa-lg"
-                        title="Usuarios"
-                    />
-                @endif
-                --}}
 
             @endif
 

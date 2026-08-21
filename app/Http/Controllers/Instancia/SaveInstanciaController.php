@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Instancia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Instancia\EntityInstanciaModel;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,6 +13,7 @@ class SaveInstanciaController extends Controller
     public function save(Request $request)
     {
         $mode = $request->input('mode', 'create');
+        $audit = null;
 
         if ($mode === 'edit') {
             // EDITAR: NO cambiamos id_instancia ni consecutivo
@@ -25,6 +27,7 @@ class SaveInstanciaController extends Controller
             ]);
 
             $row = EntityInstanciaModel::findOrFail($validated['id_instancia']);
+            $old = $row->toArray();
 
             $ramo = $validated['ramo'] !== null && $validated['ramo'] !== ''
                 ? $validated['ramo']
@@ -43,6 +46,14 @@ class SaveInstanciaController extends Controller
             ]);
 
             $message = 'La instancia se actualizó correctamente.';
+            $row = $row->fresh();
+            $audit = [
+                'accion' => 'ACTUALIZAR_INSTANCIA',
+                'descripcion' => 'Modificación de instancia.',
+                'id_referencia' => $row->id_instancia,
+                'old_values' => $old,
+                'new_values' => $row->toArray(),
+            ];
         } else {
             // CREAR: generamos consecutivo + id_instancia
             $validated = $request->validate([
@@ -80,7 +91,7 @@ class SaveInstanciaController extends Controller
                     $idInstancia = str_pad((string) $consecutivo, 5, '0', STR_PAD_LEFT);
                 }
 
-                EntityInstanciaModel::create([
+                $row = EntityInstanciaModel::create([
                     'id_instancia' => $idInstancia,
                     'ramo'         => $ramo,
                     'ur'           => $ur,
@@ -90,12 +101,32 @@ class SaveInstanciaController extends Controller
                     'estatus'      => $validated['estatus'],
                 ]);
 
+                $audit = [
+                    'accion' => 'CREAR_INSTANCIA',
+                    'descripcion' => 'Alta de instancia.',
+                    'id_referencia' => $row->id_instancia,
+                    'old_values' => null,
+                    'new_values' => $row->toArray(),
+                ];
+
                 DB::commit();
                 $message = 'La instancia se creó correctamente.';
             } catch (\Throwable $th) {
                 DB::rollBack();
                 throw $th;
             }
+        }
+
+        if ($audit) {
+            UserActionLogger::write(
+                idUsuario: auth()->id() ? (int) auth()->id() : null,
+                modulo: 'INSTANCIAS',
+                accion: $audit['accion'],
+                descripcion: $audit['descripcion'],
+                idReferencia: $audit['id_referencia'],
+                oldValues: $audit['old_values'],
+                newValues: $audit['new_values']
+            );
         }
 
         return redirect()

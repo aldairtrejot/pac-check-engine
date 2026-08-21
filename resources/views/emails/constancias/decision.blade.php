@@ -1,6 +1,7 @@
 @php
     $decisionNormalizada = strtoupper(trim((string) ($decision ?? '')));
     $esAceptado = in_array($decisionNormalizada, ['ACEPTADO', 'ACEPTADA'], true);
+    $esDuplicada = in_array($decisionNormalizada, ['DUPLICADA', 'DUPLICADO', 'CONSTANCIA DUPLICADA'], true);
 
     $nombrePersonaSafe = trim((string) ($nombrePersona ?? ''));
     $nombreCursoSafe = trim((string) ($nombreCurso ?? ''));
@@ -16,12 +17,12 @@
     $colorVino = '#611232';
     $colorDorado = '#d6bd74';
 
-    $colorPrincipal = $esAceptado ? '#1e5b4f' : '#b3261e';
-    $colorFondoEstatus = $esAceptado ? '#eef8f5' : '#fff1f1';
-    $colorBordeEstatus = $esAceptado ? '#b8d8cf' : '#f0c5c5';
+    $colorPrincipal = $esAceptado ? '#1e5b4f' : ($esDuplicada ? '#9b6a00' : '#b3261e');
+    $colorFondoEstatus = $esAceptado ? '#eef8f5' : ($esDuplicada ? '#fff8e6' : '#fff1f1');
+    $colorBordeEstatus = $esAceptado ? '#b8d8cf' : ($esDuplicada ? '#e7c76f' : '#f0c5c5');
 
-    $tituloDecision = $esAceptado ? 'Constancia aceptada' : 'Constancia rechazada';
-    $estatusTexto = $esAceptado ? 'ACEPTADA' : 'RECHAZADA';
+    $tituloDecision = $esAceptado ? 'Constancia aceptada' : ($esDuplicada ? 'Constancia duplicada' : 'Constancia rechazada');
+    $estatusTexto = $esAceptado ? 'ACEPTADA' : ($esDuplicada ? 'DUPLICADA' : 'RECHAZADA');
 
 
     /*

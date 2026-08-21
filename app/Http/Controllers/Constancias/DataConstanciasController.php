@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
 use App\Support\ConstanciaVisibilityByName;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -139,6 +140,21 @@ class DataConstanciasController extends Controller
         */
         $row->calificacion_original = $row->calificacion ?? null;
         $row->calificacion = $row->calificacion_n ?? null;
+
+        UserActionLogger::write(
+            idUsuario: auth()->id() ? (int) auth()->id() : null,
+            modulo: 'CONSTANCIAS',
+            accion: 'CONSULTAR_DETALLE_CONSTANCIA',
+            descripcion: 'Consulta de detalle de constancia.',
+            idReferencia: $id,
+            payload: [
+                'id_respuesta' => $id,
+                'curp' => $row->curp ?? null,
+                'folio' => $row->folio ?? null,
+                'estatus' => $row->estatus ?? null,
+                'estatus_txt' => $row->estatus_txt ?? null,
+            ]
+        );
 
         return response()->json([
             'status' => true,

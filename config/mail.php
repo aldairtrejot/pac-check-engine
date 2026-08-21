@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'default' => env('MAIL_MAILER', 'log'),
+    'default' => env('MAIL_MAILER', 'smtp'),
 
     /*
     |--------------------------------------------------------------------------
@@ -20,13 +20,23 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            'scheme' => env(
+                'MAIL_SCHEME',
+                strtolower((string) env('MAIL_ENCRYPTION')) === 'ssl'
+                    ? 'smtps'
+                    : (((int) env('MAIL_PORT', 2525) === 465) ? 'smtps' : 'smtp')
+            ),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => env('MAIL_TIMEOUT', null),
+            'timeout' => env('MAIL_TIMEOUT', 30),
+            'require_tls' => filter_var(
+                env('MAIL_REQUIRE_TLS', strtolower((string) env('MAIL_ENCRYPTION')) === 'tls'),
+                FILTER_VALIDATE_BOOLEAN
+            ),
+            'verify_peer' => filter_var(env('MAIL_VERIFY_PEER', true), FILTER_VALIDATE_BOOLEAN),
             'local_domain' => env(
                 'MAIL_EHLO_DOMAIN',
                 parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)

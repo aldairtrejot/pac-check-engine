@@ -26,7 +26,6 @@ class AdminUserSeeder extends Seeder
                 'name' => 'SOPORTE RH',
                 'password' => $password,
                 'status' => true,
-                'is_admin' => true,
 
                 // Estas pueden quedarse null
                 'id_entidad' => null,

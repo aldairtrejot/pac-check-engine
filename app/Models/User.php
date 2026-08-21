@@ -27,7 +27,6 @@ class User extends Authenticatable
         'email_verified_at',
         'password',
         'remember_token',
-        'is_admin',
         'status',
         'id_entidad',
         'id_tipo_nomina',
@@ -42,7 +41,6 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
-        'is_admin' => 'boolean',
         'status' => 'boolean',
         'id_entidad' => 'integer',
         'id_tipo_nomina' => 'integer',

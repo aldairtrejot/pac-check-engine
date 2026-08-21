@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\UserActionLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +41,18 @@ class AuthLoginController extends Controller
             if (RateLimiter::tooManyAttempts($key, 10)) {
                 $seconds = RateLimiter::availableIn($key);
 
+                UserActionLogger::fromRequest(
+                    request: $request,
+                    idUsuario: null,
+                    modulo: 'AUTENTICACION',
+                    accion: 'LOGIN_BLOQUEADO',
+                    descripcion: 'Intento de inicio de sesión bloqueado por demasiados intentos.',
+                    payload: [
+                        'email' => $validated['email'],
+                        'available_in_seconds' => $seconds,
+                    ]
+                );
+
                 return response()->json([
                     'status' => false,
                     'message' => __('default.rate_limiter_message') . " ({$seconds}s)",
@@ -53,6 +66,17 @@ class AuthLoginController extends Controller
             ], $request->boolean('remember'))) {
                 RateLimiter::hit($key, 60);
 
+                UserActionLogger::fromRequest(
+                    request: $request,
+                    idUsuario: null,
+                    modulo: 'AUTENTICACION',
+                    accion: 'LOGIN_FALLIDO',
+                    descripcion: 'Credenciales inválidas o cuenta inactiva.',
+                    payload: [
+                        'email' => $validated['email'],
+                    ]
+                );
+
                 return response()->json([
                     'status' => false,
                     'message' => __('default.login_failure_message'),
@@ -62,6 +86,18 @@ class AuthLoginController extends Controller
             RateLimiter::clear($key);
 
             $request->session()->regenerate();
+
+            UserActionLogger::fromRequest(
+                request: $request,
+                idUsuario: Auth::id() ? (int) Auth::id() : null,
+                modulo: 'AUTENTICACION',
+                accion: 'LOGIN_EXITOSO',
+                descripcion: 'Inicio de sesión correcto.',
+                payload: [
+                    'email' => $validated['email'],
+                    'remember' => $request->boolean('remember'),
+                ]
+            );
 
             return response()->json([
                 'status' => true,
@@ -96,6 +132,17 @@ class AuthLoginController extends Controller
      */
     public function logout(Request $request)
     {
+        UserActionLogger::fromRequest(
+            request: $request,
+            idUsuario: Auth::id() ? (int) Auth::id() : null,
+            modulo: 'AUTENTICACION',
+            accion: 'LOGOUT',
+            descripcion: 'Cierre de sesión.',
+            payload: [
+                'email' => Auth::user()?->email,
+            ]
+        );
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

@@ -7,6 +7,7 @@ use App\Models\Pac\Collection\CollectionFinalidadModel;
 use App\Models\Pac\Collection\CollectionInstanceModel;
 use App\Models\Pac\Collection\CollectionTematicaModel;
 use App\Models\Pac\DataPacModel;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -194,6 +195,20 @@ class DataPacController extends Controller
             } else {
                 $listSelectFinalidad = $collectionFinalidadModel->listConllectionSelect(6);
             }
+
+            UserActionLogger::write(
+                idUsuario: auth()->id() ? (int) auth()->id() : null,
+                modulo: 'PAC',
+                accion: 'CONSULTAR_DETALLE_PAC',
+                descripcion: 'Consulta de detalle de registro PAC.',
+                idReferencia: (int) $request->id,
+                payload: [
+                    'id_empl_accion' => (int) $request->id,
+                    'curp' => $data->curp ?? null,
+                    'id_accion' => $data->id_accion ?? null,
+                    'estatus' => $data->id_cat_estatus ?? null,
+                ]
+            );
 
             return response()->json([
                 'status'              => true,

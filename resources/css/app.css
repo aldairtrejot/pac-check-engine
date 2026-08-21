@@ -35,9 +35,21 @@ body {
     font-family: var(--font-sans);
 }
 
+body.g-sidenav-show {
+    background: #F6F8F7 !important;
+}
+
 .main-content {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 247, 245, 0.92));
+}
+
+body.g-sidenav-show .main-content {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.30), rgba(244, 247, 245, 0.62)),
+        var(--cap-app-bg-image) left top / cover no-repeat,
+        #F6F8F7 !important;
+    min-height: 100vh;
 }
 
 .card,

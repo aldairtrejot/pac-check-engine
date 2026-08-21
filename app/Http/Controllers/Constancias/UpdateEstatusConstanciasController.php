@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Constancias;
 
 use App\Http\Controllers\Controller;
-use App\Mail\ConstanciaDecisionMail;
 use App\Models\Pac\Helpers\GetTrimestreModel;
+use App\Services\Constancias\ConstanciaNotificationService;
 use App\Support\ConstanciaVisibilityByName;
+use App\Support\UserActionLogger;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Carbon;
 
 class UpdateEstatusConstanciasController extends Controller
@@ -211,6 +211,24 @@ class UpdateEstatusConstanciasController extends Controller
             tipo: 'rechazo',
             motivo: $motivo,
             curp: (string) ($resultado['curp'] ?? '')
+        );
+
+        UserActionLogger::write(
+            idUsuario: (int) $user->id,
+            modulo: 'CONSTANCIAS',
+            accion: 'RECHAZAR_CONSTANCIA',
+            descripcion: 'Rechazo de constancia validada por usuario.',
+            idReferencia: $idRespuesta,
+            payload: [
+                'folio' => (string) ($resultado['folio'] ?? $idRespuesta),
+                'curp' => (string) ($resultado['curp'] ?? ''),
+                'nombre_curso' => (string) ($resultado['nombre_curso'] ?? ''),
+                'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
+                'correo_enviado' => $emailEnviado,
+                'motivo' => $motivo,
+            ],
+            oldValues: ['estatus' => self::CONST_PENDIENTE],
+            newValues: ['estatus' => self::CONST_RECHAZADO]
         );
 
         return response()->json([
@@ -621,6 +639,24 @@ class UpdateEstatusConstanciasController extends Controller
                 curp: (string) ($resultado['curp'] ?? '')
             );
 
+            UserActionLogger::write(
+                idUsuario: (int) $user->id,
+                modulo: 'CONSTANCIAS',
+                accion: 'RECHAZAR_CONSTANCIA_DUPLICADA',
+                descripcion: 'Rechazo automático de constancia duplicada confirmado por usuario.',
+                idReferencia: $idRespuesta,
+                payload: [
+                    'folio' => (string) ($resultado['folio'] ?? $idRespuesta),
+                    'curp' => (string) ($resultado['curp'] ?? ''),
+                    'nombre_curso' => (string) ($resultado['nombre_curso'] ?? ''),
+                    'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
+                    'correo_enviado' => $emailEnviado,
+                    'motivo' => (string) ($resultado['motivo'] ?? ''),
+                ],
+                oldValues: ['estatus' => self::CONST_PENDIENTE],
+                newValues: ['estatus' => self::CONST_RECHAZADO]
+            );
+
             return response()->json([
                 'status'  => true,
                 'message' => $emailEnviado
@@ -640,6 +676,23 @@ class UpdateEstatusConstanciasController extends Controller
             tipo: 'aceptacion',
             motivo: null,
             curp: (string) ($resultado['curp'] ?? '')
+        );
+
+        UserActionLogger::write(
+            idUsuario: (int) $user->id,
+            modulo: 'CONSTANCIAS',
+            accion: 'ACEPTAR_CONSTANCIA',
+            descripcion: 'Aceptación de constancia y sincronización con plantilla PAC.',
+            idReferencia: $idRespuesta,
+            payload: [
+                'folio' => (string) ($resultado['folio'] ?? $idRespuesta),
+                'curp' => (string) ($resultado['curp'] ?? ''),
+                'nombre_curso' => (string) ($resultado['nombre_curso'] ?? ''),
+                'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
+                'correo_enviado' => $emailEnviado,
+            ],
+            oldValues: ['estatus' => self::CONST_PENDIENTE],
+            newValues: ['estatus' => self::CONST_CONCLUIDO]
         );
 
         return response()->json([
@@ -746,67 +799,20 @@ class UpdateEstatusConstanciasController extends Controller
         ?string $motivo = null,
         string $curp = ''
     ): bool {
-        $correoDestinatario = trim($correoDestinatario);
-        $nombrePersona = trim($nombrePersona) !== '' ? trim($nombrePersona) : 'Usuario';
-        $nombreCurso = trim($nombreCurso) !== '' ? trim($nombreCurso) : 'No especificado';
-        $folio = trim($folio) !== '' ? trim($folio) : 'S/F';
-        $tipo = strtolower(trim($tipo));
+        $result = app(ConstanciaNotificationService::class)->sendDecisionEmail(
+            correoDestinatario: $correoDestinatario,
+            nombrePersona: $nombrePersona,
+            nombreCurso: $nombreCurso,
+            folio: $folio,
+            fechaHora: $fechaHora,
+            tipo: $tipo,
+            motivo: $motivo,
+            curp: $curp,
+            historialCapacitacion: $this->historialCapacitacionPorCurp($curp),
+            actorUserId: auth()->id() ? (int) auth()->id() : null
+        );
 
-        if ($correoDestinatario === '' || ! filter_var($correoDestinatario, FILTER_VALIDATE_EMAIL)) {
-            Log::warning('No se encontró correo válido para notificación de constancia.', [
-                'correo' => $correoDestinatario,
-                'folio'  => $folio,
-                'tipo'   => $tipo,
-            ]);
-
-            return false;
-        }
-
-        try {
-            $decision = match ($tipo) {
-                'rechazo'   => 'RECHAZADO',
-                'duplicada' => 'DUPLICADA',
-                default     => 'ACEPTADO',
-            };
-
-            $ccRaw = match ($tipo) {
-                'rechazo'   => trim((string) env('CONSTANCIAS_RECHAZO_CC', '')),
-                'duplicada' => trim((string) env('CONSTANCIAS_DUPLICADA_CC', env('CONSTANCIAS_RECHAZO_CC', ''))),
-                default     => trim((string) env('CONSTANCIAS_ACEPTACION_CC', '')),
-            };
-
-            $ccList = $this->parseMailList($ccRaw);
-
-            $historialCapacitacion = $this->historialCapacitacionPorCurp($curp);
-
-            $mail = Mail::to($correoDestinatario);
-
-            if (! empty($ccList)) {
-                $mail->cc($ccList);
-            }
-
-            $mail->send(new ConstanciaDecisionMail(
-                nombrePersona: $nombrePersona,
-                nombreCurso: $nombreCurso,
-                folio: $folio,
-                fechaHora: $fechaHora,
-                decision: $decision,
-                motivo: $motivo,
-                historialCapacitacion: $historialCapacitacion
-            ));
-
-            return true;
-
-        } catch (\Throwable $mailEx) {
-            Log::error('Error enviando correo de constancia: ' . $mailEx->getMessage(), [
-                'correo' => $correoDestinatario,
-                'folio'  => $folio,
-                'tipo'   => $tipo,
-                'trace'  => $mailEx->getTraceAsString(),
-            ]);
-
-            return false;
-        }
+        return (bool) ($result['sent'] ?? false);
     }
 
     private function parseMailList(string $raw): array

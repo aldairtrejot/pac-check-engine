@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Action;
 
 use App\Http\Controllers\Controller;
 use App\Models\Action\EntityActionModel;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -45,7 +46,7 @@ class SaveActionController extends Controller
             'finalidad'         => 'nullable|string|max:255',
         ]);
 
-        return DB::transaction(function () use ($validated) {
+        $result = DB::transaction(function () use ($validated) {
 
             /*
             |--------------------------------------------------------------------------
@@ -54,13 +55,22 @@ class SaveActionController extends Controller
             */
             if (!empty($validated['id_accion'])) {
                 $accion = EntityActionModel::findOrFail($validated['id_accion']);
+                $old = $accion->toArray();
 
                 // Evita actualizar accidentalmente el identificador
                 unset($validated['id_accion']);
 
                 $accion->update($validated);
+                $accion = $accion->fresh();
 
                 $message = 'La acción se actualizó correctamente.';
+                $audit = [
+                    'accion' => 'ACTUALIZAR_ACCION',
+                    'descripcion' => 'Modificación de acción de capacitación.',
+                    'id_referencia' => $accion->id_accion,
+                    'old_values' => $old,
+                    'new_values' => $accion->toArray(),
+                ];
 
             /*
             |--------------------------------------------------------------------------
@@ -100,15 +110,37 @@ class SaveActionController extends Controller
                     $validated['finalidad'] = 'F6-SENSIBILIZACION';
                 }
 
-                EntityActionModel::create($validated);
+                $accion = EntityActionModel::create($validated);
 
                 $message = 'La acción se creó correctamente.';
+                $audit = [
+                    'accion' => 'CREAR_ACCION',
+                    'descripcion' => 'Alta de acción de capacitación.',
+                    'id_referencia' => $accion->id_accion,
+                    'old_values' => null,
+                    'new_values' => $accion->toArray(),
+                ];
             }
 
-            return redirect()
-                ->route('action')
-                ->with('success', $message);
+            return [
+                'message' => $message,
+                'audit' => $audit,
+            ];
         });
+
+        UserActionLogger::write(
+            idUsuario: auth()->id() ? (int) auth()->id() : null,
+            modulo: 'ACCIONES',
+            accion: $result['audit']['accion'],
+            descripcion: $result['audit']['descripcion'],
+            idReferencia: $result['audit']['id_referencia'],
+            oldValues: $result['audit']['old_values'],
+            newValues: $result['audit']['new_values']
+        );
+
+        return redirect()
+            ->route('action')
+            ->with('success', $result['message']);
     }
 
     /**

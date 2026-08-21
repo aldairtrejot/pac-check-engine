@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Http\Controllers\Controller;
+use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -293,6 +294,8 @@ class SaveEmpleadoController extends Controller
             $maxIdEmpl = DB::table('public.a2_acciones_empleados')
                 ->max('id_empl_accion') ?? 0;
 
+            $cursosInsertados = [];
+
             foreach ($configCursos as $cfg) {
                 // Datos de la acción
                 $accion = DB::table('public.a1_cat_acciones')
@@ -326,7 +329,7 @@ class SaveEmpleadoController extends Controller
                 // Nuevo id_empl_accion
                 $maxIdEmpl++;
 
-                DB::table('public.a2_acciones_empleados')->insert([
+                $insertCurso = [
                     'id_empl_accion'   => $maxIdEmpl,
                     'id_puesto'        => $nextIdPuesto,
                     'curp'             => $curpNuevo,
@@ -344,10 +347,39 @@ class SaveEmpleadoController extends Controller
                     'id_cat_estatus'   => null,
                     'id_cat_tematica'  => $idTematica,
                     'horas_progamadas' => $accion?->duracion_hrs,
-                ]);
+                ];
+
+                DB::table('public.a2_acciones_empleados')->insert($insertCurso);
+
+                $cursosInsertados[] = $insertCurso;
             }
 
             DB::commit();
+
+            UserActionLogger::write(
+                idUsuario: auth()->id() ? (int) auth()->id() : null,
+                modulo: 'EMPLEADOS',
+                accion: 'CREAR_EMPLEADO',
+                descripcion: 'Alta de empleado y cursos base.',
+                idReferencia: $curpNuevo,
+                payload: [
+                    'id_cat' => (int) $nextIdCat,
+                    'id_puesto' => $nextIdPuesto,
+                    'curp' => $curpNuevo,
+                    'cursos_base' => array_map(
+                        fn ($curso) => [
+                            'id_empl_accion' => $curso['id_empl_accion'],
+                            'id_accion' => $curso['id_accion'],
+                            'id_num_curso' => $curso['id_num_curso'],
+                        ],
+                        $cursosInsertados
+                    ),
+                ],
+                newValues: [
+                    'plantilla' => $insertCap,
+                    'cursos_base' => $cursosInsertados,
+                ]
+            );
 
             return redirect()
                 ->route('empleado')
