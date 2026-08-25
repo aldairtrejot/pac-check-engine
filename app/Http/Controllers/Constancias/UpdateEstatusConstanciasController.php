@@ -27,6 +27,12 @@ class UpdateEstatusConstanciasController extends Controller
      * 4 = NO VIGENTE
      */
     private const PLANTILLA_ID_CAT_ESTATUS_DEFAULT = 1;
+    private const PLANTILLA_ID_CAT_ESTATUS_BAJA_DEFAULT = 3;
+
+    private const CURSO_OBLIGATORIO_BASE_ID = 1000001;
+    private const CURSO_CIBERSEGURIDAD_ID = 1000011;
+    private const OBSERVACION_ANULACION_CURSO_BASE =
+        'ANULADO AUTOMÁTICAMENTE POR ACEPTACIÓN DEL CURSO 1000011';
 
     public function update(Request $request)
     {
@@ -460,6 +466,15 @@ class UpdateEstatusConstanciasController extends Controller
 
             $calTexto = rtrim(rtrim(number_format($cal, 2, '.', ''), '0'), '.');
 
+            $cursoBaseAnulado = null;
+            if ($idAccion === self::CURSO_CIBERSEGURIDAD_ID) {
+                $cursoBaseAnulado = $this->anularCursoBasePendientePorCiberseguridad(
+                    idPuestoTxt: $idPuestoTxt,
+                    curp: $curp,
+                    idCatEstatusBaja: $this->resolveIdCatEstatusBaja()
+                );
+            }
+
             $existe = DB::table('public.a2_acciones_empleados')
                 ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
                 ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
@@ -594,6 +609,7 @@ class UpdateEstatusConstanciasController extends Controller
                 'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
                 'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
                 'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
+                'curso_base_anulado' => $cursoBaseAnulado,
             ];
         });
 
@@ -690,10 +706,39 @@ class UpdateEstatusConstanciasController extends Controller
                 'nombre_curso' => (string) ($resultado['nombre_curso'] ?? ''),
                 'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
                 'correo_enviado' => $emailEnviado,
+                'curso_base_anulado' => $resultado['curso_base_anulado'] ?? null,
             ],
             oldValues: ['estatus' => self::CONST_PENDIENTE],
             newValues: ['estatus' => self::CONST_CONCLUIDO]
         );
+
+        if (! empty($resultado['curso_base_anulado'])) {
+            $cursoBaseAnulado = $resultado['curso_base_anulado'];
+
+            UserActionLogger::write(
+                idUsuario: (int) $user->id,
+                modulo: 'CONSTANCIAS',
+                accion: 'ANULAR_CURSO_1000001_POR_1000011',
+                descripcion: 'Anulación automática del curso 1000001 pendiente al aceptar constancia del curso 1000011.',
+                idReferencia: (string) ($cursoBaseAnulado['id_empl_accion'] ?? $idRespuesta),
+                payload: [
+                    'folio_constancia' => (string) ($resultado['folio'] ?? $idRespuesta),
+                    'curp' => (string) ($resultado['curp'] ?? ''),
+                    'id_puesto' => (string) ($cursoBaseAnulado['id_puesto'] ?? ''),
+                    'ids_empl_accion_anulados' => $cursoBaseAnulado['ids_empl_accion'] ?? [],
+                    'total_anulados' => $cursoBaseAnulado['total_anulados'] ?? 0,
+                    'id_accion_anulada' => self::CURSO_OBLIGATORIO_BASE_ID,
+                    'id_accion_aceptada' => self::CURSO_CIBERSEGURIDAD_ID,
+                ],
+                oldValues: [
+                    'registros' => $cursoBaseAnulado['registros_anteriores'] ?? [],
+                ],
+                newValues: [
+                    'id_cat_estatus' => $cursoBaseAnulado['estatus_nuevo'] ?? null,
+                    'observaciones' => $cursoBaseAnulado['observaciones_nuevas'] ?? null,
+                ]
+            );
+        }
 
         return response()->json([
             'status'  => true,
@@ -932,6 +977,25 @@ class UpdateEstatusConstanciasController extends Controller
         return self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT;
     }
 
+    private function resolveIdCatEstatusBaja(): int
+    {
+        try {
+            $id = DB::table('public.cat_estatus')
+                ->whereRaw("TRIM(UPPER(descripcion)) = 'BAJA'")
+                ->value('id_cat_estatus');
+
+            if (! empty($id)) {
+                return (int) $id;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo resolver id_cat_estatus BAJA.', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return self::PLANTILLA_ID_CAT_ESTATUS_BAJA_DEFAULT;
+    }
+
     private function historialCapacitacionPorCurp(string $curp): array
     {
         $curp = trim($curp);
@@ -1154,9 +1218,101 @@ class UpdateEstatusConstanciasController extends Controller
     {
         return match ($idAccion) {
             1, 2 => 'PAC 2025',
-            1000001, 1000002, 1000011 => 'OBLIGATORIO',
+            self::CURSO_OBLIGATORIO_BASE_ID, 1000002, self::CURSO_CIBERSEGURIDAD_ID => 'OBLIGATORIO',
             default => 'CURSO EXTRA',
         };
+    }
+
+    /**
+     * Validación especial 1000001 / 1000011.
+     *
+     * Tablas y relación:
+     * - public.tbl_constancias: origen de la constancia aceptada; se identifica
+     *   por id_respuesta y trae curp, id_puesto y nombre_curso.
+     * - public.a1_cat_acciones: convierte nombre_curso en id_accion real.
+     * - public.a2_acciones_empleados: guarda los cursos del empleado; se relaciona
+     *   por id_puesto + curp + id_accion.
+     * - public.cat_estatus: provee id_cat_estatus = BAJA.
+     *
+     * Regla:
+     * Al aceptar 1000011, si el mismo empleado tiene 1000001 activo pero sin
+     * fecha_fin, se marca 1000001 como BAJA. Si 1000001 ya tiene fecha_fin,
+     * se considera concluido y no se modifica.
+     */
+    private function anularCursoBasePendientePorCiberseguridad(
+        string $idPuestoTxt,
+        string $curp,
+        int $idCatEstatusBaja
+    ): ?array {
+        $cursosBase = DB::table('public.a2_acciones_empleados')
+            ->select([
+                'id_empl_accion',
+                'id_puesto',
+                'curp',
+                'id_accion',
+                'id_cat_estatus',
+                'fecha_fin',
+                'observaciones',
+            ])
+            ->whereRaw('TRIM(id_puesto) = TRIM(?)', [$idPuestoTxt])
+            ->whereRaw('TRIM(UPPER(curp)) = TRIM(UPPER(?))', [$curp])
+            ->where('id_accion', self::CURSO_OBLIGATORIO_BASE_ID)
+            ->where(function ($q) {
+                $q->whereNull('fecha_fin')
+                    ->orWhereRaw("BTRIM(COALESCE(fecha_fin::text, '')) = ''");
+            })
+            ->where(function ($q) {
+                $q->whereNull('id_cat_estatus')
+                    ->orWhereIn('id_cat_estatus', [
+                        self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT,
+                        2,
+                    ]);
+            })
+            ->lockForUpdate()
+            ->get();
+
+        if ($cursosBase->isEmpty()) {
+            return null;
+        }
+
+        $ids = $cursosBase
+            ->pluck('id_empl_accion')
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return null;
+        }
+
+        DB::table('public.a2_acciones_empleados')
+            ->whereIn('id_empl_accion', $ids)
+            ->update([
+                'id_cat_estatus' => $idCatEstatusBaja,
+                'observaciones' => self::OBSERVACION_ANULACION_CURSO_BASE,
+            ]);
+
+        $primerCursoBase = $cursosBase->first();
+
+        return [
+            'id_empl_accion' => (string) ($primerCursoBase->id_empl_accion ?? ''),
+            'ids_empl_accion' => array_map(fn ($id) => (string) $id, $ids),
+            'total_anulados' => count($ids),
+            'id_puesto' => (string) ($primerCursoBase->id_puesto ?? ''),
+            'curp' => (string) ($primerCursoBase->curp ?? ''),
+            'estatus_nuevo' => $idCatEstatusBaja,
+            'registros_anteriores' => $cursosBase
+                ->map(fn ($row) => [
+                    'id_empl_accion' => (string) ($row->id_empl_accion ?? ''),
+                    'id_cat_estatus' => $row->id_cat_estatus ?? null,
+                    'fecha_fin' => $row->fecha_fin ?? null,
+                    'observaciones' => $row->observaciones ?? null,
+                ])
+                ->values()
+                ->all(),
+            'observaciones_nuevas' => self::OBSERVACION_ANULACION_CURSO_BASE,
+        ];
     }
 
     private function actionAlreadyConcludedForEmployee(string $idPuestoTxt, string $curp, int $idAccion): bool
