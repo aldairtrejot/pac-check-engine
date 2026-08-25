@@ -27,7 +27,7 @@ class UpdateEstatusConstanciasController extends Controller
      * 4 = NO VIGENTE
      */
     private const PLANTILLA_ID_CAT_ESTATUS_DEFAULT = 1;
-    private const PLANTILLA_ID_CAT_ESTATUS_BAJA_DEFAULT = 3;
+    private const PLANTILLA_ID_CAT_ESTATUS_NO_VIGENTE_DEFAULT = 4;
 
     private const CURSO_OBLIGATORIO_BASE_ID = 1000001;
     private const CURSO_CIBERSEGURIDAD_ID = 1000011;
@@ -471,7 +471,7 @@ class UpdateEstatusConstanciasController extends Controller
                 $cursoBaseAnulado = $this->anularCursoBasePendientePorCiberseguridad(
                     idPuestoTxt: $idPuestoTxt,
                     curp: $curp,
-                    idCatEstatusBaja: $this->resolveIdCatEstatusBaja()
+                    idCatEstatusNoVigente: $this->resolveIdCatEstatusNoVigente()
                 );
             }
 
@@ -977,23 +977,23 @@ class UpdateEstatusConstanciasController extends Controller
         return self::PLANTILLA_ID_CAT_ESTATUS_DEFAULT;
     }
 
-    private function resolveIdCatEstatusBaja(): int
+    private function resolveIdCatEstatusNoVigente(): int
     {
         try {
             $id = DB::table('public.cat_estatus')
-                ->whereRaw("TRIM(UPPER(descripcion)) = 'BAJA'")
+                ->whereRaw("TRIM(UPPER(descripcion)) = 'NO VIGENTE'")
                 ->value('id_cat_estatus');
 
             if (! empty($id)) {
                 return (int) $id;
             }
         } catch (\Throwable $e) {
-            Log::warning('No se pudo resolver id_cat_estatus BAJA.', [
+            Log::warning('No se pudo resolver id_cat_estatus NO VIGENTE.', [
                 'message' => $e->getMessage(),
             ]);
         }
 
-        return self::PLANTILLA_ID_CAT_ESTATUS_BAJA_DEFAULT;
+        return self::PLANTILLA_ID_CAT_ESTATUS_NO_VIGENTE_DEFAULT;
     }
 
     private function historialCapacitacionPorCurp(string $curp): array
@@ -1232,17 +1232,17 @@ class UpdateEstatusConstanciasController extends Controller
      * - public.a1_cat_acciones: convierte nombre_curso en id_accion real.
      * - public.a2_acciones_empleados: guarda los cursos del empleado; se relaciona
      *   por id_puesto + curp + id_accion.
-     * - public.cat_estatus: provee id_cat_estatus = BAJA.
+     * - public.cat_estatus: provee id_cat_estatus = NO VIGENTE.
      *
      * Regla:
      * Al aceptar 1000011, si el mismo empleado tiene 1000001 activo pero sin
-     * fecha_fin, se marca 1000001 como BAJA. Si 1000001 ya tiene fecha_fin,
+     * fecha_fin, se marca 1000001 como NO VIGENTE. Si 1000001 ya tiene fecha_fin,
      * se considera concluido y no se modifica.
      */
     private function anularCursoBasePendientePorCiberseguridad(
         string $idPuestoTxt,
         string $curp,
-        int $idCatEstatusBaja
+        int $idCatEstatusNoVigente
     ): ?array {
         $cursosBase = DB::table('public.a2_acciones_empleados')
             ->select([
@@ -1289,7 +1289,7 @@ class UpdateEstatusConstanciasController extends Controller
         DB::table('public.a2_acciones_empleados')
             ->whereIn('id_empl_accion', $ids)
             ->update([
-                'id_cat_estatus' => $idCatEstatusBaja,
+                'id_cat_estatus' => $idCatEstatusNoVigente,
                 'observaciones' => self::OBSERVACION_ANULACION_CURSO_BASE,
             ]);
 
@@ -1301,7 +1301,7 @@ class UpdateEstatusConstanciasController extends Controller
             'total_anulados' => count($ids),
             'id_puesto' => (string) ($primerCursoBase->id_puesto ?? ''),
             'curp' => (string) ($primerCursoBase->curp ?? ''),
-            'estatus_nuevo' => $idCatEstatusBaja,
+            'estatus_nuevo' => $idCatEstatusNoVigente,
             'registros_anteriores' => $cursosBase
                 ->map(fn ($row) => [
                     'id_empl_accion' => (string) ($row->id_empl_accion ?? ''),
