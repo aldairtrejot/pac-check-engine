@@ -464,7 +464,7 @@
                 </div>
               </div>
 
-              <!-- Información adicional -->
+              <!-- Información Adicional de Mando -->
               <div class="col-12">
                 <div class="border" style="border-radius:14px; padding:14px;">
                   <div class="d-flex align-items-center gap-2 mb-2">
@@ -475,7 +475,7 @@
                       <i class="fa fa-clipboard-list"></i>
                     </span>
                     <div>
-                      <div class="text-sm" style="font-weight:800;color:#10312B;">Información adicional</div>
+                      <div class="text-sm" style="font-weight:800;color:#10312B;">Información Adicional de Mando</div>
                       <div class="text-xs text-muted">Pendiente de definición por el equipo</div>
                     </div>
                   </div>
