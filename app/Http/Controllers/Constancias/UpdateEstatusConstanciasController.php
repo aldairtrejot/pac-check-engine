@@ -582,14 +582,26 @@ class UpdateEstatusConstanciasController extends Controller
                 DB::table('public.a2_acciones_empleados')->insert($ins);
             }
 
+            $hasFechaHoraEnvioColumn = in_array(
+                'fecha_hora_envio',
+                $this->columnsFor('public', 'tbl_constancias'),
+                true
+            );
+
+            $updateConstanciaData = [
+                'estatus'             => self::CONST_CONCLUIDO,
+                'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
+                'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
+            ];
+
+            if ($hasFechaHoraEnvioColumn) {
+                $updateConstanciaData['fecha_hora_envio'] = DB::raw("CURRENT_TIMESTAMP");
+            }
+
             $updated = DB::table('public.tbl_constancias')
                 ->where('id_respuesta', $idRespuesta)
                 ->where('estatus', self::CONST_PENDIENTE)
-                ->update([
-                    'estatus'             => self::CONST_CONCLUIDO,
-                    'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
-                    'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
-                ]);
+                ->update($updateConstanciaData);
 
             if ($updated < 1) {
                 return [
@@ -598,6 +610,12 @@ class UpdateEstatusConstanciasController extends Controller
                     'message' => 'La constancia cambió de estatus mientras se procesaba. Intenta recargar la tabla.',
                 ];
             }
+
+            $fechaHoraEnvio = $hasFechaHoraEnvioColumn
+                ? DB::table('public.tbl_constancias')
+                    ->where('id_respuesta', $idRespuesta)
+                    ->value('fecha_hora_envio')
+                : null;
 
             $notify = $this->notificationDataForConstancia($idRespuesta, $user);
 
@@ -609,6 +627,7 @@ class UpdateEstatusConstanciasController extends Controller
                 'nombre_persona'     => (string) ($notify['nombre_persona'] ?? ''),
                 'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
                 'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
+                'fecha_hora_envio'   => $fechaHoraEnvio ? (string) $fechaHoraEnvio : null,
                 'curso_base_anulado' => $cursoBaseAnulado,
             ];
         });
@@ -706,10 +725,14 @@ class UpdateEstatusConstanciasController extends Controller
                 'nombre_curso' => (string) ($resultado['nombre_curso'] ?? ''),
                 'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
                 'correo_enviado' => $emailEnviado,
+                'fecha_hora_envio' => $resultado['fecha_hora_envio'] ?? null,
                 'curso_base_anulado' => $resultado['curso_base_anulado'] ?? null,
             ],
             oldValues: ['estatus' => self::CONST_PENDIENTE],
-            newValues: ['estatus' => self::CONST_CONCLUIDO]
+            newValues: [
+                'estatus' => self::CONST_CONCLUIDO,
+                'fecha_hora_envio' => $resultado['fecha_hora_envio'] ?? null,
+            ]
         );
 
         if (! empty($resultado['curso_base_anulado'])) {
