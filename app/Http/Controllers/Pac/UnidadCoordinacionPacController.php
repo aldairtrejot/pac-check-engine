@@ -110,12 +110,6 @@ class UnidadCoordinacionPacController extends Controller
                 ], 200);
             }
 
-            $oldAssignment = DB::table('public.a2_acciones_capacitacion')
-                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
-                ->where('id_puesto', (int) $emp->id_puesto)
-                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
-                ->first();
-
             $cap = DB::table('public.a2_acciones_capacitacion')
                 ->select('id_unidad', 'id_coordinacion', 'num_cursos')
                 ->where('id_puesto', (int) $emp->id_puesto)
@@ -224,6 +218,12 @@ class UnidadCoordinacionPacController extends Controller
             */
             $numCursos = (int) ((string) $validated['id_unidad'] . (string) $validated['id_coordinacion']);
 
+            $oldAssignment = DB::table('public.a2_acciones_capacitacion')
+                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
+                ->where('id_puesto', (int) $emp->id_puesto)
+                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+                ->first();
+
             $updated = DB::table('public.a2_acciones_capacitacion')
                 ->where('id_puesto', (int) $emp->id_puesto)
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
@@ -262,7 +262,7 @@ class UnidadCoordinacionPacController extends Controller
                     'coordinacion'    => $coordTxt,
                     'num_cursos'      => $numCursos,
                 ],
-                oldValues: $oldAssignment ? (array) $oldAssignment : null,
+                oldValues: $oldAssignment !== null ? (array) $oldAssignment : null,
                 newValues: [
                     'id_unidad' => (int) $validated['id_unidad'],
                     'id_coordinacion' => (int) $validated['id_coordinacion'],
