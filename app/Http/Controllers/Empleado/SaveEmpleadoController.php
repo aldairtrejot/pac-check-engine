@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Http\Controllers\Controller;
+use App\Support\EmpleadoCatalogs;
 use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class SaveEmpleadoController extends Controller
 {
@@ -14,46 +16,86 @@ class SaveEmpleadoController extends Controller
 
     public function save(Request $request)
     {
+        $request->merge([
+            'curp' => EmpleadoCatalogs::norm($request->input('curp')),
+            'rfc' => $request->filled('rfc') ? EmpleadoCatalogs::norm($request->input('rfc')) : null,
+            'sexo' => $request->filled('sexo') ? EmpleadoCatalogs::norm($request->input('sexo')) : null,
+            'codigo_puesto' => EmpleadoCatalogs::norm($request->input('codigo_puesto')),
+            'clave_clues' => EmpleadoCatalogs::norm($request->input('clave_clues')),
+        ]);
+
         // 1) Validación
         $validated = $request->validate([
             'curp_base'         => 'nullable|string|max:18',
-            'curp'              => 'required|string|max:18|regex:/^[A-Z0-9]+$/',
+            'curp'              => 'required|string|size:18|regex:/^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]$/',
             'rfc'               => 'nullable|string|max:13|regex:/^[A-Z0-9]+$/',
-            'sexo'              => 'required|string|in:HOMBRE,MUJER',
+            'sexo'              => 'nullable|string|in:HOMBRE,MUJER',
             'nombre'            => 'required|string|max:100',
             'apellido_paterno'  => 'required|string|max:100',
             'apellido_materno'  => 'nullable|string|max:100',
-            'nombre_puesto'     => 'required|string|max:200',
-            'codigo_puesto'     => 'nullable|string|max:50',
+            'nombre_puesto'     => 'nullable|string|max:200',
+            'codigo_puesto'     => 'required|string|max:50',
             'nivel_salarial'    => 'nullable|string|max:50',
             'tipo_contratacion' => 'nullable|string|max:50',
             'nomina'            => 'nullable|string|max:50',
             'nivel_atencion'    => 'nullable|string|max:50',
             'entidad'           => 'nullable|string|max:100',
-            'clave_clues'       => 'nullable|string|max:50',
+            'clues_catalog_key'  => 'required|string|max:2000',
+            'id_clues'          => 'nullable|integer',
+            'clave_clues'       => 'required|string|max:50',
             'descripcion_clues' => 'nullable|string|max:255',
             'quincena'          => 'nullable|integer|min:1|max:24',
             'observaciones'     => 'required|string|max:1000',
         ], [
             'curp.required' => 'El campo CURP es obligatorio.',
-            'curp.regex'    => 'El CURP solo puede contener letras mayúsculas y números.',
-            'sexo.required' => 'El campo Sexo es obligatorio.',
+            'curp.size'     => 'El CURP debe tener exactamente 18 caracteres.',
+            'curp.regex'    => 'El CURP no tiene un formato válido.',
             'sexo.in'       => 'El sexo debe ser HOMBRE o MUJER.',
             'nombre.required' => 'El campo Nombre es obligatorio.',
             'apellido_paterno.required' => 'El campo Apellido Paterno es obligatorio.',
-            'nombre_puesto.required' => 'El campo Nombre del Puesto es obligatorio.',
+            'codigo_puesto.required' => 'Selecciona un puesto del catálogo.',
+            'clues_catalog_key.required' => 'Selecciona una CLUES del catálogo.',
+            'clave_clues.required' => 'Selecciona una CLUES del catálogo.',
             'observaciones.required' => 'El campo Observaciones es obligatorio.',
         ]);
 
         try {
-            DB::beginTransaction();
+            $curpNuevo = $validated['curp'];
+            $sexoCurp = $this->sexoFromCurp($curpNuevo);
 
-            // CURP nuevo
-            $curpNuevo = strtoupper(trim($validated['curp']));
+            if ($sexoCurp === null) {
+                throw ValidationException::withMessages([
+                    'curp' => 'No se pudo identificar el sexo desde la CURP capturada.',
+                ]);
+            }
+
+            if (! empty($validated['sexo']) && $validated['sexo'] !== $sexoCurp) {
+                throw ValidationException::withMessages([
+                    'sexo' => 'El sexo no coincide con el carácter 11 de la CURP.',
+                ]);
+            }
+
+            $puestoCatalogo = EmpleadoCatalogs::findPuestoByCodigo($validated['codigo_puesto']);
+
+            if (! $puestoCatalogo) {
+                throw ValidationException::withMessages([
+                    'codigo_puesto' => 'El puesto seleccionado no existe en el catálogo.',
+                ]);
+            }
+
+            $cluesCatalogo = EmpleadoCatalogs::findCluesByCatalogKey($validated['clues_catalog_key']);
+
+            if (! $cluesCatalogo) {
+                throw ValidationException::withMessages([
+                    'clave_clues' => 'La CLUES seleccionada no existe en el catálogo.',
+                ]);
+            }
+
+            DB::beginTransaction();
 
             // CURP base por defecto, aunque no venga en el formulario.
             // Se usa siempre OIJN850210MMCRMN07 como plantilla.
-            $curpBase = strtoupper(trim($validated['curp_base'] ?? 'OIJN850210MMCRMN07'));
+            $curpBase = EmpleadoCatalogs::norm($validated['curp_base'] ?? 'OIJN850210MMCRMN07');
 
             /*
             |--------------------------------------------------------------------------
@@ -92,6 +134,24 @@ class SaveEmpleadoController extends Controller
             $maxIdPuesto  = DB::table('public.a2_acciones_capacitacion')->max('id_puesto');
             $nextIdPuesto = ($maxIdPuesto ?? 0) + 1;
 
+            $nivelSalarial = $puestoCatalogo->nivel !== ''
+                ? $puestoCatalogo->nivel
+                : (!empty($validated['nivel_salarial'])
+                    ? EmpleadoCatalogs::norm($validated['nivel_salarial'])
+                    : ($datosBase->nivel_salarial ?? null));
+
+            $nomina = $cluesCatalogo->nomina !== ''
+                ? $cluesCatalogo->nomina
+                : (!empty($validated['nomina'])
+                    ? EmpleadoCatalogs::norm($validated['nomina'])
+                    : ($datosBase->nomina ?? null));
+
+            $entidad = $cluesCatalogo->entidad !== ''
+                ? $cluesCatalogo->entidad
+                : (!empty($validated['entidad'])
+                    ? EmpleadoCatalogs::norm($validated['entidad'])
+                    : ($datosBase->entidad ?? null));
+
             // 5) Datos para plantilla: public.a2_acciones_capacitacion
             $insertCap = [
                 'id_cat'            => (int) $nextIdCat,
@@ -99,13 +159,11 @@ class SaveEmpleadoController extends Controller
                 'ur'                => $datosBase->ur ?? null,
                 'id_puesto'         => $nextIdPuesto,
                 'curp'              => $curpNuevo,
-                'sexo'              => strtoupper($validated['sexo']),
-                'nombre_puesto'     => strtoupper(trim($validated['nombre_puesto'])),
-                'puesto'            => strtoupper(trim($validated['nombre_puesto'])),
+                'sexo'              => $sexoCurp,
+                'nombre_puesto'     => $puestoCatalogo->puesto,
+                'puesto'            => $puestoCatalogo->puesto,
 
-                'nivel_salarial'    => !empty($validated['nivel_salarial'])
-                                        ? strtoupper(trim($validated['nivel_salarial']))
-                                        : ($datosBase->nivel_salarial ?? null),
+                'nivel_salarial'    => $nivelSalarial,
 
                 'tipo_personal'     => $datosBase->tipo_personal ?? null,
 
@@ -115,25 +173,17 @@ class SaveEmpleadoController extends Controller
                                         ? strtoupper(trim($validated['rfc']))
                                         : ($datosBase->rfc ?? null),
 
-                'codigo_puesto'     => !empty($validated['codigo_puesto'])
-                                        ? strtoupper(trim($validated['codigo_puesto']))
-                                        : ($datosBase->codigo_puesto ?? null),
+                'codigo_puesto'     => $puestoCatalogo->codigo_puesto,
 
-                'clave_clues'       => !empty($validated['clave_clues'])
-                                        ? strtoupper(trim($validated['clave_clues']))
-                                        : ($datosBase->clave_clues ?? null),
+                'clave_clues'       => $cluesCatalogo->clave_clues,
 
-                'descripcion_clues' => !empty($validated['descripcion_clues'])
-                                        ? strtoupper(trim($validated['descripcion_clues']))
-                                        : ($datosBase->descripcion_clues ?? null),
+                'descripcion_clues' => $cluesCatalogo->descripcion_clues,
 
                 'tipo_contratacion' => !empty($validated['tipo_contratacion'])
                                         ? $validated['tipo_contratacion']
                                         : ($datosBase->tipo_contratacion ?? null),
 
-                'nomina'            => !empty($validated['nomina'])
-                                        ? $validated['nomina']
-                                        : ($datosBase->nomina ?? null),
+                'nomina'            => $nomina,
 
                 'nombre'            => strtoupper(trim($validated['nombre'])),
 
@@ -147,9 +197,7 @@ class SaveEmpleadoController extends Controller
                                         ? $validated['nivel_atencion']
                                         : ($datosBase->nivel_atencion ?? null),
 
-                'entidad'           => !empty($validated['entidad'])
-                                        ? $validated['entidad']
-                                        : ($datosBase->entidad ?? null),
+                'entidad'           => $entidad,
 
                 // Nuevos valores por defecto solicitados
                 'num_cursos'        => 1210,
@@ -366,6 +414,11 @@ class SaveEmpleadoController extends Controller
                     'id_cat' => (int) $nextIdCat,
                     'id_puesto' => $nextIdPuesto,
                     'curp' => $curpNuevo,
+                    'catalogos' => [
+                        'codigo_puesto' => $puestoCatalogo->codigo_puesto,
+                        'clave_clues' => $cluesCatalogo->clave_clues,
+                        'id_clues' => $cluesCatalogo->id_clues ?? null,
+                    ],
                     'cursos_base' => array_map(
                         fn ($curso) => [
                             'id_empl_accion' => $curso['id_empl_accion'],
@@ -385,8 +438,17 @@ class SaveEmpleadoController extends Controller
                 ->route('empleado')
                 ->with('success', 'Empleado y cursos base agregados correctamente. CURP: ' . $curpNuevo);
 
+        } catch (ValidationException $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            throw $e;
+
         } catch (\Throwable $th) {
-            DB::rollBack();
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
 
             Log::error('Error al guardar empleado', [
                 'error' => $th->getMessage(),
@@ -400,5 +462,16 @@ class SaveEmpleadoController extends Controller
                     'general' => 'Ocurrió un error al guardar el empleado. Revisa el log si persiste.',
                 ]);
         }
+    }
+
+    private function sexoFromCurp(string $curp): ?string
+    {
+        $sexo = substr(EmpleadoCatalogs::norm($curp), 10, 1);
+
+        return match ($sexo) {
+            'H' => 'HOMBRE',
+            'M' => 'MUJER',
+            default => null,
+        };
     }
 }

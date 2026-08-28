@@ -270,7 +270,7 @@ class PacVisibility
         );
     }
 
-    private static function isAdminGlobal($user): bool
+    public static function isAdminGlobal($user): bool
     {
         if (! $user) {
             return false;

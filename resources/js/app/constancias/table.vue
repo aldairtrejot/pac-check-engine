@@ -56,8 +56,8 @@
                 <label class="form-label">Entidad</label>
                 <select v-model="f_entidad" class="form-select">
                   <option value="">Todas</option>
-                  <option v-for="op in opcionesEntidades" :key="op" :value="op">
-                    {{ op }}
+                  <option v-for="op in opcionesEntidades" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
                   </option>
                 </select>
               </div>
@@ -66,18 +66,19 @@
                 <label class="form-label">Tipo nómina</label>
                 <select v-model="f_tipo_nomina" class="form-select">
                   <option value="">Todos</option>
-                  <option v-for="op in opcionesTiposNomina" :key="op" :value="op">
-                    {{ op }}
+                  <option v-for="op in opcionesTiposNomina" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
                   </option>
                 </select>
               </div>
 
               <div class="col-12 col-md-4 mb-2">
                 <label class="form-label">CLUES</label>
-                <select v-model="f_clues" class="form-select">
+                <select v-model="f_clues" class="form-select" :disabled="isLoadingClues">
                   <option value="">Todas</option>
-                  <option v-for="op in opcionesClues" :key="op" :value="op">
-                    {{ op }}
+                  <option v-if="isLoadingClues" value="" disabled>Cargando CLUES...</option>
+                  <option v-for="op in opcionesClues" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
                   </option>
                 </select>
               </div>
@@ -578,7 +579,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import axios from '@axios'
 import Swal from 'sweetalert2'
 import { notyf } from '@components/notyf.js'
@@ -612,6 +613,8 @@ const isAdminConstancias = ref(false)
 const opcionesEntidades = ref([])
 const opcionesTiposNomina = ref([])
 const opcionesClues = ref([])
+const isLoadingClues = ref(false)
+const cluesRequestSeq = ref(0)
 
 const tableColspan = computed(() => isAdminConstancias.value ? 7 : 4)
 
@@ -684,9 +687,35 @@ function formatCalificacion(value) {
   return num.toFixed(2).replace(/\.00$/, '')
 }
 
+function optionValue(option) {
+  if (option && typeof option === 'object') {
+    return String(option.value ?? '')
+  }
+
+  return String(option ?? '')
+}
+
+function optionLabel(option) {
+  if (option && typeof option === 'object') {
+    return String(option.label ?? option.value ?? '')
+  }
+
+  return String(option ?? '')
+}
+
+function normalizeOptions(options) {
+  return (options || [])
+    .map((option) => ({
+      value: optionValue(option),
+      label: optionLabel(option),
+    }))
+    .filter((option) => option.value !== '')
+}
+
 async function fetchFilterOptions() {
   try {
-    const { data } = await axios.post('/constancias/filter-options')
+    const payload = f_entidad.value ? { entidad: f_entidad.value } : {}
+    const { data } = await axios.post('/constancias/filter-options', payload)
 
     isAdminConstancias.value = !!data.is_admin
 
@@ -702,9 +731,9 @@ async function fetchFilterOptions() {
       return
     }
 
-    opcionesEntidades.value = data.entidades || []
-    opcionesTiposNomina.value = data.tipos_nomina || []
-    opcionesClues.value = data.clues || []
+    opcionesEntidades.value = normalizeOptions(data.entidades)
+    opcionesTiposNomina.value = normalizeOptions(data.tipos_nomina)
+    opcionesClues.value = normalizeOptions(data.clues)
   } catch (e) {
     isAdminConstancias.value = false
     opcionesEntidades.value = []
@@ -714,6 +743,39 @@ async function fetchFilterOptions() {
     f_entidad.value = ''
     f_tipo_nomina.value = ''
     f_clues.value = ''
+  }
+}
+
+async function fetchCluesOptions(entidad = '') {
+  if (!isAdminConstancias.value) {
+    return
+  }
+
+  const requestId = cluesRequestSeq.value + 1
+  cluesRequestSeq.value = requestId
+  isLoadingClues.value = true
+
+  try {
+    const { data } = await axios.post('/constancias/filter-options', { entidad })
+
+    if (requestId !== cluesRequestSeq.value) {
+      return
+    }
+
+    if (!data?.status || !data?.is_admin) {
+      opcionesClues.value = []
+      return
+    }
+
+    opcionesClues.value = normalizeOptions(data.clues)
+  } catch (e) {
+    if (requestId === cluesRequestSeq.value) {
+      opcionesClues.value = []
+    }
+  } finally {
+    if (requestId === cluesRequestSeq.value) {
+      isLoadingClues.value = false
+    }
   }
 }
 
@@ -790,6 +852,15 @@ onMounted(async () => {
     limit,
     handlePagination,
   })
+})
+
+watch(f_entidad, async (entidad, previousEntidad) => {
+  if (entidad === previousEntidad) {
+    return
+  }
+
+  f_clues.value = ''
+  await fetchCluesOptions(entidad)
 })
 
 function clear_search() {

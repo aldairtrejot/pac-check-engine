@@ -41,6 +41,39 @@
               />
             </div>
 
+            <div v-if="isAdminPac" class="row g-2 mt-2">
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">Entidad</label>
+                <select v-model="f_entidad" class="form-select">
+                  <option value="">Todas</option>
+                  <option v-for="op in opcionesEntidades" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">Tipo nómina</label>
+                <select v-model="f_tipo_nomina" class="form-select">
+                  <option value="">Todos</option>
+                  <option v-for="op in opcionesTiposNomina" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4 mb-2">
+                <label class="form-label">CLUES</label>
+                <select v-model="f_clues" class="form-select" :disabled="!f_entidad || isLoadingClues">
+                  <option value="">{{ f_entidad ? 'Todas' : 'Selecciona una entidad' }}</option>
+                  <option v-if="isLoadingClues" value="" disabled>Cargando CLUES...</option>
+                  <option v-for="op in opcionesClues" :key="optionValue(op)" :value="optionValue(op)">
+                    {{ optionLabel(op) }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
               <tableButtonDefault
                 color="white"
@@ -485,6 +518,15 @@ const curp = ref('')
 const is_complete = ref(false)
 const listSelectAcction = ref(null)
 const listOptionsAcction = ref([])
+const f_entidad = ref('')
+const f_tipo_nomina = ref('')
+const f_clues = ref('')
+const isAdminPac = ref(false)
+const opcionesEntidades = ref([])
+const opcionesTiposNomina = ref([])
+const opcionesClues = ref([])
+const isLoadingClues = ref(false)
+const cluesRequestSeq = ref(0)
 
 const item = ref([])
 const rowsAll = ref(0)
@@ -626,6 +668,31 @@ function formatCalificacionForInput(value) {
   return safe.toFixed(2).replace(/\.?0+$/, '')
 }
 
+function optionValue(option) {
+  if (option && typeof option === 'object') {
+    return String(option.value ?? '')
+  }
+
+  return String(option ?? '')
+}
+
+function optionLabel(option) {
+  if (option && typeof option === 'object') {
+    return String(option.label ?? option.value ?? '')
+  }
+
+  return String(option ?? '')
+}
+
+function normalizeOptions(options) {
+  return (options || [])
+    .map((option) => ({
+      value: optionValue(option),
+      label: optionLabel(option),
+    }))
+    .filter((option) => option.value !== '')
+}
+
 function normalizeCalificacionForSubmit() {
   const sanitized = sanitizeCalificacionInput(m_calificacion.value)
 
@@ -660,6 +727,15 @@ watch(m_observaciones, (val) => {
   if (String(val ?? '').trim() !== '') {
     observacionesError.value = ''
   }
+})
+
+watch(f_entidad, async (entidad, previousEntidad) => {
+  if (entidad === previousEntidad) {
+    return
+  }
+
+  f_clues.value = ''
+  await fetchCluesOptions(entidad)
 })
 
 function blurActiveElement() {
@@ -716,6 +792,79 @@ watch(selectedUnidad, async (u) => {
   }
 })
 
+function resetAdminFilterState() {
+  f_entidad.value = ''
+  f_tipo_nomina.value = ''
+  f_clues.value = ''
+  opcionesEntidades.value = []
+  opcionesTiposNomina.value = []
+  opcionesClues.value = []
+}
+
+async function fetchAdminFilterOptions() {
+  if (!isAdminPac.value) {
+    resetAdminFilterState()
+    return
+  }
+
+  try {
+    const payload = f_entidad.value ? { entidad: f_entidad.value } : {}
+    const { data } = await axios.post('/pac/filter-options', payload)
+
+    if (!data?.status || !data?.is_admin) {
+      resetAdminFilterState()
+      isAdminPac.value = false
+      return
+    }
+
+    opcionesEntidades.value = normalizeOptions(data.entidades)
+    opcionesTiposNomina.value = normalizeOptions(data.tipos_nomina)
+    opcionesClues.value = normalizeOptions(data.clues)
+  } catch (error) {
+    resetAdminFilterState()
+
+    if (error?.response?.status === 403) {
+      isAdminPac.value = false
+      return
+    }
+
+    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar los filtros administrativos.'))
+  }
+}
+
+async function fetchCluesOptions(entidad = '') {
+  if (!isAdminPac.value) {
+    return
+  }
+
+  const requestId = cluesRequestSeq.value + 1
+  cluesRequestSeq.value = requestId
+  isLoadingClues.value = true
+
+  try {
+    const { data } = await axios.post('/pac/filter-options', { entidad })
+
+    if (requestId !== cluesRequestSeq.value) {
+      return
+    }
+
+    if (!data?.status || !data?.is_admin) {
+      opcionesClues.value = []
+      return
+    }
+
+    opcionesClues.value = normalizeOptions(data.clues)
+  } catch (error) {
+    if (requestId === cluesRequestSeq.value) {
+      opcionesClues.value = []
+    }
+  } finally {
+    if (requestId === cluesRequestSeq.value) {
+      isLoadingClues.value = false
+    }
+  }
+}
+
 const fetchTableData = async () => {
   const MIN_SPINNER_DURATION = 1000
   const startTime = Date.now()
@@ -724,7 +873,7 @@ const fetchTableData = async () => {
   const offset = (currentPage.value - 1) * limit.value
 
   try {
-    const { data } = await axios.post('/pac/table', {
+    const payload = {
       limit: limit.value,
       offset,
       search: searchTerm.value,
@@ -733,7 +882,27 @@ const fetchTableData = async () => {
       curp: curp.value,
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? '',
-    })
+    }
+
+    if (isAdminPac.value) {
+      payload.entidad = f_entidad.value
+      payload.tipo_nomina = f_tipo_nomina.value
+      payload.clues = f_clues.value
+    }
+
+    const { data } = await axios.post('/pac/table', payload)
+
+    if (typeof data.is_admin !== 'undefined') {
+      isAdminPac.value = !!data.is_admin
+    }
+
+    if (!data.status) {
+      notyf.error(data.message ?? 'No se pudo cargar la tabla PAC.')
+      item.value = []
+      rowsAll.value = 0
+      row.value = 0
+      return
+    }
 
     item.value = (data.list ?? []).map((rowx) => ({
       ...rowx,
@@ -754,9 +923,14 @@ const fetchTableData = async () => {
   }
 }
 
-onMounted(() => {
-  main()
-  fetchTableData()
+onMounted(async () => {
+  await main()
+
+  if (isAdminPac.value) {
+    await fetchAdminFilterOptions()
+  }
+
+  await fetchTableData()
 
   setupTableEvents({
     fetchTableData,
@@ -773,6 +947,9 @@ function clear_search() {
   curp.value = ''
   is_complete.value = false
   listSelectAcction.value = null
+  f_entidad.value = ''
+  f_tipo_nomina.value = ''
+  f_clues.value = ''
   fetchTableData()
 }
 
@@ -792,6 +969,11 @@ async function main() {
 
     listOptionsAcction.value = request.data.listOptionsAcction ?? []
     listSelectAcction.value = (request.data.listSelectAcction ?? [])[0] ?? null
+    isAdminPac.value = !!request.data.is_admin
+
+    if (!isAdminPac.value) {
+      resetAdminFilterState()
+    }
   } catch (error) {
     console.error('Error en /pac/main:', error?.response?.data ?? error)
     notyf.error(getApiErrorMessage(error, 'No se pudo completar la acción. Por favor, vuelve a intentarlo.'))

@@ -71,6 +71,17 @@ class TableConstanciasController extends Controller
         $tipoNominaFiltro = trim((string) $request->input('tipo_nomina', ''));
         $cluesFiltro      = trim((string) $request->input('clues', ''));
 
+        if (! $isAdmin && ($entidadFiltro !== '' || $tipoNominaFiltro !== '' || $cluesFiltro !== '')) {
+            return response()->json([
+                'list'     => [],
+                'allRow'   => 0,
+                'row'      => 0,
+                'status'   => false,
+                'message'  => 'No tienes permisos para usar filtros administrativos.',
+                'is_admin' => false,
+            ], 403);
+        }
+
         $anio    = ($anioRaw !== '' && is_numeric($anioRaw)) ? (int) $anioRaw : null;
         $estatus = ($estatusRaw !== '' && is_numeric($estatusRaw)) ? (int) $estatusRaw : null;
 

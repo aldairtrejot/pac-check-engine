@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pac\CollectionPacModel;
+use App\Support\PacVisibility;
 use Illuminate\Support\Facades\Log;
 
 class MainPacController extends Controller
@@ -19,6 +20,7 @@ class MainPacController extends Controller
                 'status' => true,
                 'listOptionsAcction' => $listOptionsAcction,
                 'listSelectAcction' => $listSelectAcction,
+                'is_admin' => PacVisibility::isAdminGlobal(auth()->user()),
             ], 200);
         } catch (\Throwable $th) {
             Log::error('PAC mainPac ERROR', [

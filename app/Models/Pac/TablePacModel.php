@@ -268,6 +268,55 @@ class TablePacModel extends Model
             }
         }
 
+        $this->applyAdministrativeFilters($query, $request);
+
         return $query;
+    }
+
+    private function applyAdministrativeFilters($query, $request): void
+    {
+        $entidad = trim((string) $request->input('entidad', ''));
+        $tipoNomina = trim((string) $request->input('tipo_nomina', ''));
+        $clues = trim((string) $request->input('clues', ''));
+
+        if ($entidad === '' && $tipoNomina === '' && $clues === '') {
+            return;
+        }
+
+        if (! PacVisibility::isAdminGlobal(auth()->user())) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        if ($clues !== '' && $entidad === '') {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        if ($entidad !== '') {
+            $query->whereRaw(
+                "UPPER(BTRIM(COALESCE(c.entidad::text, ''))) = ?",
+                [$this->norm($entidad)]
+            );
+        }
+
+        if ($tipoNomina !== '') {
+            $query->whereRaw(
+                "UPPER(BTRIM(COALESCE(c.nomina::text, ''))) = ?",
+                [$this->norm($tipoNomina)]
+            );
+        }
+
+        if ($clues !== '') {
+            $query->whereRaw(
+                "UPPER(BTRIM(COALESCE(c.clave_clues::text, ''))) = ?",
+                [$this->norm($clues)]
+            );
+        }
+    }
+
+    private function norm($value): string
+    {
+        return mb_strtoupper(trim((string) $value), 'UTF-8');
     }
 }
