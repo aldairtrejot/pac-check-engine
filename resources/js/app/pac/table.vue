@@ -42,36 +42,45 @@
             </div>
 
             <div v-if="isAdminPac" class="row g-2 mt-2">
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">Entidad</label>
-                <select v-model="f_entidad" class="form-select">
-                  <option value="">Todas</option>
-                  <option v-for="op in opcionesEntidades" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="Entidad"
+                id="f_entidad"
+                name="f_entidad"
+                v-model="f_entidad"
+                :options="opcionesEntidades"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todas"
+              />
 
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">Tipo nómina</label>
-                <select v-model="f_tipo_nomina" class="form-select">
-                  <option value="">Todos</option>
-                  <option v-for="op in opcionesTiposNomina" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="Tipo nómina"
+                id="f_tipo_nomina"
+                name="f_tipo_nomina"
+                v-model="f_tipo_nomina"
+                :options="opcionesTiposNomina"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todos"
+              />
 
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">CLUES</label>
-                <select v-model="f_clues" class="form-select" :disabled="!f_entidad || isLoadingClues">
-                  <option value="">{{ f_entidad ? 'Todas' : 'Selecciona una entidad' }}</option>
-                  <option v-if="isLoadingClues" value="" disabled>Cargando CLUES...</option>
-                  <option v-for="op in opcionesClues" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="CLUES"
+                id="f_clues"
+                name="f_clues"
+                v-model="f_clues"
+                :options="opcionesClues"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                :disabled="!optionValue(f_entidad) || isLoadingClues"
+                :placeholder="optionValue(f_entidad) ? (isLoadingClues ? 'Cargando CLUES...' : 'Todas') : 'Selecciona una entidad'"
+              />
             </div>
 
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
@@ -518,9 +527,9 @@ const curp = ref('')
 const is_complete = ref(false)
 const listSelectAcction = ref(null)
 const listOptionsAcction = ref([])
-const f_entidad = ref('')
-const f_tipo_nomina = ref('')
-const f_clues = ref('')
+const f_entidad = ref(null)
+const f_tipo_nomina = ref(null)
+const f_clues = ref(null)
 const isAdminPac = ref(false)
 const opcionesEntidades = ref([])
 const opcionesTiposNomina = ref([])
@@ -730,12 +739,14 @@ watch(m_observaciones, (val) => {
 })
 
 watch(f_entidad, async (entidad, previousEntidad) => {
-  if (entidad === previousEntidad) {
+  const entidadValue = optionValue(entidad)
+
+  if (entidadValue === optionValue(previousEntidad)) {
     return
   }
 
-  f_clues.value = ''
-  await fetchCluesOptions(entidad)
+  f_clues.value = null
+  await fetchCluesOptions(entidadValue)
 })
 
 function blurActiveElement() {
@@ -793,9 +804,9 @@ watch(selectedUnidad, async (u) => {
 })
 
 function resetAdminFilterState() {
-  f_entidad.value = ''
-  f_tipo_nomina.value = ''
-  f_clues.value = ''
+  f_entidad.value = null
+  f_tipo_nomina.value = null
+  f_clues.value = null
   opcionesEntidades.value = []
   opcionesTiposNomina.value = []
   opcionesClues.value = []
@@ -808,7 +819,8 @@ async function fetchAdminFilterOptions() {
   }
 
   try {
-    const payload = f_entidad.value ? { entidad: f_entidad.value } : {}
+    const entidad = optionValue(f_entidad.value)
+    const payload = entidad ? { entidad } : {}
     const { data } = await axios.post('/pac/filter-options', payload)
 
     if (!data?.status || !data?.is_admin) {
@@ -885,9 +897,9 @@ const fetchTableData = async () => {
     }
 
     if (isAdminPac.value) {
-      payload.entidad = f_entidad.value
-      payload.tipo_nomina = f_tipo_nomina.value
-      payload.clues = f_clues.value
+      payload.entidad = optionValue(f_entidad.value)
+      payload.tipo_nomina = optionValue(f_tipo_nomina.value)
+      payload.clues = optionValue(f_clues.value)
     }
 
     const { data } = await axios.post('/pac/table', payload)
@@ -947,9 +959,9 @@ function clear_search() {
   curp.value = ''
   is_complete.value = false
   listSelectAcction.value = null
-  f_entidad.value = ''
-  f_tipo_nomina.value = ''
-  f_clues.value = ''
+  f_entidad.value = null
+  f_tipo_nomina.value = null
+  f_clues.value = null
   fetchTableData()
 }
 

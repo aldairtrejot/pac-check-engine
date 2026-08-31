@@ -135,7 +135,6 @@ class EmpleadoCatalogs
 
         $row = self::cluesBaseQuery()
             ->whereRaw("UPPER(BTRIM(t.clave_clues)) = ?", [$claveClues])
-            ->orderByRaw("CASE WHEN BTRIM(COALESCE(t.descripcion_clues, '')) = '' THEN 1 ELSE 0 END")
             ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, '')))")
             ->orderByRaw("UPPER(BTRIM(COALESCE(t.nomina, '')))")
             ->first();

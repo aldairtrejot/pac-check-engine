@@ -39,49 +39,61 @@
                 v-model="f_anio"
               />
 
-              <div class="col-12 col-md-6 mb-2">
-                <label class="form-label">Estatus</label>
-                <select v-model="f_estatus" class="form-select">
-                  <option value="">Todos</option>
-                  <option :value="1">Pendiente</option>
-                  <option :value="2">Aceptado</option>
-                  <option :value="3">Rechazado</option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-6 mb-2"
+                label="Estatus"
+                id="estatus"
+                name="estatus"
+                v-model="f_estatus"
+                :options="estatusOptions"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todos"
+              />
             </div>
 
             <!-- Filtros administrativos: solo ADMIN -->
             <div v-if="isAdminConstancias" class="row g-2">
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">Entidad</label>
-                <select v-model="f_entidad" class="form-select">
-                  <option value="">Todas</option>
-                  <option v-for="op in opcionesEntidades" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="Entidad"
+                id="f_entidad"
+                name="f_entidad"
+                v-model="f_entidad"
+                :options="opcionesEntidades"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todas"
+              />
 
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">Tipo nómina</label>
-                <select v-model="f_tipo_nomina" class="form-select">
-                  <option value="">Todos</option>
-                  <option v-for="op in opcionesTiposNomina" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="Tipo nómina"
+                id="f_tipo_nomina"
+                name="f_tipo_nomina"
+                v-model="f_tipo_nomina"
+                :options="opcionesTiposNomina"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todos"
+              />
 
-              <div class="col-12 col-md-4 mb-2">
-                <label class="form-label">CLUES</label>
-                <select v-model="f_clues" class="form-select" :disabled="isLoadingClues">
-                  <option value="">Todas</option>
-                  <option v-if="isLoadingClues" value="" disabled>Cargando CLUES...</option>
-                  <option v-for="op in opcionesClues" :key="optionValue(op)" :value="optionValue(op)">
-                    {{ optionLabel(op) }}
-                  </option>
-                </select>
-              </div>
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="CLUES"
+                id="f_clues"
+                name="f_clues"
+                v-model="f_clues"
+                :options="opcionesClues"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                :disabled="isLoadingClues"
+                :placeholder="isLoadingClues ? 'Cargando CLUES...' : 'Todas'"
+              />
             </div>
 
             <div class="d-flex justify-content-end flex-wrap gap-1 mt-2">
@@ -595,6 +607,7 @@ import tableRow from '@helpers/table/table-row.vue'
 import tableEmpty from '@helpers/table/table-empty.vue'
 import tableButtonDefault from '@helpers/table/table-button-default.vue'
 import inputField from '@helpers/form/input-field.vue'
+import inputSelect from '@helpers/form/input-select.vue'
 
 const gridx2 = ref('col-12 col-md-6 mb-2')
 
@@ -602,12 +615,17 @@ const gridx2 = ref('col-12 col-md-6 mb-2')
 const f_curp = ref('')
 const f_curso = ref('')
 const f_anio = ref('')
-const f_estatus = ref('')
+const f_estatus = ref(null)
+const estatusOptions = [
+  { value: 1, label: 'Pendiente' },
+  { value: 2, label: 'Aceptado' },
+  { value: 3, label: 'Rechazado' },
+]
 
 // filtros administrativos
-const f_entidad = ref('')
-const f_tipo_nomina = ref('')
-const f_clues = ref('')
+const f_entidad = ref(null)
+const f_tipo_nomina = ref(null)
+const f_clues = ref(null)
 
 const isAdminConstancias = ref(false)
 const opcionesEntidades = ref([])
@@ -714,7 +732,8 @@ function normalizeOptions(options) {
 
 async function fetchFilterOptions() {
   try {
-    const payload = f_entidad.value ? { entidad: f_entidad.value } : {}
+    const entidad = optionValue(f_entidad.value)
+    const payload = entidad ? { entidad } : {}
     const { data } = await axios.post('/constancias/filter-options', payload)
 
     isAdminConstancias.value = !!data.is_admin
@@ -724,9 +743,9 @@ async function fetchFilterOptions() {
       opcionesTiposNomina.value = []
       opcionesClues.value = []
 
-      f_entidad.value = ''
-      f_tipo_nomina.value = ''
-      f_clues.value = ''
+      f_entidad.value = null
+      f_tipo_nomina.value = null
+      f_clues.value = null
 
       return
     }
@@ -740,9 +759,9 @@ async function fetchFilterOptions() {
     opcionesTiposNomina.value = []
     opcionesClues.value = []
 
-    f_entidad.value = ''
-    f_tipo_nomina.value = ''
-    f_clues.value = ''
+    f_entidad.value = null
+    f_tipo_nomina.value = null
+    f_clues.value = null
   }
 }
 
@@ -794,14 +813,14 @@ const fetchTableData = async () => {
       curp: f_curp.value,
       curso: f_curso.value,
       anio: f_anio.value,
-      estatus: f_estatus.value,
+      estatus: optionValue(f_estatus.value),
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     }
 
     if (isAdminConstancias.value) {
-      payload.entidad = f_entidad.value
-      payload.tipo_nomina = f_tipo_nomina.value
-      payload.clues = f_clues.value
+      payload.entidad = optionValue(f_entidad.value)
+      payload.tipo_nomina = optionValue(f_tipo_nomina.value)
+      payload.clues = optionValue(f_clues.value)
     }
 
     const { data } = await axios.post('/constancias/table', payload)
@@ -815,16 +834,16 @@ const fetchTableData = async () => {
     }
 
     const hasAdminFilters = isAdminConstancias.value && (
-      f_entidad.value ||
-      f_tipo_nomina.value ||
-      f_clues.value
+      optionValue(f_entidad.value) ||
+      optionValue(f_tipo_nomina.value) ||
+      optionValue(f_clues.value)
     )
 
     const hasFilters = !!(
       f_curp.value ||
       f_curso.value ||
       f_anio.value ||
-      f_estatus.value ||
+      optionValue(f_estatus.value) ||
       searchTerm.value ||
       hasAdminFilters
     )
@@ -855,12 +874,14 @@ onMounted(async () => {
 })
 
 watch(f_entidad, async (entidad, previousEntidad) => {
-  if (entidad === previousEntidad) {
+  const entidadValue = optionValue(entidad)
+
+  if (entidadValue === optionValue(previousEntidad)) {
     return
   }
 
-  f_clues.value = ''
-  await fetchCluesOptions(entidad)
+  f_clues.value = null
+  await fetchCluesOptions(entidadValue)
 })
 
 function clear_search() {
@@ -868,10 +889,10 @@ function clear_search() {
   f_curp.value = ''
   f_curso.value = ''
   f_anio.value = ''
-  f_estatus.value = ''
-  f_entidad.value = ''
-  f_tipo_nomina.value = ''
-  f_clues.value = ''
+  f_estatus.value = null
+  f_entidad.value = null
+  f_tipo_nomina.value = null
+  f_clues.value = null
   fetchTableData()
 }
 

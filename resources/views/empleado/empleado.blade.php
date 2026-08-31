@@ -126,146 +126,8 @@
                 </div>
             </div>
 
-            {{-- BLOQUE 4: Puesto --}}
-            <h6 class="mb-3">Datos del puesto</h6>
-
-            @php
-                $codigoPuestoOld = old('codigo_puesto');
-            @endphp
-
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label class="form-label">Nombre del puesto <span class="text-danger">*</span></label>
-                    <select
-                        id="codigo_puesto"
-                        name="codigo_puesto"
-                        class="form-select @error('codigo_puesto') is-invalid @enderror @error('nombre_puesto') is-invalid @enderror"
-                        required
-                    >
-                        <option value="">Seleccione...</option>
-                        @foreach (($puestos ?? collect()) as $puesto)
-                            <option
-                                value="{{ $puesto->codigo_puesto }}"
-                                data-puesto="{{ $puesto->puesto }}"
-                                data-nivel="{{ $puesto->nivel }}"
-                                {{ $codigoPuestoOld === $puesto->codigo_puesto ? 'selected' : '' }}
-                            >
-                                {{ $puesto->label }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <input
-                        type="hidden"
-                        id="nombre_puesto"
-                        name="nombre_puesto"
-                        value="{{ old('nombre_puesto') }}"
-                    >
-                    @error('nombre_puesto')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                    @error('codigo_puesto')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Código de puesto</label>
-                    <input
-                        type="text"
-                        id="codigo_puesto_text"
-                        class="form-control"
-                        value="{{ old('codigo_puesto') }}"
-                        readonly
-                    >
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Nivel salarial</label>
-                    <input
-                        type="text"
-                        id="nivel_salarial"
-                        name="nivel_salarial"
-                        class="form-control @error('nivel_salarial') is-invalid @enderror"
-                        value="{{ old('nivel_salarial') }}"
-                        readonly
-                    >
-                    @error('nivel_salarial')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            {{-- BLOQUE 5: CLUES --}}
-            <h6 class="mb-3">Unidad / CLUES</h6>
-
-            @php
-                $cluesCatalogKeyOld = old('clues_catalog_key');
-                $cluesLabelOld = old('clues_label');
-            @endphp
-
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">CLUES <span class="text-danger">*</span></label>
-                    <input
-                        type="text"
-                        id="clues_search"
-                        name="clues_label"
-                        list="clues_options"
-                        class="form-control @error('clues_catalog_key') is-invalid @enderror @error('clave_clues') is-invalid @enderror"
-                        value="{{ $cluesLabelOld }}"
-                        autocomplete="off"
-                        required
-                    >
-                    <datalist id="clues_options"></datalist>
-                    <input
-                        type="hidden"
-                        id="clues_catalog_key"
-                        name="clues_catalog_key"
-                        value="{{ $cluesCatalogKeyOld }}"
-                    >
-                    @error('clave_clues')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                    @error('clues_catalog_key')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Clave CLUES</label>
-                    <input
-                        type="text"
-                        id="clave_clues"
-                        name="clave_clues"
-                        class="form-control @error('clave_clues') is-invalid @enderror"
-                        value="{{ old('clave_clues') }}"
-                        readonly
-                        required
-                    >
-                    <input
-                        type="hidden"
-                        id="id_clues"
-                        name="id_clues"
-                        value="{{ old('id_clues') }}"
-                    >
-                </div>
-
-                <div class="col-md-5">
-                    <label class="form-label">Descripción CLUES</label>
-                    <input
-                        type="text"
-                        id="descripcion_clues"
-                        name="descripcion_clues"
-                        class="form-control @error('descripcion_clues') is-invalid @enderror"
-                        value="{{ old('descripcion_clues') }}"
-                        readonly
-                        required
-                    >
-                    @error('descripcion_clues')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
+            {{-- BLOQUES 4 y 5: Catálogos renderizados con el mismo selector de Mi Plantilla --}}
+            <div id="blade_form_empleado_catalogs"></div>
 
             {{-- BLOQUE 6: Datos laborales --}}
             <h6 class="mb-3">Datos laborales</h6>
@@ -383,6 +245,8 @@
 
     </x-template.app-card>
 
+    <script type="application/json" id="empleado_catalog_props">{!! json_encode($catalogProps ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+
     {{-- Script directo (sin @push) para que siempre se ejecute --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -390,32 +254,17 @@
             const btnGuardar = document.getElementById('btnGuardar');
             const curpInput = document.getElementById('curp');
             const sexoSelect = document.getElementById('sexo');
-            const puestoSelect = document.getElementById('codigo_puesto');
-            const codigoPuestoText = document.getElementById('codigo_puesto_text');
-            const nombrePuestoInput = document.getElementById('nombre_puesto');
-            const nivelSalarialInput = document.getElementById('nivel_salarial');
-            const cluesSearchInput = document.getElementById('clues_search');
-            const cluesDatalist = document.getElementById('clues_options');
-            const cluesCatalogKeyInput = document.getElementById('clues_catalog_key');
-            const idCluesInput = document.getElementById('id_clues');
-            const claveCluesInput = document.getElementById('clave_clues');
-            const descripcionCluesInput = document.getElementById('descripcion_clues');
-            const nominaInput = document.getElementById('nomina');
-            const entidadInput = document.getElementById('entidad');
             const curpRegex = /^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]$/;
-            const cluesSearchUrl = @json(route('empleado.catalogos.clues'));
-            const cluesOptionsByLabel = new Map();
-            let selectedCluesLabel = cluesSearchInput ? cluesSearchInput.value : '';
-            let cluesSearchTimer = null;
 
             // Prevenir doble envío
             if (form && btnGuardar) {
-                form.addEventListener('submit', function() {
+                form.addEventListener('submit', function(event) {
                     syncSexoFromCurp();
-                    syncPuesto();
-                    syncCluesFromText();
 
                     if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        form.reportValidity();
                         return;
                     }
 
@@ -455,168 +304,9 @@
                 sexoSelect.value = curp.charAt(10) === 'H' ? 'HOMBRE' : 'MUJER';
             }
 
-            function syncPuesto() {
-                if (!puestoSelect || !codigoPuestoText || !nombrePuestoInput) {
-                    return;
-                }
-
-                const option = puestoSelect.selectedOptions[0];
-
-                if (!option || !option.value) {
-                    codigoPuestoText.value = '';
-                    nombrePuestoInput.value = '';
-                    if (nivelSalarialInput) {
-                        nivelSalarialInput.value = '';
-                    }
-                    return;
-                }
-
-                codigoPuestoText.value = option.value;
-                nombrePuestoInput.value = option.dataset.puesto || '';
-
-                if (nivelSalarialInput) {
-                    nivelSalarialInput.value = option.dataset.nivel || '';
-                }
-            }
-
-            function renderCluesOptions(options) {
-                cluesOptionsByLabel.clear();
-
-                if (!cluesDatalist) {
-                    return;
-                }
-
-                cluesDatalist.innerHTML = '';
-
-                options.forEach(function(optionData) {
-                    cluesOptionsByLabel.set(optionData.label, optionData);
-
-                    const option = document.createElement('option');
-                    option.value = optionData.label;
-                    cluesDatalist.appendChild(option);
-                });
-            }
-
-            async function fetchCluesOptions(query) {
-                if (!cluesSearchUrl || query.trim().length < 2) {
-                    renderCluesOptions([]);
-                    return;
-                }
-
-                try {
-                    const url = new URL(cluesSearchUrl, window.location.origin);
-                    url.searchParams.set('q', query.trim());
-
-                    const response = await fetch(url.toString(), {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok || !data.status) {
-                        renderCluesOptions([]);
-                        return;
-                    }
-
-                    renderCluesOptions(data.options || []);
-                    syncCluesFromText();
-                } catch (error) {
-                    renderCluesOptions([]);
-                }
-            }
-
-            function clearCluesFields() {
-                if (cluesCatalogKeyInput) {
-                    cluesCatalogKeyInput.value = '';
-                }
-
-                if (idCluesInput) {
-                    idCluesInput.value = '';
-                }
-
-                if (claveCluesInput) {
-                    claveCluesInput.value = '';
-                }
-
-                if (descripcionCluesInput) {
-                    descripcionCluesInput.value = '';
-                }
-            }
-
-            function applyCluesOption(optionData) {
-                if (!optionData || !claveCluesInput || !descripcionCluesInput) {
-                    return;
-                }
-
-                if (cluesCatalogKeyInput) {
-                    cluesCatalogKeyInput.value = optionData.catalog_key || '';
-                }
-
-                if (idCluesInput) {
-                    idCluesInput.value = optionData.id_clues || '';
-                }
-
-                claveCluesInput.value = optionData.clave_clues || '';
-                descripcionCluesInput.value = optionData.descripcion_clues || '';
-                selectedCluesLabel = optionData.label || '';
-
-                if (nominaInput && optionData.nomina) {
-                    nominaInput.value = optionData.nomina;
-                }
-
-                if (entidadInput && optionData.entidad) {
-                    entidadInput.value = optionData.entidad;
-                }
-            }
-
-            function syncCluesFromText() {
-                if (!cluesSearchInput) {
-                    return;
-                }
-
-                const typedLabel = cluesSearchInput.value.trim();
-
-                if (typedLabel === '') {
-                    selectedCluesLabel = '';
-                    clearCluesFields();
-                    return;
-                }
-
-                const optionData = cluesOptionsByLabel.get(typedLabel);
-
-                if (optionData) {
-                    applyCluesOption(optionData);
-                    return;
-                }
-
-                if (typedLabel !== selectedCluesLabel) {
-                    clearCluesFields();
-                }
-            }
-
             if (curpInput) {
                 curpInput.addEventListener('input', syncSexoFromCurp);
                 syncSexoFromCurp();
-            }
-
-            if (puestoSelect) {
-                puestoSelect.addEventListener('change', syncPuesto);
-                syncPuesto();
-            }
-
-            if (cluesSearchInput) {
-                cluesSearchInput.addEventListener('input', function() {
-                    syncCluesFromText();
-
-                    window.clearTimeout(cluesSearchTimer);
-                    cluesSearchTimer = window.setTimeout(function() {
-                        fetchCluesOptions(cluesSearchInput.value);
-                    }, 250);
-                });
-
-                cluesSearchInput.addEventListener('change', syncCluesFromText);
             }
 
             // TOAST: éxito

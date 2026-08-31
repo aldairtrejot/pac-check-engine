@@ -7,6 +7,7 @@ import vue_table_tematica from './app/tematica/table.vue'
 import vue_table_instancia from './app/instancia/table.vue'
 import vue_table_constancias from './app/constancias/table.vue'
 import vue_table_admin_users from './app/admin/users/table.vue'
+import vue_form_empleado_catalogs from './app/empleado/form-catalogs.vue'
 
 const components = [  
   // login
@@ -29,6 +30,9 @@ const components = [
 
   // usuarios
   { selector: '#blade_table_admin_users', component: vue_table_admin_users },
+
+  // empleado
+  { selector: '#blade_form_empleado_catalogs', component: vue_form_empleado_catalogs },
   
 ]
 
