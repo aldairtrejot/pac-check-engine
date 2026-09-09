@@ -36,8 +36,21 @@
                 id="id_accion"
                 label="Acción"
                 :multiple="false"
-                grid="col-12 col-md-6 mb-2"
+                grid="col-12 col-md-4 mb-2"
                 :required="true"
+              />
+
+              <inputSelect
+                v-model="f_estatus"
+                :options="estatusOptions"
+                id="estatus"
+                name="estatus"
+                label="Estatus"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                grid="col-12 col-md-4 mb-2"
+                placeholder="Todos"
               />
 
               <inputSelect
@@ -49,7 +62,7 @@
                 :multiple="false"
                 labelKey="label"
                 trackBy="value"
-                grid="col-12 col-md-6 mb-2"
+                grid="col-12 col-md-4 mb-2"
                 placeholder="Todas"
               />
             </div>
@@ -546,6 +559,11 @@ const curp = ref('')
 const is_complete = ref(false)
 const listSelectAcction = ref(null)
 const listOptionsAcction = ref([])
+const f_estatus = ref(null)
+const estatusOptions = [
+  { value: 'PENDIENTE', label: 'Pendiente' },
+  { value: 'CONCLUIDO', label: 'Concluido' },
+]
 const f_validacion = ref(null)
 const f_entidad = ref(null)
 const f_tipo_nomina = ref(null)
@@ -912,6 +930,7 @@ const fetchTableData = async () => {
       curp: curp.value,
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? '',
+      estatus: optionValue(f_estatus.value),
       validacion: optionValue(f_validacion.value),
     }
 
@@ -976,6 +995,7 @@ function clear_search() {
   curp.value = ''
   is_complete.value = false
   listSelectAcction.value = null
+  f_estatus.value = null
   f_validacion.value = null
   f_entidad.value = null
   f_tipo_nomina.value = null

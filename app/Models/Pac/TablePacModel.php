@@ -270,6 +270,23 @@ class TablePacModel extends Model
 
         /*
         |--------------------------------------------------------------------------
+        | Filtro por estatus visible en la tabla (Atendido)
+        |--------------------------------------------------------------------------
+        */
+        $estatus = $this->norm($request->input('estatus', ''));
+
+        if ($estatus !== '') {
+            $completedCondition = $this->completedConditionSql();
+
+            if ($estatus === 'CONCLUIDO') {
+                $query->whereRaw("({$completedCondition})");
+            } elseif ($estatus === 'PENDIENTE') {
+                $query->whereRaw("NOT ({$completedCondition})");
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Filtro por acción
         |--------------------------------------------------------------------------
         | Si id_accion viene inválido, no se deja pasar la consulta abierta.
@@ -333,5 +350,23 @@ class TablePacModel extends Model
     private function norm($value): string
     {
         return mb_strtoupper(trim((string) $value), 'UTF-8');
+    }
+
+    private function completedConditionSql(): string
+    {
+        return "
+            e.id_cat_estatus IS NOT NULL
+            AND e.fecha_ini IS NOT NULL
+            AND e.fecha_fin IS NOT NULL
+            AND e.id_trimestre IS NOT NULL
+            AND (
+                e.id_instancia IS NOT NULL
+                AND TRIM(e.id_instancia) <> ''
+            )
+            AND (
+                e.id_cat_tematica IS NOT NULL
+                AND TRIM(e.id_cat_tematica) <> ''
+            )
+        ";
     }
 }
