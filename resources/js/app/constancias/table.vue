@@ -32,7 +32,7 @@
 
             <div class="row g-2">
               <inputField
-                grid="col-12 col-md-6 mb-2"
+                grid="col-12 col-md-4 mb-2"
                 type="number"
                 label="Año"
                 id="anio"
@@ -40,7 +40,7 @@
               />
 
               <inputSelect
-                grid="col-12 col-md-6 mb-2"
+                grid="col-12 col-md-4 mb-2"
                 label="Estatus"
                 id="estatus"
                 name="estatus"
@@ -50,6 +50,19 @@
                 labelKey="label"
                 trackBy="value"
                 placeholder="Todos"
+              />
+
+              <inputSelect
+                grid="col-12 col-md-4 mb-2"
+                label="Validación"
+                id="validacion"
+                name="validacion"
+                v-model="f_validacion"
+                :options="opcionesValidaciones"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                placeholder="Todas"
               />
             </div>
 
@@ -135,6 +148,7 @@
             </template>
 
             <tableRow value="Estatus" />
+            <tableRow value="Validación" />
           </tr>
         </thead>
 
@@ -195,6 +209,12 @@
             <td class="align-middle text-center" style="width: 130px;">
               <span class="cap-status-pill" :class="statusPillClass(row.estatus_txt)">
                 {{ row.estatus_txt || '—' }}
+              </span>
+            </td>
+
+            <td class="align-middle text-center" style="width: 150px;">
+              <span class="text-secondary text-xs" style="font-weight:600; white-space:normal; overflow-wrap:anywhere;">
+                {{ row.val_plantilla || '—' }}
               </span>
             </td>
           </tr>
@@ -616,6 +636,7 @@ const f_curp = ref('')
 const f_curso = ref('')
 const f_anio = ref('')
 const f_estatus = ref(null)
+const f_validacion = ref(null)
 const estatusOptions = [
   { value: 1, label: 'Pendiente' },
   { value: 2, label: 'Aceptado' },
@@ -631,10 +652,11 @@ const isAdminConstancias = ref(false)
 const opcionesEntidades = ref([])
 const opcionesTiposNomina = ref([])
 const opcionesClues = ref([])
+const opcionesValidaciones = ref([])
 const isLoadingClues = ref(false)
 const cluesRequestSeq = ref(0)
 
-const tableColspan = computed(() => isAdminConstancias.value ? 7 : 4)
+const tableColspan = computed(() => isAdminConstancias.value ? 8 : 5)
 
 // tabla
 const item = ref([])
@@ -737,6 +759,7 @@ async function fetchFilterOptions() {
     const { data } = await axios.post('/constancias/filter-options', payload)
 
     isAdminConstancias.value = !!data.is_admin
+    opcionesValidaciones.value = normalizeOptions(data.validaciones)
 
     if (!isAdminConstancias.value) {
       opcionesEntidades.value = []
@@ -758,6 +781,7 @@ async function fetchFilterOptions() {
     opcionesEntidades.value = []
     opcionesTiposNomina.value = []
     opcionesClues.value = []
+    opcionesValidaciones.value = []
 
     f_entidad.value = null
     f_tipo_nomina.value = null
@@ -814,6 +838,7 @@ const fetchTableData = async () => {
       curso: f_curso.value,
       anio: f_anio.value,
       estatus: optionValue(f_estatus.value),
+      validacion: optionValue(f_validacion.value),
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     }
 
@@ -844,6 +869,7 @@ const fetchTableData = async () => {
       f_curso.value ||
       f_anio.value ||
       optionValue(f_estatus.value) ||
+      optionValue(f_validacion.value) ||
       searchTerm.value ||
       hasAdminFilters
     )
@@ -890,6 +916,7 @@ function clear_search() {
   f_curso.value = ''
   f_anio.value = ''
   f_estatus.value = null
+  f_validacion.value = null
   f_entidad.value = null
   f_tipo_nomina.value = null
   f_clues.value = null

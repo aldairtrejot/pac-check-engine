@@ -22,38 +22,30 @@ class PacFilterOptionsController extends Controller
                 'entidades'    => [],
                 'tipos_nomina' => [],
                 'clues'        => [],
+                'validaciones' => [],
             ], 401);
-        }
-
-        if (! PacVisibility::isAdminGlobal($user)) {
-            return response()->json([
-                'status'       => false,
-                'message'      => 'No tienes permisos para consultar filtros administrativos.',
-                'is_admin'     => false,
-                'entidades'    => [],
-                'tipos_nomina' => [],
-                'clues'        => [],
-            ], 403);
         }
 
         $request->validate([
             'entidad' => 'nullable|string|max:255',
         ]);
 
+        $isAdmin = PacVisibility::isAdminGlobal($user);
         $entidad = trim((string) $request->input('entidad', ''));
 
         return response()->json([
             'status'       => true,
-            'is_admin'     => true,
-            'entidades'    => $this->entidadOptions(),
-            'tipos_nomina' => $this->tipoNominaOptions(),
-            'clues'        => $this->cluesOptions($entidad),
+            'is_admin'     => $isAdmin,
+            'entidades'    => $isAdmin ? $this->entidadOptions($user) : [],
+            'tipos_nomina' => $isAdmin ? $this->tipoNominaOptions($user) : [],
+            'clues'        => $isAdmin ? $this->cluesOptions($entidad, $user) : [],
+            'validaciones' => $this->validacionOptions($user),
         ], 200);
     }
 
-    private function entidadOptions(): array
+    private function entidadOptions($user): array
     {
-        return $this->basePlantillaQuery()
+        return $this->basePlantillaQuery($user)
             ->whereNotNull('c.entidad')
             ->whereRaw("BTRIM(COALESCE(c.entidad::text, '')) <> ''")
             ->selectRaw("UPPER(BTRIM(c.entidad::text)) AS value")
@@ -68,9 +60,9 @@ class PacFilterOptionsController extends Controller
             ->all();
     }
 
-    private function tipoNominaOptions(): array
+    private function tipoNominaOptions($user): array
     {
-        return $this->basePlantillaQuery()
+        return $this->basePlantillaQuery($user)
             ->leftJoin(
                 'administracion.cat_tipo_nomina as ctn',
                 DB::raw("UPPER(BTRIM(c.nomina::text))"),
@@ -96,13 +88,13 @@ class PacFilterOptionsController extends Controller
             ->all();
     }
 
-    private function cluesOptions(string $entidad = ''): array
+    private function cluesOptions(string $entidad = '', $user = null): array
     {
         if ($entidad === '') {
             return [];
         }
 
-        $query = $this->basePlantillaQuery()
+        $query = $this->basePlantillaQuery($user)
             ->leftJoin(
                 'administracion.cat_clues as cc',
                 DB::raw("UPPER(BTRIM(c.clave_clues::text))"),
@@ -139,7 +131,24 @@ class PacFilterOptionsController extends Controller
             ->all();
     }
 
-    private function basePlantillaQuery(): Builder
+    private function validacionOptions($user): array
+    {
+        return $this->basePlantillaQuery($user)
+            ->whereNotNull('c.val_plantilla')
+            ->whereRaw("BTRIM(COALESCE(c.val_plantilla::text, '')) <> ''")
+            ->selectRaw("UPPER(BTRIM(c.val_plantilla::text)) AS value")
+            ->selectRaw("UPPER(BTRIM(c.val_plantilla::text)) AS label")
+            ->groupByRaw("UPPER(BTRIM(c.val_plantilla::text))")
+            ->orderBy('value')
+            ->get()
+            ->map(fn ($row) => [
+                'value' => (string) $row->value,
+                'label' => (string) $row->label,
+            ])
+            ->all();
+    }
+
+    private function basePlantillaQuery($user = null): Builder
     {
         $query = DB::table('public.a2_acciones_empleados as e')
             ->join('public.a1_cat_acciones as a', 'e.id_accion', '=', 'a.id_accion')
@@ -162,6 +171,12 @@ class PacFilterOptionsController extends Controller
 
         $this->applyVisibleCourseFilters($query);
         $this->applyActiveEmployeeFilter($query);
+        PacVisibility::apply(
+            $query,
+            $user ?? auth()->user(),
+            'c',
+            'public.a2_acciones_capacitacion'
+        );
 
         return $query;
     }

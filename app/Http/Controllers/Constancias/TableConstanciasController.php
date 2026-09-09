@@ -41,6 +41,7 @@ class TableConstanciasController extends Controller
             'curso'       => 'nullable|string|max:255',
             'anio'        => 'nullable',
             'estatus'     => 'nullable',
+            'validacion'  => 'nullable|string|max:255',
             'search'      => 'nullable|string|max:255',
 
             /*
@@ -65,6 +66,7 @@ class TableConstanciasController extends Controller
         $curso      = trim((string) $request->input('curso', ''));
         $anioRaw    = trim((string) $request->input('anio', ''));
         $estatusRaw = trim((string) $request->input('estatus', ''));
+        $validacion = trim((string) $request->input('validacion', ''));
         $search     = trim((string) $request->input('search', ''));
 
         $entidadFiltro    = trim((string) $request->input('entidad', ''));
@@ -113,6 +115,7 @@ class TableConstanciasController extends Controller
                 'c.nombre_curso',
                 'c.anio',
                 'c.estatus',
+                'c.val_plantilla',
 
                 /*
                 |--------------------------------------------------------------------------
@@ -187,6 +190,13 @@ class TableConstanciasController extends Controller
             $q->where('c.estatus', $estatus);
         }
 
+        if ($validacion !== '') {
+            $q->whereRaw(
+                "UPPER(BTRIM(COALESCE(c.val_plantilla::text, ''))) = ?",
+                [$this->norm($validacion)]
+            );
+        }
+
         /*
         |--------------------------------------------------------------------------
         | Filtros administrativos
@@ -223,6 +233,7 @@ class TableConstanciasController extends Controller
                   ->orWhere('c.nombre_curso', 'ILIKE', "%{$search}%")
                   ->orWhereRaw("CAST(c.anio AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("CAST(c.estatus AS TEXT) ILIKE ?", ["%{$search}%"])
+                  ->orWhereRaw("CAST(c.val_plantilla AS TEXT) ILIKE ?", ["%{$search}%"])
                   ->orWhereRaw("
                         TRIM(CONCAT_WS(' ',
                             NULLIF(TRIM(cap.nombre), ''),

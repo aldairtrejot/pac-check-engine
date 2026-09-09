@@ -21,28 +21,12 @@ class ConstanciasFilterOptionsController extends Controller
                 'entidades'     => [],
                 'tipos_nomina'  => [],
                 'clues'         => [],
+                'validaciones'  => [],
             ], 401);
         }
 
         $scope = ConstanciaVisibilityByName::resolveScope((int) $user->id);
         $isAdmin = (bool) ($scope['is_admin_global'] ?? false);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Solo ADMIN puede recibir opciones para estos filtros.
-        |--------------------------------------------------------------------------
-        | Supervisores y revisores no deben visualizar estos combos.
-        */
-        if (! $isAdmin) {
-            return response()->json([
-                'status'        => false,
-                'message'       => 'No tienes permisos para consultar filtros administrativos.',
-                'is_admin'      => false,
-                'entidades'     => [],
-                'tipos_nomina'  => [],
-                'clues'         => [],
-            ], 403);
-        }
 
         $request->validate([
             'entidad' => 'nullable|string|max:255',
@@ -52,11 +36,41 @@ class ConstanciasFilterOptionsController extends Controller
 
         return response()->json([
             'status'       => true,
-            'is_admin'     => true,
-            'entidades'    => $this->entidadOptions(),
-            'tipos_nomina' => $this->tipoNominaOptions(),
-            'clues'        => $this->cluesOptions($entidad),
+            'is_admin'     => $isAdmin,
+            'entidades'    => $isAdmin ? $this->entidadOptions() : [],
+            'tipos_nomina' => $isAdmin ? $this->tipoNominaOptions() : [],
+            'clues'        => $isAdmin ? $this->cluesOptions($entidad) : [],
+            'validaciones' => $this->validacionOptions($user),
         ]);
+    }
+
+    private function baseVisibleConstanciasQuery($user): \Illuminate\Database\Query\Builder
+    {
+        $query = DB::table('public.tbl_constancias as c')
+            ->whereNotNull('c.id_puesto')
+            ->whereRaw("BTRIM(COALESCE(c.id_puesto::text, '')) <> ''")
+            ->whereNotNull('c.estatus');
+
+        ConstanciaVisibilityByName::apply($query, $user, 'c');
+
+        return $query;
+    }
+
+    private function validacionOptions($user): array
+    {
+        return $this->baseVisibleConstanciasQuery($user)
+            ->whereNotNull('c.val_plantilla')
+            ->whereRaw("BTRIM(COALESCE(c.val_plantilla::text, '')) <> ''")
+            ->selectRaw("UPPER(BTRIM(c.val_plantilla::text)) AS value")
+            ->selectRaw("UPPER(BTRIM(c.val_plantilla::text)) AS label")
+            ->groupByRaw("UPPER(BTRIM(c.val_plantilla::text))")
+            ->orderBy('value')
+            ->get()
+            ->map(fn ($row) => [
+                'value' => (string) $row->value,
+                'label' => (string) $row->label,
+            ])
+            ->all();
     }
 
     private function entidadOptions(): array

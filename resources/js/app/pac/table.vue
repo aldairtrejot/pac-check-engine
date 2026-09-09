@@ -36,8 +36,21 @@
                 id="id_accion"
                 label="Acción"
                 :multiple="false"
-                grid="col-md-12 col-sm-12"
+                grid="col-12 col-md-6 mb-2"
                 :required="true"
+              />
+
+              <inputSelect
+                v-model="f_validacion"
+                :options="opcionesValidaciones"
+                id="validacion"
+                name="validacion"
+                label="Validación"
+                :multiple="false"
+                labelKey="label"
+                trackBy="value"
+                grid="col-12 col-md-6 mb-2"
+                placeholder="Todas"
               />
             </div>
 
@@ -112,13 +125,14 @@
           <tr>
             <tableRow value="Acciones" />
             <tableRow value="Atendido" />
+            <tableRow value="Validación" />
             <tableRow value="Nombre" />
             <tableRow value="CURP" />
             <tableRow value="Acción" />
           </tr>
         </thead>
         <tbody>
-          <tableEmpty v-if="item.length === 0" :colspan="5" />
+          <tableEmpty v-if="item.length === 0" :colspan="6" />
 
           <tr v-for="rowx in item" :key="getRowId(rowx)">
             <td class="text-center">
@@ -146,6 +160,11 @@
             <td class="align-middle text-center">
               <span class="cap-status-pill" :class="statusPillClass(rowx.atendido)">
                 {{ rowx.atendido || '—' }}
+              </span>
+            </td>
+            <td class="align-middle text-center">
+              <span class="text-secondary text-xs font-weight-bold" style="white-space:normal; overflow-wrap:anywhere;">
+                {{ rowx.val_plantilla || '—' }}
               </span>
             </td>
             <td class="align-middle text-center">
@@ -527,6 +546,7 @@ const curp = ref('')
 const is_complete = ref(false)
 const listSelectAcction = ref(null)
 const listOptionsAcction = ref([])
+const f_validacion = ref(null)
 const f_entidad = ref(null)
 const f_tipo_nomina = ref(null)
 const f_clues = ref(null)
@@ -534,6 +554,7 @@ const isAdminPac = ref(false)
 const opcionesEntidades = ref([])
 const opcionesTiposNomina = ref([])
 const opcionesClues = ref([])
+const opcionesValidaciones = ref([])
 const isLoadingClues = ref(false)
 const cluesRequestSeq = ref(0)
 
@@ -812,28 +833,25 @@ function resetAdminFilterState() {
   opcionesClues.value = []
 }
 
-async function fetchAdminFilterOptions() {
-  if (!isAdminPac.value) {
-    resetAdminFilterState()
-    return
-  }
-
+async function fetchFilterOptions() {
   try {
     const entidad = optionValue(f_entidad.value)
-    const payload = entidad ? { entidad } : {}
+    const payload = isAdminPac.value && entidad ? { entidad } : {}
     const { data } = await axios.post('/pac/filter-options', payload)
 
-    if (!data?.status || !data?.is_admin) {
-      resetAdminFilterState()
-      isAdminPac.value = false
-      return
-    }
+    isAdminPac.value = !!data?.is_admin
+    opcionesValidaciones.value = normalizeOptions(data.validaciones)
 
-    opcionesEntidades.value = normalizeOptions(data.entidades)
-    opcionesTiposNomina.value = normalizeOptions(data.tipos_nomina)
-    opcionesClues.value = normalizeOptions(data.clues)
+    if (isAdminPac.value) {
+      opcionesEntidades.value = normalizeOptions(data.entidades)
+      opcionesTiposNomina.value = normalizeOptions(data.tipos_nomina)
+      opcionesClues.value = normalizeOptions(data.clues)
+    } else {
+      resetAdminFilterState()
+    }
   } catch (error) {
     resetAdminFilterState()
+    opcionesValidaciones.value = []
 
     if (error?.response?.status === 403) {
       isAdminPac.value = false
@@ -894,6 +912,7 @@ const fetchTableData = async () => {
       curp: curp.value,
       is_complete: is_complete.value ? '1' : '0',
       id_accion: listSelectAcction.value?.id ?? '',
+      validacion: optionValue(f_validacion.value),
     }
 
     if (isAdminPac.value) {
@@ -938,9 +957,7 @@ const fetchTableData = async () => {
 onMounted(async () => {
   await main()
 
-  if (isAdminPac.value) {
-    await fetchAdminFilterOptions()
-  }
+  await fetchFilterOptions()
 
   await fetchTableData()
 
@@ -959,6 +976,7 @@ function clear_search() {
   curp.value = ''
   is_complete.value = false
   listSelectAcction.value = null
+  f_validacion.value = null
   f_entidad.value = null
   f_tipo_nomina.value = null
   f_clues.value = null

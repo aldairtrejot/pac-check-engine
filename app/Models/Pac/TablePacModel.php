@@ -30,6 +30,7 @@ class TablePacModel extends Model
                 TRIM(CONCAT_WS(' ', c.apellido_paterno, c.apellido_materno)) AS apellido,
                 e.curp AS curp,
                 a.nombre_accion AS accion,
+                c.val_plantilla AS val_plantilla,
                 CASE
                     WHEN (
                         e.id_cat_estatus IS NOT NULL
@@ -251,6 +252,20 @@ class TablePacModel extends Model
                     ['%' . $curp . '%']
                 );
             }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Filtro por Validación de plantilla
+        |--------------------------------------------------------------------------
+        */
+        $validacion = trim((string) $request->input('validacion', ''));
+
+        if ($validacion !== '') {
+            $query->whereRaw(
+                "UPPER(BTRIM(COALESCE(c.val_plantilla::text, ''))) = ?",
+                [$this->norm($validacion)]
+            );
         }
 
         /*
