@@ -15,13 +15,6 @@ class SaveEmpleadoController extends Controller
     private const CURP_BASE_PLANTILLA = 'OIJN850210MMCRMN07';
     private const OBSERVACION_CURSO_OBLIGATORIO = 'OBLIGATORIO';
 
-    public function __construct()
-    {
-        // Protege también el POST; no basta con restringir solamente la vista.
-        $this->middleware('auth');
-        $this->middleware('role:admin_oc,supervisor_oc');
-    }
-
     public function save(Request $request)
     {
         $request->merge([
@@ -46,7 +39,7 @@ class SaveEmpleadoController extends Controller
         $validated = $request->validate([
             'curp'              => 'required|string|size:18|regex:/^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]$/',
             'rfc'               => 'nullable|string|max:13|regex:/^[A-Z0-9]+$/',
-            'sexo'              => 'required|string|in:HOMBRE,MUJER',
+            'sexo'              => 'nullable|string|in:HOMBRE,MUJER',
             'nombre'            => 'required|string|max:100',
             'apellido_paterno'  => 'required|string|max:100',
             'apellido_materno'  => 'nullable|string|max:100',
@@ -68,9 +61,6 @@ class SaveEmpleadoController extends Controller
             'curp.required' => 'El campo CURP es obligatorio.',
             'curp.size'     => 'El CURP debe tener exactamente 18 caracteres.',
             'curp.regex'    => 'El CURP no tiene un formato válido.',
-            'rfc.max'       => 'El RFC no puede exceder 13 caracteres.',
-            'rfc.regex'     => 'El RFC solo puede contener letras y números.',
-            'sexo.required' => 'El campo Sexo es obligatorio.',
             'sexo.in'       => 'El sexo debe ser HOMBRE o MUJER.',
             'nombre.required' => 'El campo Nombre es obligatorio.',
             'apellido_paterno.required' => 'El campo Apellido Paterno es obligatorio.',
@@ -221,12 +211,12 @@ class SaveEmpleadoController extends Controller
 
                 'nomina'            => $nomina,
 
-                'nombre'            => $validated['nombre'],
+                'nombre'            => strtoupper(trim($validated['nombre'])),
 
-                'apellido_paterno'  => $validated['apellido_paterno'],
+                'apellido_paterno'  => strtoupper(trim($validated['apellido_paterno'])),
 
                 'apellido_materno'  => !empty($validated['apellido_materno'])
-                                        ? $validated['apellido_materno']
+                                        ? strtoupper(trim($validated['apellido_materno']))
                                         : null,
 
                 'nivel_atencion'    => !empty($validated['nivel_atencion'])
@@ -442,44 +432,35 @@ class SaveEmpleadoController extends Controller
 
             DB::commit();
 
-            // El alta ya quedó confirmada. Si el logger falla, no se debe informar
-            // al usuario que el empleado no se guardó cuando realmente sí se guardó.
-            try {
-                UserActionLogger::write(
-                    idUsuario: auth()->id() ? (int) auth()->id() : null,
-                    modulo: 'EMPLEADOS',
-                    accion: 'CREAR_EMPLEADO',
-                    descripcion: 'Alta de empleado y cursos base.',
-                    idReferencia: $curpNuevo,
-                    payload: [
-                        'id_cat' => (int) $nextIdCat,
-                        'id_puesto' => $nextIdPuesto,
-                        'curp' => $curpNuevo,
-                        'catalogos' => [
-                            'codigo_puesto' => $puestoCatalogo->codigo_puesto,
-                            'clave_clues' => $cluesCatalogo->clave_clues,
-                            'id_clues' => $cluesCatalogo->id_clues ?? null,
-                        ],
-                        'cursos_base' => array_map(
-                            fn ($curso) => [
-                                'id_empl_accion' => $curso['id_empl_accion'],
-                                'id_accion' => $curso['id_accion'],
-                                'id_num_curso' => $curso['id_num_curso'],
-                            ],
-                            $cursosInsertados
-                        ),
-                    ],
-                    newValues: [
-                        'plantilla' => $insertCap,
-                        'cursos_base' => $cursosInsertados,
-                    ]
-                );
-            } catch (\Throwable $loggerError) {
-                Log::warning('El empleado fue creado, pero falló el registro de auditoría.', [
+            UserActionLogger::write(
+                idUsuario: auth()->id() ? (int) auth()->id() : null,
+                modulo: 'EMPLEADOS',
+                accion: 'CREAR_EMPLEADO',
+                descripcion: 'Alta de empleado y cursos base.',
+                idReferencia: $curpNuevo,
+                payload: [
+                    'id_cat' => (int) $nextIdCat,
+                    'id_puesto' => $nextIdPuesto,
                     'curp' => $curpNuevo,
-                    'error' => $loggerError->getMessage(),
-                ]);
-            }
+                    'catalogos' => [
+                        'codigo_puesto' => $puestoCatalogo->codigo_puesto,
+                        'clave_clues' => $cluesCatalogo->clave_clues,
+                        'id_clues' => $cluesCatalogo->id_clues ?? null,
+                    ],
+                    'cursos_base' => array_map(
+                        fn ($curso) => [
+                            'id_empl_accion' => $curso['id_empl_accion'],
+                            'id_accion' => $curso['id_accion'],
+                            'id_num_curso' => $curso['id_num_curso'],
+                        ],
+                        $cursosInsertados
+                    ),
+                ],
+                newValues: [
+                    'plantilla' => $insertCap,
+                    'cursos_base' => $cursosInsertados,
+                ]
+            );
 
             return redirect()
                 ->route('empleado')

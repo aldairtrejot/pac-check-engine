@@ -18,7 +18,7 @@ class EmpleadoCatalogs
             ")
             ->whereNotNull('codigo_puesto')
             ->whereRaw("BTRIM(codigo_puesto) <> ''")
-            ->orderByRaw("UPPER(BTRIM(COALESCE(puesto, ''))) ")
+            ->orderByRaw("UPPER(BTRIM(COALESCE(puesto, '')))")
             ->orderByRaw("UPPER(BTRIM(codigo_puesto))")
             ->get()
             ->map(fn ($row) => self::formatPuesto($row));
@@ -62,7 +62,7 @@ class EmpleadoCatalogs
     public static function clues(): Collection
     {
         return self::cluesBaseQuery()
-            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, ''))) ")
+            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, '')))")
             ->orderByRaw("UPPER(BTRIM(COALESCE(NULLIF(BTRIM(t.descripcion_clues), ''), t.clave_clues)))")
             ->orderByRaw("UPPER(BTRIM(t.clave_clues))")
             ->get()
@@ -78,7 +78,7 @@ class EmpleadoCatalogs
             return collect();
         }
 
-        $terms = collect(preg_split('/\s+/u', $search) ?: [])
+        $terms = collect(preg_split('/\s+/', $search) ?: [])
             ->map(fn ($term) => trim((string) $term))
             ->filter(fn ($term) => $term !== '')
             ->take(5)
@@ -110,7 +110,7 @@ class EmpleadoCatalogs
         }
 
         return $query
-            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, ''))) ")
+            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, '')))")
             ->orderByRaw("UPPER(BTRIM(COALESCE(NULLIF(BTRIM(t.descripcion_clues), ''), t.clave_clues)))")
             ->orderByRaw("UPPER(BTRIM(t.clave_clues))")
             ->limit($limit)
@@ -149,8 +149,8 @@ class EmpleadoCatalogs
 
         $row = self::cluesBaseQuery()
             ->whereRaw("UPPER(BTRIM(t.clave_clues)) = ?", [$claveClues])
-            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, ''))) ")
-            ->orderByRaw("UPPER(BTRIM(COALESCE(t.nomina, ''))) ")
+            ->orderByRaw("UPPER(BTRIM(COALESCE(t.entidad, '')))")
+            ->orderByRaw("UPPER(BTRIM(COALESCE(t.nomina, '')))")
             ->first();
 
         return $row ? self::formatClues($row) : null;
