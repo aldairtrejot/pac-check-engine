@@ -12,11 +12,10 @@ class ViewEmpleadoController extends Controller
 {
     public function __construct()
     {
-        // Autenticación primero
+        // Autenticación primero.
         $this->middleware('auth');
 
-        // ✅ Permisos por rol (NO por correo)
-        // Ajusta los roles que deben poder agregar empleados:
+        // Permisos por rol, no por correo.
         $this->middleware('role:admin_oc,supervisor_oc');
     }
 
@@ -25,15 +24,19 @@ class ViewEmpleadoController extends Controller
         $user = Auth::user();
         $puestos = collect();
         $puestoOptions = collect();
+        $valPlantillaOptions = collect();
 
         try {
             $puestos = EmpleadoCatalogs::puestos();
+
             $puestoOptions = $puestos->map(fn ($puesto) => [
                 'label' => $puesto->label,
                 'codigo' => $puesto->codigo_puesto,
                 'puesto' => $puesto->puesto,
                 'nivel' => $puesto->nivel,
             ])->values();
+
+            $valPlantillaOptions = EmpleadoCatalogs::valPlantillaOptions();
         } catch (\Throwable $th) {
             Log::error('Error al cargar catálogos del formulario de empleado', [
                 'message' => $th->getMessage(),
@@ -69,6 +72,7 @@ class ViewEmpleadoController extends Controller
             'usuario' => $user,
             'puestos' => $puestos,
             'puestoOptions' => $puestoOptions,
+            'valPlantillaOptions' => $valPlantillaOptions,
             'catalogProps' => $catalogProps,
         ]);
     }

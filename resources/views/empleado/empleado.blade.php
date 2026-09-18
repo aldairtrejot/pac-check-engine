@@ -15,9 +15,6 @@
         <form method="POST" action="{{ route('empleado.save') }}" id="formEmpleado">
             @csrf
 
-            {{-- 🔹 CURP base fija, oculta para el usuario --}}
-            <input type="hidden" name="curp_base" value="OIJN850210MMCRMN07">
-
             {{-- BLOQUE 2: Datos generales --}}
             <h6 class="mb-3">Datos generales</h6>
 
@@ -28,7 +25,7 @@
                         type="text"
                         id="curp"
                         name="curp"
-                        class="form-control @error('curp') is-invalid @enderror"
+                        class="form-control js-uppercase @error('curp') is-invalid @enderror"
                         value="{{ old('curp') }}"
                         minlength="18"
                         maxlength="18"
@@ -45,8 +42,9 @@
                     <label class="form-label">RFC</label>
                     <input
                         type="text"
+                        id="rfc"
                         name="rfc"
-                        class="form-control @error('rfc') is-invalid @enderror"
+                        class="form-control js-uppercase @error('rfc') is-invalid @enderror"
                         value="{{ old('rfc') }}"
                         maxlength="13"
                         style="text-transform: uppercase;"
@@ -54,6 +52,9 @@
                     @error('rfc')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                    <small class="text-muted d-block mt-1">
+                        Si no cuenta con el RFC al momento del registro, puede dejar este campo vacío y capturarlo posteriormente.
+                    </small>
                 </div>
 
                 <div class="col-md-4">
@@ -86,8 +87,9 @@
                     <input
                         type="text"
                         name="nombre"
-                        class="form-control @error('nombre') is-invalid @enderror"
+                        class="form-control js-uppercase @error('nombre') is-invalid @enderror"
                         value="{{ old('nombre') }}"
+                        maxlength="100"
                         required
                         style="text-transform: uppercase;"
                     >
@@ -101,8 +103,9 @@
                     <input
                         type="text"
                         name="apellido_paterno"
-                        class="form-control @error('apellido_paterno') is-invalid @enderror"
+                        class="form-control js-uppercase @error('apellido_paterno') is-invalid @enderror"
                         value="{{ old('apellido_paterno') }}"
+                        maxlength="100"
                         required
                         style="text-transform: uppercase;"
                     >
@@ -116,8 +119,9 @@
                     <input
                         type="text"
                         name="apellido_materno"
-                        class="form-control @error('apellido_materno') is-invalid @enderror"
+                        class="form-control js-uppercase @error('apellido_materno') is-invalid @enderror"
                         value="{{ old('apellido_materno') }}"
+                        maxlength="100"
                         style="text-transform: uppercase;"
                     >
                     @error('apellido_materno')
@@ -138,8 +142,10 @@
                     <input
                         type="text"
                         name="tipo_contratacion"
-                        class="form-control @error('tipo_contratacion') is-invalid @enderror"
+                        class="form-control js-uppercase @error('tipo_contratacion') is-invalid @enderror"
                         value="{{ old('tipo_contratacion') }}"
+                        maxlength="50"
+                        style="text-transform: uppercase;"
                     >
                     @error('tipo_contratacion')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -152,8 +158,10 @@
                         type="text"
                         id="nomina"
                         name="nomina"
-                        class="form-control @error('nomina') is-invalid @enderror"
+                        class="form-control js-uppercase @error('nomina') is-invalid @enderror"
                         value="{{ old('nomina') }}"
+                        maxlength="50"
+                        style="text-transform: uppercase;"
                     >
                     @error('nomina')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -167,8 +175,10 @@
                     <input
                         type="text"
                         name="nivel_atencion"
-                        class="form-control @error('nivel_atencion') is-invalid @enderror"
+                        class="form-control js-uppercase @error('nivel_atencion') is-invalid @enderror"
                         value="{{ old('nivel_atencion') }}"
+                        maxlength="50"
+                        style="text-transform: uppercase;"
                     >
                     @error('nivel_atencion')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -181,8 +191,10 @@
                         type="text"
                         id="entidad"
                         name="entidad"
-                        class="form-control @error('entidad') is-invalid @enderror"
+                        class="form-control js-uppercase @error('entidad') is-invalid @enderror"
                         value="{{ old('entidad') }}"
+                        maxlength="100"
+                        style="text-transform: uppercase;"
                     >
                     @error('entidad')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -194,6 +206,29 @@
             <h6 class="mb-3">Otros datos</h6>
 
             <div class="row mb-3">
+                <div class="col-md-8">
+                    <label class="form-label">Val Plantilla <span class="text-danger">*</span></label>
+                    <input
+                        type="text"
+                        id="val_plantilla"
+                        name="val_plantilla"
+                        class="form-control js-uppercase @error('val_plantilla') is-invalid @enderror"
+                        value="{{ old('val_plantilla') }}"
+                        list="val_plantilla_options"
+                        maxlength="100"
+                        required
+                        style="text-transform: uppercase;"
+                    >
+                    <datalist id="val_plantilla_options">
+                        @foreach (($valPlantillaOptions ?? collect()) as $valPlantillaOption)
+                            <option value="{{ $valPlantillaOption }}"></option>
+                        @endforeach
+                    </datalist>
+                    @error('val_plantilla')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <div class="col-md-4">
                     <label class="form-label">Quincena</label>
                     <input
@@ -213,16 +248,16 @@
 
             <div class="row mb-3">
                 <div class="col-12">
-                    <label class="form-label">Observaciones <span class="text-danger">*</span></label>
+                    <label class="form-label">Observaciones Plantilla <span class="text-danger">*</span></label>
                     <textarea
-                        name="observaciones"
-                        class="form-control @error('observaciones') is-invalid @enderror"
+                        name="observaciones_plantilla"
+                        class="form-control js-uppercase @error('observaciones_plantilla') is-invalid @enderror"
                         rows="3"
                         maxlength="1000"
                         style="text-transform: uppercase;"
                         required
-                    >{{ old('observaciones') }}</textarea>
-                    @error('observaciones')
+                    >{{ old('observaciones_plantilla') }}</textarea>
+                    @error('observaciones_plantilla')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
@@ -255,10 +290,42 @@
             const curpInput = document.getElementById('curp');
             const sexoSelect = document.getElementById('sexo');
             const curpRegex = /^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]$/;
+            const upperCaseInputs = form
+                ? form.querySelectorAll('.js-uppercase')
+                : [];
 
-            // Prevenir doble envío
+            function normalizeUppercase(input) {
+                if (!input) {
+                    return;
+                }
+
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = input.value.toUpperCase();
+
+                if (
+                    typeof start === 'number' &&
+                    typeof end === 'number' &&
+                    typeof input.setSelectionRange === 'function'
+                ) {
+                    input.setSelectionRange(start, end);
+                }
+            }
+
+            // Mayúsculas automáticas mientras el usuario captura.
+            upperCaseInputs.forEach(function(input) {
+                input.addEventListener('input', function() {
+                    normalizeUppercase(this);
+                });
+
+                // También normaliza valores restaurados con old().
+                normalizeUppercase(input);
+            });
+
+            // Prevenir doble envío y normalizar una última vez antes de guardar.
             if (form && btnGuardar) {
                 form.addEventListener('submit', function(event) {
+                    upperCaseInputs.forEach(normalizeUppercase);
                     syncSexoFromCurp();
 
                     if (!form.checkValidity()) {
@@ -272,14 +339,6 @@
                     btnGuardar.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Guardando...';
                 });
             }
-
-            // Mayúsculas automáticas
-            const upperCaseInputs = document.querySelectorAll('input[style*="text-transform: uppercase"], textarea[style*="text-transform: uppercase"]');
-            upperCaseInputs.forEach(function(input) {
-                input.addEventListener('input', function() {
-                    this.value = this.value.toUpperCase();
-                });
-            });
 
             function syncSexoFromCurp() {
                 if (!curpInput || !sexoSelect) {

@@ -12,7 +12,15 @@ use Illuminate\Validation\ValidationException;
 
 class SaveEmpleadoController extends Controller
 {
+    private const CURP_BASE_PLANTILLA = 'OIJN850210MMCRMN07';
     private const OBSERVACION_CURSO_OBLIGATORIO = 'OBLIGATORIO';
+
+    public function __construct()
+    {
+        // Protege también el POST; no basta con restringir solamente la vista.
+        $this->middleware('auth');
+        $this->middleware('role:admin_oc,supervisor_oc');
+    }
 
     public function save(Request $request)
     {
@@ -20,16 +28,25 @@ class SaveEmpleadoController extends Controller
             'curp' => EmpleadoCatalogs::norm($request->input('curp')),
             'rfc' => $request->filled('rfc') ? EmpleadoCatalogs::norm($request->input('rfc')) : null,
             'sexo' => $request->filled('sexo') ? EmpleadoCatalogs::norm($request->input('sexo')) : null,
+            'nombre' => EmpleadoCatalogs::norm($request->input('nombre')),
+            'apellido_paterno' => EmpleadoCatalogs::norm($request->input('apellido_paterno')),
+            'apellido_materno' => $request->filled('apellido_materno') ? EmpleadoCatalogs::norm($request->input('apellido_materno')) : null,
+            'tipo_contratacion' => $request->filled('tipo_contratacion') ? EmpleadoCatalogs::norm($request->input('tipo_contratacion')) : null,
+            'nomina' => $request->filled('nomina') ? EmpleadoCatalogs::norm($request->input('nomina')) : null,
+            'nivel_atencion' => $request->filled('nivel_atencion') ? EmpleadoCatalogs::norm($request->input('nivel_atencion')) : null,
+            'entidad' => $request->filled('entidad') ? EmpleadoCatalogs::norm($request->input('entidad')) : null,
             'codigo_puesto' => EmpleadoCatalogs::norm($request->input('codigo_puesto')),
             'clave_clues' => EmpleadoCatalogs::norm($request->input('clave_clues')),
+            'descripcion_clues' => $request->filled('descripcion_clues') ? EmpleadoCatalogs::norm($request->input('descripcion_clues')) : null,
+            'val_plantilla' => EmpleadoCatalogs::norm($request->input('val_plantilla')),
+            'observaciones_plantilla' => EmpleadoCatalogs::norm($request->input('observaciones_plantilla')),
         ]);
 
         // 1) Validación
         $validated = $request->validate([
-            'curp_base'         => 'nullable|string|max:18',
             'curp'              => 'required|string|size:18|regex:/^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]$/',
             'rfc'               => 'nullable|string|max:13|regex:/^[A-Z0-9]+$/',
-            'sexo'              => 'nullable|string|in:HOMBRE,MUJER',
+            'sexo'              => 'required|string|in:HOMBRE,MUJER',
             'nombre'            => 'required|string|max:100',
             'apellido_paterno'  => 'required|string|max:100',
             'apellido_materno'  => 'nullable|string|max:100',
@@ -45,18 +62,23 @@ class SaveEmpleadoController extends Controller
             'clave_clues'       => 'required|string|max:50',
             'descripcion_clues' => 'nullable|string|max:255',
             'quincena'          => 'nullable|integer|min:1|max:24',
-            'observaciones'     => 'required|string|max:1000',
+            'val_plantilla'     => 'required|string|max:100',
+            'observaciones_plantilla' => 'required|string|max:1000',
         ], [
             'curp.required' => 'El campo CURP es obligatorio.',
             'curp.size'     => 'El CURP debe tener exactamente 18 caracteres.',
             'curp.regex'    => 'El CURP no tiene un formato válido.',
+            'rfc.max'       => 'El RFC no puede exceder 13 caracteres.',
+            'rfc.regex'     => 'El RFC solo puede contener letras y números.',
+            'sexo.required' => 'El campo Sexo es obligatorio.',
             'sexo.in'       => 'El sexo debe ser HOMBRE o MUJER.',
             'nombre.required' => 'El campo Nombre es obligatorio.',
             'apellido_paterno.required' => 'El campo Apellido Paterno es obligatorio.',
             'codigo_puesto.required' => 'Selecciona un puesto del catálogo.',
             'clues_catalog_key.required' => 'Selecciona una CLUES del catálogo.',
             'clave_clues.required' => 'Selecciona una CLUES del catálogo.',
-            'observaciones.required' => 'El campo Observaciones es obligatorio.',
+            'val_plantilla.required' => 'El campo Val Plantilla es obligatorio.',
+            'observaciones_plantilla.required' => 'El campo Observaciones Plantilla es obligatorio.',
         ]);
 
         try {
@@ -91,11 +113,23 @@ class SaveEmpleadoController extends Controller
                 ]);
             }
 
+            if (! $this->capacitacionHasColumn('val_plantilla')) {
+                throw ValidationException::withMessages([
+                    'val_plantilla' => 'La columna Val Plantilla no existe en la tabla de plantilla.',
+                ]);
+            }
+
+            if (! $this->capacitacionHasColumn('observaciones_plantilla')) {
+                throw ValidationException::withMessages([
+                    'observaciones_plantilla' => 'La columna Observaciones Plantilla no existe en la tabla de plantilla. Ejecuta las migraciones pendientes.',
+                ]);
+            }
+
             DB::beginTransaction();
 
             // CURP base por defecto, aunque no venga en el formulario.
             // Se usa siempre OIJN850210MMCRMN07 como plantilla.
-            $curpBase = EmpleadoCatalogs::norm($validated['curp_base'] ?? 'OIJN850210MMCRMN07');
+            $curpBase = self::CURP_BASE_PLANTILLA;
 
             /*
             |--------------------------------------------------------------------------
@@ -106,6 +140,8 @@ class SaveEmpleadoController extends Controller
             | alta empleados al mismo tiempo dentro de PostgreSQL.
             */
             DB::statement('SELECT pg_advisory_xact_lock(2026071401)');
+            DB::statement('LOCK TABLE public.a2_acciones_capacitacion IN ACCESS EXCLUSIVE MODE');
+            DB::statement('LOCK TABLE public.a2_acciones_empleados IN ACCESS EXCLUSIVE MODE');
 
             // 2) Checar duplicado en plantilla
             $existeNuevo = DB::table('public.a2_acciones_capacitacion')
@@ -170,8 +206,8 @@ class SaveEmpleadoController extends Controller
                 'quincena'          => $validated['quincena'] ?? ($datosBase->quincena ?? 18),
 
                 'rfc'               => !empty($validated['rfc'])
-                                        ? strtoupper(trim($validated['rfc']))
-                                        : ($datosBase->rfc ?? null),
+                                        ? $validated['rfc']
+                                        : null,
 
                 'codigo_puesto'     => $puestoCatalogo->codigo_puesto,
 
@@ -185,12 +221,12 @@ class SaveEmpleadoController extends Controller
 
                 'nomina'            => $nomina,
 
-                'nombre'            => strtoupper(trim($validated['nombre'])),
+                'nombre'            => $validated['nombre'],
 
-                'apellido_paterno'  => strtoupper(trim($validated['apellido_paterno'])),
+                'apellido_paterno'  => $validated['apellido_paterno'],
 
                 'apellido_materno'  => !empty($validated['apellido_materno'])
-                                        ? strtoupper(trim($validated['apellido_materno']))
+                                        ? $validated['apellido_materno']
                                         : null,
 
                 'nivel_atencion'    => !empty($validated['nivel_atencion'])
@@ -198,12 +234,14 @@ class SaveEmpleadoController extends Controller
                                         : ($datosBase->nivel_atencion ?? null),
 
                 'entidad'           => $entidad,
+                'val_plantilla'     => $validated['val_plantilla'],
+                'observaciones_plantilla' => $validated['observaciones_plantilla'],
 
-                // Nuevos valores por defecto solicitados
-                'num_cursos'        => 1210,
+                // Se asignan posteriormente desde el flujo de Asignacion de unidad.
+                'num_cursos'        => null,
                 'activo'            => 2,
-                'id_unidad'         => 12,
-                'id_coordinacion'   => 10,
+                'id_unidad'         => null,
+                'id_coordinacion'   => null,
             ];
 
             // Copiar campos de acciones/finalidades si hay base
@@ -404,35 +442,44 @@ class SaveEmpleadoController extends Controller
 
             DB::commit();
 
-            UserActionLogger::write(
-                idUsuario: auth()->id() ? (int) auth()->id() : null,
-                modulo: 'EMPLEADOS',
-                accion: 'CREAR_EMPLEADO',
-                descripcion: 'Alta de empleado y cursos base.',
-                idReferencia: $curpNuevo,
-                payload: [
-                    'id_cat' => (int) $nextIdCat,
-                    'id_puesto' => $nextIdPuesto,
-                    'curp' => $curpNuevo,
-                    'catalogos' => [
-                        'codigo_puesto' => $puestoCatalogo->codigo_puesto,
-                        'clave_clues' => $cluesCatalogo->clave_clues,
-                        'id_clues' => $cluesCatalogo->id_clues ?? null,
-                    ],
-                    'cursos_base' => array_map(
-                        fn ($curso) => [
-                            'id_empl_accion' => $curso['id_empl_accion'],
-                            'id_accion' => $curso['id_accion'],
-                            'id_num_curso' => $curso['id_num_curso'],
+            // El alta ya quedó confirmada. Si el logger falla, no se debe informar
+            // al usuario que el empleado no se guardó cuando realmente sí se guardó.
+            try {
+                UserActionLogger::write(
+                    idUsuario: auth()->id() ? (int) auth()->id() : null,
+                    modulo: 'EMPLEADOS',
+                    accion: 'CREAR_EMPLEADO',
+                    descripcion: 'Alta de empleado y cursos base.',
+                    idReferencia: $curpNuevo,
+                    payload: [
+                        'id_cat' => (int) $nextIdCat,
+                        'id_puesto' => $nextIdPuesto,
+                        'curp' => $curpNuevo,
+                        'catalogos' => [
+                            'codigo_puesto' => $puestoCatalogo->codigo_puesto,
+                            'clave_clues' => $cluesCatalogo->clave_clues,
+                            'id_clues' => $cluesCatalogo->id_clues ?? null,
                         ],
-                        $cursosInsertados
-                    ),
-                ],
-                newValues: [
-                    'plantilla' => $insertCap,
-                    'cursos_base' => $cursosInsertados,
-                ]
-            );
+                        'cursos_base' => array_map(
+                            fn ($curso) => [
+                                'id_empl_accion' => $curso['id_empl_accion'],
+                                'id_accion' => $curso['id_accion'],
+                                'id_num_curso' => $curso['id_num_curso'],
+                            ],
+                            $cursosInsertados
+                        ),
+                    ],
+                    newValues: [
+                        'plantilla' => $insertCap,
+                        'cursos_base' => $cursosInsertados,
+                    ]
+                );
+            } catch (\Throwable $loggerError) {
+                Log::warning('El empleado fue creado, pero falló el registro de auditoría.', [
+                    'curp' => $curpNuevo,
+                    'error' => $loggerError->getMessage(),
+                ]);
+            }
 
             return redirect()
                 ->route('empleado')
@@ -461,6 +508,24 @@ class SaveEmpleadoController extends Controller
                 ->withErrors([
                     'general' => 'Ocurrió un error al guardar el empleado. Revisa el log si persiste.',
                 ]);
+        }
+    }
+
+    private function capacitacionHasColumn(string $column): bool
+    {
+        try {
+            return DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', 'a2_acciones_capacitacion')
+                ->where('column_name', $column)
+                ->exists();
+        } catch (\Throwable $th) {
+            Log::error('Error al validar columna de a2_acciones_capacitacion', [
+                'column' => $column,
+                'error' => $th->getMessage(),
+            ]);
+
+            return false;
         }
     }
 
