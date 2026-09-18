@@ -35,7 +35,12 @@ class ViewEmpleadoController extends Controller
                 'puesto' => $puesto->puesto,
                 'nivel' => $puesto->nivel,
             ])->values();
-            $valPlantillaOptions = EmpleadoCatalogs::valPlantillaOptions();
+            $valPlantillaOptions = EmpleadoCatalogs::valPlantillaOptions()
+                ->map(fn ($value) => [
+                    'label' => $value,
+                    'value' => $value,
+                ])
+                ->values();
         } catch (\Throwable $th) {
             Log::error('Error al cargar catálogos del formulario de empleado', [
                 'message' => $th->getMessage(),
@@ -51,6 +56,7 @@ class ViewEmpleadoController extends Controller
 
         $catalogProps = [
             'puestos' => $puestoOptions,
+            'valPlantillaOptions' => $valPlantillaOptions,
             'cluesSearchUrl' => route('empleado.catalogos.clues'),
             'old' => [
                 'codigo_puesto' => $codigoPuestoOld,
@@ -64,6 +70,7 @@ class ViewEmpleadoController extends Controller
                 'descripcion_clues' => (string) $request->old('descripcion_clues', ''),
                 'nomina' => (string) $request->old('nomina', ''),
                 'entidad' => (string) $request->old('entidad', ''),
+                'val_plantilla' => (string) $request->old('val_plantilla', ''),
             ],
         ];
 

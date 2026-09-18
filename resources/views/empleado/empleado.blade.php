@@ -198,29 +198,6 @@
             <h6 class="mb-3">Otros datos</h6>
 
             <div class="row mb-3">
-                <div class="col-md-8">
-                    <label class="form-label">Val Plantilla <span class="text-danger">*</span></label>
-                    <input
-                        type="text"
-                        id="val_plantilla"
-                        name="val_plantilla"
-                        class="form-control @error('val_plantilla') is-invalid @enderror"
-                        value="{{ old('val_plantilla') }}"
-                        list="val_plantilla_options"
-                        maxlength="100"
-                        required
-                        style="text-transform: uppercase;"
-                    >
-                    <datalist id="val_plantilla_options">
-                        @foreach (($valPlantillaOptions ?? collect()) as $valPlantillaOption)
-                            <option value="{{ $valPlantillaOption }}"></option>
-                        @endforeach
-                    </datalist>
-                    @error('val_plantilla')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
                 <div class="col-md-4">
                     <label class="form-label">Quincena</label>
                     <input

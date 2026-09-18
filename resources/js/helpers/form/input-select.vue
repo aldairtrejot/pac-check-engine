@@ -5,11 +5,12 @@
         <div :class="['multiselect-wrapper', { 'has-error': errorMessage }]">
             <multiselect :model-value="modelValue" @update:modelValue="onUpdateValue" :options="options"
                 :multiple="multiple" :close-on-select="!multiple" :clear-on-select="false"
-                :placeholder="placeholder" :label="labelKey" :track-by="trackBy" :tag-placeholder="''"
+                :placeholder="placeholder" :label="labelKey" :track-by="trackBy" :taggable="taggable"
+                :tag-placeholder="tagPlaceholder"
                 :select-label="''" :selected-label="''" :deselect-label="''" :name="name" :id="id" :disabled="disabled"
                 :searchable="searchable" :internal-search="internalSearch" :allow-empty="allowEmpty"
                 :loading="loading" :max-height="maxHeight" :options-limit="optionsLimit"
-                @search-change="onSearchChange">
+                @search-change="onSearchChange" @tag="onTag">
                 <template #noResult>
                     <span style="padding: 8px; display: block;">No se encontraron resultados.</span>
                 </template>
@@ -27,7 +28,7 @@
 import Multiselect from 'vue-multiselect'
 import { defineProps, defineEmits } from 'vue'
 
-const emit = defineEmits(['update:modelValue', 'onChange', 'onSearchChange', 'search-change'])
+const emit = defineEmits(['update:modelValue', 'onChange', 'onSearchChange', 'search-change', 'tag'])
 
 defineProps({
     modelValue: {
@@ -96,6 +97,14 @@ defineProps({
         type: String,
         default: '-- Seleccione --'
     },
+    taggable: {
+        type: Boolean,
+        default: false
+    },
+    tagPlaceholder: {
+        type: String,
+        default: ''
+    },
     errorMessage: {
         type: String,
         default: ''
@@ -110,6 +119,10 @@ function onUpdateValue(value) {
 function onSearchChange(value) {
     emit('onSearchChange', value)
     emit('search-change', value)
+}
+
+function onTag(value) {
+    emit('tag', value)
 }
 </script>
 

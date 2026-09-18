@@ -102,6 +102,34 @@
         >
       </div>
     </div>
+
+    <h6 class="mb-3">Datos de plantilla</h6>
+
+    <div class="row mb-3">
+      <inputSelect
+        grid="col-md-12"
+        label="Val Plantilla"
+        id="val_plantilla_select"
+        name="val_plantilla_select"
+        v-model="selectedValPlantilla"
+        :options="valPlantillaOptions"
+        :multiple="false"
+        labelKey="label"
+        trackBy="value"
+        :required="true"
+        :allow-empty="false"
+        :taggable="true"
+        tag-placeholder="Agregar valor"
+        :max-height="220"
+        :options-limit="50"
+        placeholder="Seleccione o capture..."
+        :error-message="errors.valPlantilla"
+        @search-change="handleValPlantillaSearch"
+        @tag="addValPlantillaOption"
+      />
+
+      <input type="hidden" id="val_plantilla" name="val_plantilla" :value="valPlantillaValue">
+    </div>
   </div>
 </template>
 
@@ -112,17 +140,21 @@ import inputSelect from '@helpers/form/input-select.vue'
 const props = readCatalogProps()
 const old = props.old || {}
 const puestoOptions = ref(Array.isArray(props.puestos) ? props.puestos : [])
+const valPlantillaOptions = ref(Array.isArray(props.valPlantillaOptions) ? props.valPlantillaOptions : [])
 const cluesOptions = ref([])
 const selectedPuesto = ref(null)
 const selectedClues = ref(null)
+const selectedValPlantilla = ref(null)
 const isLoadingClues = ref(false)
 const errors = reactive({
   puesto: '',
   clues: '',
+  valPlantilla: '',
 })
 
 let cluesSearchTimer = null
 let formElement = null
+const valPlantillaSearch = ref('')
 
 const puestoCodigo = computed(() => selectedPuesto.value?.codigo || '')
 const puestoNombre = computed(() => selectedPuesto.value?.puesto || '')
@@ -131,6 +163,7 @@ const cluesCatalogKey = computed(() => selectedClues.value?.catalog_key || '')
 const cluesId = computed(() => selectedClues.value?.id_clues || '')
 const cluesClave = computed(() => selectedClues.value?.clave_clues || '')
 const cluesDescripcion = computed(() => selectedClues.value?.descripcion_clues || '')
+const valPlantillaValue = computed(() => selectedValPlantilla.value?.value || '')
 
 watch(selectedPuesto, (value) => {
   if (value?.codigo) {
@@ -148,9 +181,16 @@ watch(selectedClues, (value) => {
   setExternalField('entidad', value.entidad)
 })
 
+watch(selectedValPlantilla, (value) => {
+  if (value?.value) {
+    errors.valPlantilla = ''
+  }
+})
+
 onMounted(() => {
   selectedPuesto.value = getInitialPuesto()
   selectedClues.value = getInitialClues()
+  selectedValPlantilla.value = getInitialValPlantilla()
 
   if (selectedClues.value) {
     cluesOptions.value = [selectedClues.value]
@@ -220,6 +260,29 @@ function getInitialClues() {
     nomina: asString(old.nomina),
     entidad: asString(old.entidad),
   }
+}
+
+function getInitialValPlantilla() {
+  const value = asString(old.val_plantilla).toUpperCase()
+
+  if (value === '') {
+    return null
+  }
+
+  const option = valPlantillaOptions.value.find((item) => asString(item.value) === value)
+
+  if (option) {
+    return option
+  }
+
+  const newOption = {
+    label: value,
+    value,
+  }
+
+  valPlantillaOptions.value = [newOption, ...valPlantillaOptions.value]
+
+  return newOption
 }
 
 async function hydrateSelectedClues() {
@@ -305,21 +368,57 @@ function withSelectedClues(options) {
   return exists ? options : [selectedClues.value, ...options]
 }
 
+function addValPlantillaOption(tag) {
+  const value = asString(tag).toUpperCase()
+
+  if (value === '') {
+    return
+  }
+
+  const option = valPlantillaOptions.value.find((item) => asString(item.value) === value) || {
+    label: value,
+    value,
+  }
+
+  if (!valPlantillaOptions.value.some((item) => asString(item.value) === value)) {
+    valPlantillaOptions.value = [option, ...valPlantillaOptions.value]
+  }
+
+  selectedValPlantilla.value = option
+  valPlantillaSearch.value = ''
+  errors.valPlantilla = ''
+}
+
+function handleValPlantillaSearch(search) {
+  valPlantillaSearch.value = asString(search).toUpperCase()
+}
+
 function validateCatalogs(event) {
   const hasPuesto = puestoCodigo.value !== '' && puestoNombre.value !== ''
   const hasClues = cluesCatalogKey.value !== '' && cluesClave.value !== '' && cluesDescripcion.value !== ''
 
+  if (!selectedValPlantilla.value && valPlantillaSearch.value !== '') {
+    addValPlantillaOption(valPlantillaSearch.value)
+  }
+
+  const hasValPlantilla = valPlantillaValue.value !== ''
+
   errors.puesto = hasPuesto ? '' : 'Selecciona un puesto del catálogo.'
   errors.clues = hasClues ? '' : 'Selecciona una CLUES del catálogo.'
 
-  if (hasPuesto && hasClues) {
+  errors.valPlantilla = hasValPlantilla ? '' : 'Selecciona o captura Val Plantilla.'
+
+  if (hasPuesto && hasClues && hasValPlantilla) {
     return
   }
 
   event.preventDefault()
   event.stopImmediatePropagation()
 
-  const targetId = !hasPuesto ? 'puesto_catalog_select' : 'clues_catalog_select'
+  const targetId = !hasPuesto
+    ? 'puesto_catalog_select'
+    : (!hasClues ? 'clues_catalog_select' : 'val_plantilla_select')
+
   document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
