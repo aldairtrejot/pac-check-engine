@@ -103,6 +103,59 @@
       </div>
     </div>
 
+    <h6 class="mb-3">Adscripcion</h6>
+
+    <div class="row mb-3">
+      <inputSelect
+        grid="col-md-12"
+        label="Adscripcion"
+        id="adscripcion_catalog_select"
+        name="adscripcion_catalog_select"
+        v-model="selectedAdscripcion"
+        :options="adscripcionOptions"
+        :multiple="false"
+        labelKey="label"
+        trackBy="id_adscripcion"
+        :required="true"
+        :allow-empty="false"
+        :internal-search="false"
+        :loading="isLoadingAdscripciones"
+        :max-height="260"
+        :options-limit="50"
+        placeholder="Buscar adscripcion..."
+        :error-message="errors.adscripcion"
+        @search-change="handleAdscripcionSearch"
+      />
+
+      <input type="hidden" id="id_adscripcion" name="id_adscripcion" :value="adscripcionId">
+      <input type="hidden" id="adscripcion" name="adscripcion" :value="adscripcionNombre">
+      <input type="hidden" id="adscripcion_compl" name="adscripcion_compl" :value="adscripcionCompleta">
+      <input type="hidden" id="id_unidad" name="id_unidad" :value="adscripcionIdUnidad">
+      <input type="hidden" id="nombre_unidad" name="nombre_unidad" :value="adscripcionUnidad">
+      <input type="hidden" id="id_coordinacion" name="id_coordinacion" :value="adscripcionIdCoordinacion">
+      <input type="hidden" id="nombre_coordinacion" name="nombre_coordinacion" :value="adscripcionCoordinacion">
+
+      <div class="col-md-4 mt-2">
+        <label class="form-label">ID Adscripcion</label>
+        <input type="text" class="form-control" :value="adscripcionId" readonly required>
+      </div>
+
+      <div class="col-md-4 mt-2">
+        <label class="form-label">Unidad</label>
+        <input type="text" class="form-control" :value="adscripcionUnidad" readonly required>
+      </div>
+
+      <div class="col-md-4 mt-2">
+        <label class="form-label">Coordinacion</label>
+        <input type="text" class="form-control" :value="adscripcionCoordinacion" readonly required>
+      </div>
+
+      <div class="col-12 mt-2">
+        <label class="form-label">Adscripcion completa</label>
+        <input type="text" class="form-control" :value="adscripcionCompleta" readonly required>
+      </div>
+    </div>
+
     <h6 class="mb-3">Datos de plantilla</h6>
 
     <div class="row mb-3">
@@ -142,17 +195,22 @@ const old = props.old || {}
 const puestoOptions = ref(Array.isArray(props.puestos) ? props.puestos : [])
 const valPlantillaOptions = ref(Array.isArray(props.valPlantillaOptions) ? props.valPlantillaOptions : [])
 const cluesOptions = ref([])
+const adscripcionOptions = ref([])
 const selectedPuesto = ref(null)
 const selectedClues = ref(null)
 const selectedValPlantilla = ref(null)
+const selectedAdscripcion = ref(null)
 const isLoadingClues = ref(false)
+const isLoadingAdscripciones = ref(false)
 const errors = reactive({
   puesto: '',
   clues: '',
   valPlantilla: '',
+  adscripcion: '',
 })
 
 let cluesSearchTimer = null
+let adscripcionSearchTimer = null
 let formElement = null
 const valPlantillaSearch = ref('')
 
@@ -164,6 +222,13 @@ const cluesId = computed(() => selectedClues.value?.id_clues || '')
 const cluesClave = computed(() => selectedClues.value?.clave_clues || '')
 const cluesDescripcion = computed(() => selectedClues.value?.descripcion_clues || '')
 const valPlantillaValue = computed(() => selectedValPlantilla.value?.value || '')
+const adscripcionId = computed(() => selectedAdscripcion.value?.id_adscripcion || '')
+const adscripcionNombre = computed(() => selectedAdscripcion.value?.adscripcion || '')
+const adscripcionCompleta = computed(() => selectedAdscripcion.value?.adscripcion_compl || selectedAdscripcion.value?.label || '')
+const adscripcionIdUnidad = computed(() => selectedAdscripcion.value?.id_unidad || '')
+const adscripcionUnidad = computed(() => selectedAdscripcion.value?.nombre_unidad || '')
+const adscripcionIdCoordinacion = computed(() => selectedAdscripcion.value?.id_coordinacion || '')
+const adscripcionCoordinacion = computed(() => selectedAdscripcion.value?.nombre_coordinacion || '')
 
 watch(selectedPuesto, (value) => {
   if (value?.codigo) {
@@ -187,16 +252,28 @@ watch(selectedValPlantilla, (value) => {
   }
 })
 
+watch(selectedAdscripcion, (value) => {
+  if (value?.id_adscripcion) {
+    errors.adscripcion = ''
+  }
+})
+
 onMounted(() => {
   selectedPuesto.value = getInitialPuesto()
   selectedClues.value = getInitialClues()
   selectedValPlantilla.value = getInitialValPlantilla()
+  selectedAdscripcion.value = getInitialAdscripcion()
 
   if (selectedClues.value) {
     cluesOptions.value = [selectedClues.value]
   }
 
+  if (selectedAdscripcion.value) {
+    adscripcionOptions.value = [selectedAdscripcion.value]
+  }
+
   hydrateSelectedClues()
+  hydrateSelectedAdscripcion()
 
   formElement = document.getElementById('formEmpleado')
   formElement?.addEventListener('submit', validateCatalogs, true)
@@ -204,6 +281,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearTimeout(cluesSearchTimer)
+  window.clearTimeout(adscripcionSearchTimer)
   formElement?.removeEventListener('submit', validateCatalogs, true)
 })
 
@@ -285,6 +363,24 @@ function getInitialValPlantilla() {
   return newOption
 }
 
+function getInitialAdscripcion() {
+  const idAdscripcion = asString(old.id_adscripcion)
+
+  if (idAdscripcion === '') {
+    return null
+  }
+
+  return normalizeAdscripcionOption({
+    id_adscripcion: idAdscripcion,
+    adscripcion: asString(old.adscripcion),
+    adscripcion_compl: asString(old.adscripcion_compl),
+    id_unidad: asString(old.id_unidad),
+    nombre_unidad: asString(old.nombre_unidad),
+    id_coordinacion: asString(old.id_coordinacion),
+    nombre_coordinacion: asString(old.nombre_coordinacion),
+  })
+}
+
 async function hydrateSelectedClues() {
   const catalogKey = asString(old.clues_catalog_key)
 
@@ -314,6 +410,35 @@ async function hydrateSelectedClues() {
   }
 }
 
+async function hydrateSelectedAdscripcion() {
+  const idAdscripcion = asString(old.id_adscripcion)
+
+  if (idAdscripcion === '' || !props.adscripcionesSearchUrl) {
+    return
+  }
+
+  try {
+    const url = new URL(props.adscripcionesSearchUrl, window.location.origin)
+    url.searchParams.set('id_adscripcion', idAdscripcion)
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+
+    const data = await response.json()
+    const option = normalizeAdscripcionOption(data?.options?.[0] || null)
+
+    if (response.ok && data?.status && option) {
+      selectedAdscripcion.value = option
+      adscripcionOptions.value = [option]
+    }
+  } catch (error) {
+    // La validacion del servidor vuelve a confirmar el catalogo al guardar.
+  }
+}
+
 function handleCluesSearch(search) {
   const term = asString(search)
   window.clearTimeout(cluesSearchTimer)
@@ -325,6 +450,20 @@ function handleCluesSearch(search) {
 
   cluesSearchTimer = window.setTimeout(() => {
     fetchCluesOptions(term)
+  }, 250)
+}
+
+function handleAdscripcionSearch(search) {
+  const term = asString(search)
+  window.clearTimeout(adscripcionSearchTimer)
+
+  if (term.length < 2) {
+    adscripcionOptions.value = selectedAdscripcion.value ? [selectedAdscripcion.value] : []
+    return
+  }
+
+  adscripcionSearchTimer = window.setTimeout(() => {
+    fetchAdscripcionOptions(term)
   }, 250)
 }
 
@@ -359,6 +498,37 @@ async function fetchCluesOptions(term) {
   }
 }
 
+async function fetchAdscripcionOptions(term) {
+  if (!props.adscripcionesSearchUrl) {
+    adscripcionOptions.value = selectedAdscripcion.value ? [selectedAdscripcion.value] : []
+    return
+  }
+
+  isLoadingAdscripciones.value = true
+
+  try {
+    const url = new URL(props.adscripcionesSearchUrl, window.location.origin)
+    url.searchParams.set('q', term)
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+
+    const data = await response.json()
+    const options = response.ok && data?.status && Array.isArray(data.options)
+      ? data.options.map((option) => normalizeAdscripcionOption(option)).filter(Boolean)
+      : []
+
+    adscripcionOptions.value = withSelectedAdscripcion(options)
+  } catch (error) {
+    adscripcionOptions.value = selectedAdscripcion.value ? [selectedAdscripcion.value] : []
+  } finally {
+    isLoadingAdscripciones.value = false
+  }
+}
+
 function withSelectedClues(options) {
   if (!selectedClues.value?.catalog_key) {
     return options
@@ -366,6 +536,41 @@ function withSelectedClues(options) {
 
   const exists = options.some((option) => option.catalog_key === selectedClues.value.catalog_key)
   return exists ? options : [selectedClues.value, ...options]
+}
+
+function withSelectedAdscripcion(options) {
+  if (!selectedAdscripcion.value?.id_adscripcion) {
+    return options
+  }
+
+  const exists = options.some(
+    (option) => String(option.id_adscripcion) === String(selectedAdscripcion.value.id_adscripcion)
+  )
+
+  return exists ? options : [selectedAdscripcion.value, ...options]
+}
+
+function normalizeAdscripcionOption(option) {
+  if (!option?.id_adscripcion) {
+    return null
+  }
+
+  const adscripcion = asString(option.adscripcion ?? option.adscripcion_txt).toUpperCase()
+  const adscripcionCompleta = asString(option.adscripcion_compl).toUpperCase()
+  const label = asString(option.label || adscripcionCompleta || adscripcion).toUpperCase()
+
+  return {
+    id: option.id_adscripcion,
+    id_adscripcion: option.id_adscripcion,
+    adscripcion,
+    adscripcion_compl: adscripcionCompleta,
+    id_unidad: option.id_unidad ?? '',
+    nombre_unidad: asString(option.nombre_unidad ?? option.unidad_txt).toUpperCase(),
+    id_coordinacion: option.id_coordinacion ?? '',
+    nombre_coordinacion: asString(option.nombre_coordinacion ?? option.coordinacion_txt).toUpperCase(),
+    label,
+    descripcion: label,
+  }
 }
 
 function addValPlantillaOption(tag) {
@@ -396,6 +601,7 @@ function handleValPlantillaSearch(search) {
 function validateCatalogs(event) {
   const hasPuesto = puestoCodigo.value !== '' && puestoNombre.value !== ''
   const hasClues = cluesCatalogKey.value !== '' && cluesClave.value !== '' && cluesDescripcion.value !== ''
+  const hasAdscripcion = adscripcionId.value !== ''
 
   if (!selectedValPlantilla.value && valPlantillaSearch.value !== '') {
     addValPlantillaOption(valPlantillaSearch.value)
@@ -406,9 +612,10 @@ function validateCatalogs(event) {
   errors.puesto = hasPuesto ? '' : 'Selecciona un puesto del catálogo.'
   errors.clues = hasClues ? '' : 'Selecciona una CLUES del catálogo.'
 
+  errors.adscripcion = hasAdscripcion ? '' : 'Selecciona una Adscripcion del catalogo.'
   errors.valPlantilla = hasValPlantilla ? '' : 'Selecciona o captura Val Plantilla.'
 
-  if (hasPuesto && hasClues && hasValPlantilla) {
+  if (hasPuesto && hasClues && hasAdscripcion && hasValPlantilla) {
     return
   }
 
@@ -417,7 +624,7 @@ function validateCatalogs(event) {
 
   const targetId = !hasPuesto
     ? 'puesto_catalog_select'
-    : (!hasClues ? 'clues_catalog_select' : 'val_plantilla_select')
+    : (!hasClues ? 'clues_catalog_select' : (!hasAdscripcion ? 'adscripcion_catalog_select' : 'val_plantilla_select'))
 
   document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }

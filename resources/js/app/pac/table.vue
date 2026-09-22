@@ -290,6 +290,13 @@
                 </div>
 
                 <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Adscripcion:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_adscripcion || '—' }}
+                  </span>
+                </div>
+
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
                   <span class="text-xs text-secondary" style="min-width:120px;">Unidad:</span>
                   <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
                     {{ m_unidad || '—' }}
@@ -483,26 +490,40 @@
   >
     <form id="form_asignacion_unidad" novalidate>
       <div class="p-2">
-        <div class="d-flex align-items-center gap-2 mb-2">
+        <div v-if="false" class="d-flex align-items-center gap-2 mb-2">
           <i class="fa fa-sitemap text-secondary"></i>
           <div class="text-sm fw-bold">Selecciona la unidad y su coordinación</div>
         </div>
 
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="fa fa-sitemap text-secondary"></i>
+          <div class="text-sm fw-bold">Selecciona la adscripcion</div>
+        </div>
+
         <div class="row g-2">
-          <div class="col-12 col-md-6">
+          <div class="col-12">
             <inputSelect
-              v-model="selectedUnidad"
-              :options="unidadOptions"
-              id="id_unidad"
-              label="Unidad"
+              v-model="selectedAdscripcion"
+              :options="adscripcionOptions"
+              id="id_adscripcion"
+              label="Adscripcion"
               :multiple="false"
+              labelKey="label"
+              trackBy="id_adscripcion"
               grid="col-12"
               :required="true"
+              :allow-empty="false"
+              :internal-search="false"
+              :loading="isLoadingAdscripciones"
+              :max-height="260"
+              :options-limit="100"
+              placeholder="Buscar adscripcion..."
+              @search-change="handleAdscripcionSearch"
             />
-            <small class="text-muted d-block mt-1">Elige primero la unidad para cargar sus coordinaciones.</small>
+            <small class="text-muted d-block mt-1">Selecciona un registro del catalogo oficial.</small>
           </div>
 
-          <div class="col-12 col-md-6">
+          <div v-if="false" class="col-12 col-md-6">
             <inputSelect
               v-model="selectedCoordinacion"
               :options="coordinacionOptions"
@@ -517,12 +538,13 @@
         </div>
 
         <div
-          v-if="asignacionActual.unidad || asignacionActual.coordinacion"
+          v-if="asignacionActual.adscripcion || asignacionActual.unidad || asignacionActual.coordinacion"
           class="alert alert-light border mt-3 mb-0"
           style="border-radius: 12px;"
         >
           <div class="text-xs text-secondary fw-bold mb-1">Asignación actual</div>
           <div class="text-sm">
+            <div><span class="fw-bold">Adscripcion:</span> {{ asignacionActual.adscripcion || '—' }}</div>
             <div><span class="fw-bold">Unidad:</span> {{ asignacionActual.unidad || '—' }}</div>
             <div><span class="fw-bold">Coordinación:</span> {{ asignacionActual.coordinacion || '—' }}</div>
           </div>
@@ -533,7 +555,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { notyf } from '@components/notyf.js'
 import { setupTableEvents } from '@helpers/table/table-events.vue'
 import { handlePagination } from '@helpers/table/table-pagination.vue'
@@ -610,6 +632,7 @@ const listSelectTematica = ref(null)
 const listOptionTematica = ref([])
 const listSelectFinalidad = ref(null)
 const listOptionFinalidad = ref([])
+const m_adscripcion = ref('')
 const m_unidad = ref('')
 const m_coordinacion = ref('')
 const m_calificacion = ref('100')
@@ -627,14 +650,17 @@ const selectedCourse = ref(null)
 const courseOptions = ref([])
 
 // asignación unidad
-const selectedUnidad = ref(null)
+const selectedAdscripcion = ref(null)
 const selectedCoordinacion = ref(null)
-const unidadOptions = ref([])
+const adscripcionOptions = ref([])
 const coordinacionOptions = ref([])
+const isLoadingAdscripciones = ref(false)
 const asignacionActual = ref({
+  adscripcion: '',
   unidad: '',
   coordinacion: '',
 })
+let adscripcionSearchTimer = null
 
 function getRowId(rowx) {
   return rowx?.id ?? rowx?.id_empl_accion ?? null
@@ -821,26 +847,75 @@ function resetEmployeeModalData() {
   listOptionTematica.value = []
   listSelectFinalidad.value = null
   listOptionFinalidad.value = []
+  m_adscripcion.value = ''
   m_unidad.value = ''
   m_coordinacion.value = ''
   m_calificacion.value = '100'
   m_total_horas.value = ''
 }
 
-watch(selectedUnidad, async (u) => {
-  selectedCoordinacion.value = null
-  coordinacionOptions.value = []
+function normalizeAdscripcionOption(option) {
+  if (!option?.id_adscripcion) {
+    return null
+  }
 
-  if (!u?.id) return
+  const adscripcion = option.adscripcion ?? option.adscripcion_txt ?? ''
+  const adscripcionCompl = option.adscripcion_compl ?? ''
+  const label = option.label ?? adscripcionCompl ?? adscripcion
+
+  return {
+    id: option.id_adscripcion,
+    id_adscripcion: option.id_adscripcion,
+    adscripcion,
+    adscripcion_compl: adscripcionCompl,
+    id_unidad: option.id_unidad ?? null,
+    nombre_unidad: option.nombre_unidad ?? option.unidad_txt ?? '',
+    id_coordinacion: option.id_coordinacion ?? null,
+    nombre_coordinacion: option.nombre_coordinacion ?? option.coordinacion_txt ?? '',
+    label,
+    descripcion: label,
+  }
+}
+
+function withSelectedAdscripcion(options) {
+  const normalized = (options || [])
+    .map((option) => normalizeAdscripcionOption(option))
+    .filter(Boolean)
+
+  if (!selectedAdscripcion.value?.id_adscripcion) {
+    return normalized
+  }
+
+  const exists = normalized.some(
+    (option) => String(option.id_adscripcion) === String(selectedAdscripcion.value.id_adscripcion)
+  )
+
+  return exists ? normalized : [selectedAdscripcion.value, ...normalized]
+}
+
+async function fetchAdscripcionOptions(search = '') {
+  isLoadingAdscripciones.value = true
 
   try {
-    const { data } = await axios.post('/pac/coordinaciones', { id_unidad: u.id })
-    coordinacionOptions.value = data.listCoordinaciones ?? []
+    const { data } = await axios.post('/pac/adscripciones', { q: search })
+    adscripcionOptions.value = withSelectedAdscripcion(data.listAdscripciones ?? [])
   } catch (error) {
-    console.error('Error en /pac/coordinaciones:', error?.response?.data ?? error)
-    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar las coordinaciones.'))
+    console.error('Error en /pac/adscripciones:', error?.response?.data ?? error)
+    notyf.error(getApiErrorMessage(error, 'No se pudieron cargar las adscripciones.'))
+    adscripcionOptions.value = selectedAdscripcion.value ? [selectedAdscripcion.value] : []
+  } finally {
+    isLoadingAdscripciones.value = false
   }
-})
+}
+
+function handleAdscripcionSearch(search) {
+  window.clearTimeout(adscripcionSearchTimer)
+  const term = String(search ?? '').trim()
+
+  adscripcionSearchTimer = window.setTimeout(() => {
+    fetchAdscripcionOptions(term)
+  }, 250)
+}
 
 function resetAdminFilterState() {
   f_entidad.value = null
@@ -987,6 +1062,10 @@ onMounted(async () => {
     limit,
     handlePagination,
   })
+})
+
+onBeforeUnmount(() => {
+  window.clearTimeout(adscripcionSearchTimer)
 })
 
 function clear_search() {
@@ -1268,10 +1347,12 @@ async function setOption(id) {
 
     try {
       const asg = await axios.post('/pac/asignacion-unidad/data', { id: safeId })
+      m_adscripcion.value = asg.data?.adscripcion_txt ?? asg.data?.adscripcion ?? ''
       m_unidad.value = asg.data?.unidad_txt ?? ''
       m_coordinacion.value = asg.data?.coordinacion_txt ?? ''
     } catch (error) {
       console.error('Error en /pac/asignacion-unidad/data:', error?.response?.data ?? error)
+      m_adscripcion.value = ''
       m_unidad.value = ''
       m_coordinacion.value = ''
     }
@@ -1358,7 +1439,7 @@ async function confirmAddCourse() {
   }
 }
 
-async function openAsignacionUnidad() {
+async function openAsignacionUnidadLegacy() {
   const id = parseInt(window._selectkybyemployee ?? 0, 10)
 
   if (!id) {
@@ -1434,7 +1515,7 @@ async function openAsignacionUnidad() {
   }, 350)
 }
 
-async function confirmAsignacionUnidad() {
+async function confirmAsignacionUnidadLegacy() {
   if (isSavingAsignacion.value) return
 
   const id = selectedEmployeeId.value
@@ -1477,6 +1558,114 @@ async function confirmAsignacionUnidad() {
   } catch (error) {
     console.error('Error en /pac/asignacion-unidad/save:', error?.response?.data ?? error)
     notyf.error(getApiErrorMessage(error, 'Error al guardar la asignación.'))
+  } finally {
+    isSavingAsignacion.value = false
+  }
+}
+
+async function openAsignacionUnidad() {
+  const id = parseInt(window._selectkybyemployee ?? 0, 10)
+
+  if (!id) {
+    notyf.error('No se detecto el ID del registro.')
+    return
+  }
+
+  selectedEmployeeId.value = id
+  selectedAdscripcion.value = null
+  selectedCoordinacion.value = null
+  adscripcionOptions.value = []
+  coordinacionOptions.value = []
+  asignacionActual.value = { adscripcion: '', unidad: '', coordinacion: '' }
+
+  try {
+    await fetchAdscripcionOptions('')
+
+    const resp = await axios.post('/pac/asignacion-unidad/data', { id })
+    const d = resp.data ?? {}
+
+    asignacionActual.value = {
+      adscripcion: d.adscripcion_txt ?? d.adscripcion ?? '',
+      unidad: d.unidad_txt ?? d.nombre_unidad ?? '',
+      coordinacion: d.coordinacion_txt ?? d.nombre_coordinacion ?? '',
+    }
+
+    const current = normalizeAdscripcionOption(d)
+
+    if (current?.id_adscripcion) {
+      const existing = adscripcionOptions.value.find(
+        (option) => String(option.id_adscripcion) === String(current.id_adscripcion)
+      )
+
+      selectedAdscripcion.value = existing ?? current
+      adscripcionOptions.value = withSelectedAdscripcion(adscripcionOptions.value)
+    }
+  } catch (error) {
+    console.error('Error en precarga de adscripcion:', error?.response?.data ?? error)
+  }
+
+  $('#modal_asignacion_unidad')
+    .off('hidden.bs.modal.unidad')
+    .on('hidden.bs.modal.unidad', async function () {
+      $('#modal_password_user').modal('show')
+      if (selectedEmployeeId.value) {
+        await setOption(selectedEmployeeId.value)
+      }
+    })
+
+  blurActiveElement()
+  $('#modal_password_user').modal('hide')
+
+  setTimeout(() => {
+    $('#modal_asignacion_unidad').modal('show')
+  }, 350)
+}
+
+async function confirmAsignacionUnidad() {
+  if (isSavingAsignacion.value) return
+
+  const id = selectedEmployeeId.value
+
+  if (!id) {
+    notyf.error('No se detecto el registro a actualizar.')
+    return
+  }
+
+  if (!selectedAdscripcion.value?.id_adscripcion) {
+    notyf.error('Selecciona una adscripcion.')
+    return
+  }
+
+  try {
+    isSavingAsignacion.value = true
+
+    const { data } = await axios.post('/pac/asignacion-unidad/save', {
+      id,
+      id_adscripcion: selectedAdscripcion.value.id_adscripcion,
+    })
+
+    if (!data.status) {
+      notyf.error(data.message ?? 'No se pudo guardar la adscripcion.')
+      return
+    }
+
+    notyf.success(data.message ?? 'Adscripcion asignada correctamente.')
+    fetchTableData()
+
+    m_adscripcion.value = data.adscripcion ?? m_adscripcion.value
+    m_unidad.value = data.unidad ?? data.nombre_unidad ?? m_unidad.value
+    m_coordinacion.value = data.coordinacion ?? data.nombre_coordinacion ?? m_coordinacion.value
+    asignacionActual.value = {
+      adscripcion: data.adscripcion ?? asignacionActual.value.adscripcion,
+      unidad: data.unidad ?? data.nombre_unidad ?? asignacionActual.value.unidad,
+      coordinacion: data.coordinacion ?? data.nombre_coordinacion ?? asignacionActual.value.coordinacion,
+    }
+
+    blurActiveElement()
+    $('#modal_asignacion_unidad').modal('hide')
+  } catch (error) {
+    console.error('Error en /pac/asignacion-unidad/save:', error?.response?.data ?? error)
+    notyf.error(getApiErrorMessage(error, 'Error al guardar la adscripcion.'))
   } finally {
     isSavingAsignacion.value = false
   }

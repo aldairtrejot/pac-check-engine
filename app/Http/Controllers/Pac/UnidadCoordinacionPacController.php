@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdscripcionCatalogs;
 use App\Support\PacVisibility;
 use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
@@ -13,6 +14,40 @@ class UnidadCoordinacionPacController extends Controller
 {
     private static array $columnsCache = [];
     private static ?bool $eventLogTableExists = null;
+
+    public function listAdscripciones(Request $request)
+    {
+        try {
+            $this->assertCanManageAsignacionUnidad();
+
+            $idAdscripcion = (int) $request->input('id_adscripcion', 0);
+
+            if ($idAdscripcion > 0) {
+                $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);
+
+                return response()->json([
+                    'status' => true,
+                    'listAdscripciones' => $adscripcion ? [$adscripcion] : [],
+                ], 200);
+            }
+
+            return response()->json([
+                'status' => true,
+                'listAdscripciones' => AdscripcionCatalogs::search($request->input('q', ''), 100),
+            ], 200);
+
+        } catch (\Throwable $th) {
+            Log::error('PAC listAdscripciones ERROR: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudieron cargar las adscripciones.',
+                'listAdscripciones' => [],
+            ], 200);
+        }
+    }
 
     public function listUnidades(Request $request)
     {
@@ -32,7 +67,7 @@ class UnidadCoordinacionPacController extends Controller
 
         } catch (\Throwable $th) {
             Log::error('PAC listUnidades ERROR: '.$th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -68,7 +103,7 @@ class UnidadCoordinacionPacController extends Controller
 
         } catch (\Throwable $th) {
             Log::error('PAC listCoordinaciones ERROR: '.$th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -79,9 +114,6 @@ class UnidadCoordinacionPacController extends Controller
         }
     }
 
-    /**
-     * Precarga asignación actual
-     */
     public function dataAsignacion(Request $request)
     {
         try {
@@ -93,7 +125,7 @@ class UnidadCoordinacionPacController extends Controller
 
             if (! $this->canAccessEmployeeAction((int) $validated['id'])) {
                 return response()->json([
-                    'status'  => false,
+                    'status' => false,
                     'message' => 'Acceso denegado o registro no encontrado.',
                 ], 200);
             }
@@ -105,60 +137,91 @@ class UnidadCoordinacionPacController extends Controller
 
             if (! $emp) {
                 return response()->json([
-                    'status'  => false,
-                    'message' => 'No se encontró el empleado (a2_acciones_empleados).',
+                    'status' => false,
+                    'message' => 'No se encontro el empleado (a2_acciones_empleados).',
                 ], 200);
             }
 
             $cap = DB::table('public.a2_acciones_capacitacion')
-                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
+                ->select($this->capacitacionSelectColumns([
+                    'id_adscripcion',
+                    'adscripcion',
+                    'adscripcion_compl',
+                    'id_unidad',
+                    'id_coordinacion',
+                    'num_cursos',
+                ]))
                 ->where('id_puesto', (int) $emp->id_puesto)
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
                 ->first();
 
             $idUnidad = $cap->id_unidad ?? null;
-            $idCoord  = $cap->id_coordinacion ?? null;
+            $idCoordinacion = $cap->id_coordinacion ?? null;
             $numCursos = $cap->num_cursos ?? null;
+            $idAdscripcion = $cap->id_adscripcion ?? null;
 
-            $unidadTxt = '';
-            $coordTxt  = '';
+            $adscripcion = null;
 
-            if ($idUnidad) {
+            if ($idAdscripcion) {
+                $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);
+            }
+
+            if (! $adscripcion && $numCursos) {
+                $adscripcion = AdscripcionCatalogs::findById($numCursos);
+            }
+
+            if (! $adscripcion && $idUnidad && $idCoordinacion) {
+                $adscripcion = AdscripcionCatalogs::findByUnidadCoordinacion($idUnidad, $idCoordinacion);
+            }
+
+            $adscripcionTxt = $adscripcion->adscripcion ?? (string) ($cap->adscripcion ?? '');
+            $adscripcionCompl = $adscripcion->adscripcion_compl ?? (string) ($cap->adscripcion_compl ?? '');
+            $unidadTxt = $adscripcion->nombre_unidad ?? '';
+            $coordinacionTxt = $adscripcion->nombre_coordinacion ?? '';
+
+            $idAdscripcion = $adscripcion->id_adscripcion ?? $idAdscripcion;
+            $idUnidad = $adscripcion->id_unidad ?? $idUnidad;
+            $idCoordinacion = $adscripcion->id_coordinacion ?? $idCoordinacion;
+
+            if ($unidadTxt === '' && $idUnidad) {
                 $unidadTxt = (string) DB::table('public.cat_unidades')
                     ->where('id_unidad', (int) $idUnidad)
                     ->value('nombre_unidad');
             }
 
-            if ($idCoord) {
-                $coordTxt = (string) DB::table('public.cat_coordinaciones')
-                    ->where('id_coordinacion', (int) $idCoord)
+            if ($coordinacionTxt === '' && $idCoordinacion) {
+                $coordinacionTxt = (string) DB::table('public.cat_coordinaciones')
+                    ->where('id_coordinacion', (int) $idCoordinacion)
                     ->value('nombre_coordinacion');
             }
 
             return response()->json([
-                'status'          => true,
-                'id_unidad'       => $idUnidad,
-                'id_coordinacion' => $idCoord,
-                'num_cursos'      => $numCursos,
-                'unidad_txt'      => $unidadTxt,
-                'coordinacion_txt'=> $coordTxt,
+                'status' => true,
+                'id_adscripcion' => $idAdscripcion,
+                'adscripcion' => $adscripcionTxt,
+                'adscripcion_txt' => $adscripcionTxt,
+                'adscripcion_compl' => $adscripcionCompl,
+                'id_unidad' => $idUnidad,
+                'nombre_unidad' => $unidadTxt,
+                'id_coordinacion' => $idCoordinacion,
+                'nombre_coordinacion' => $coordinacionTxt,
+                'num_cursos' => $numCursos,
+                'unidad_txt' => $unidadTxt,
+                'coordinacion_txt' => $coordinacionTxt,
             ], 200);
 
         } catch (\Throwable $th) {
             Log::error('PAC dataAsignacion ERROR: '.$th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
-                'status'  => false,
-                'message' => 'No se pudo cargar la asignación.',
+                'status' => false,
+                'message' => 'No se pudo cargar la asignacion.',
             ], 200);
         }
     }
 
-    /**
-     * Guarda asignación
-     */
     public function saveAsignacion(Request $request)
     {
         try {
@@ -167,28 +230,23 @@ class UnidadCoordinacionPacController extends Controller
             $user = auth()->user();
 
             $validated = $request->validate([
-                'id'              => 'required|integer',
-                'id_unidad'       => 'required|integer',
-                'id_coordinacion' => 'required|integer',
+                'id' => 'required|integer',
+                'id_adscripcion' => 'required|integer',
             ]);
 
             if (! $this->canAccessEmployeeAction((int) $validated['id'])) {
                 return response()->json([
-                    'status'  => false,
+                    'status' => false,
                     'message' => 'Acceso denegado o registro no encontrado.',
                 ], 200);
             }
 
-            $relOk = DB::table('public.rel_unidad_coordinacion')
-                ->where('id_unidad', (int) $validated['id_unidad'])
-                ->where('id_coordinacion', (int) $validated['id_coordinacion'])
-                ->where('activo', true)
-                ->exists();
+            $adscripcion = AdscripcionCatalogs::findById($validated['id_adscripcion']);
 
-            if (! $relOk) {
+            if (! $adscripcion) {
                 return response()->json([
-                    'status'  => false,
-                    'message' => 'La coordinación seleccionada no pertenece a la unidad (o está inactiva).',
+                    'status' => false,
+                    'message' => 'La adscripcion seleccionada no existe en el catalogo oficial.',
                 ], 200);
             }
 
@@ -199,93 +257,103 @@ class UnidadCoordinacionPacController extends Controller
 
             if (! $emp) {
                 return response()->json([
-                    'status'  => false,
-                    'message' => 'No se encontró el empleado (a2_acciones_empleados).',
+                    'status' => false,
+                    'message' => 'No se encontro el empleado (a2_acciones_empleados).',
                 ], 200);
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | NUEVO:
-            |--------------------------------------------------------------------------
-            | Se concatena id_unidad + id_coordinacion para guardar el valor
-            | en num_cursos.
-            |
-            | Ejemplo:
-            | id_unidad = 12
-            | id_coordinacion = 10
-            | num_cursos = 1210
-            */
-            $numCursos = (int) ((string) $validated['id_unidad'] . (string) $validated['id_coordinacion']);
+            $targetExists = DB::table('public.a2_acciones_capacitacion')
+                ->where('id_puesto', (int) $emp->id_puesto)
+                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+                ->exists();
+
+            if (! $targetExists) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No se encontro coincidencia en capacitacion por id_puesto/curp.',
+                ], 200);
+            }
+
+            $numCursos = (int) $adscripcion->id_adscripcion;
 
             $oldAssignment = DB::table('public.a2_acciones_capacitacion')
-                ->select('id_unidad', 'id_coordinacion', 'num_cursos')
+                ->select($this->capacitacionSelectColumns([
+                    'id_adscripcion',
+                    'adscripcion',
+                    'adscripcion_compl',
+                    'id_unidad',
+                    'id_coordinacion',
+                    'num_cursos',
+                ]))
                 ->where('id_puesto', (int) $emp->id_puesto)
                 ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
                 ->first();
 
-            $updated = DB::table('public.a2_acciones_capacitacion')
-                ->where('id_puesto', (int) $emp->id_puesto)
-                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
-                ->update([
-                    'id_unidad'       => (int) $validated['id_unidad'],
-                    'id_coordinacion' => (int) $validated['id_coordinacion'],
-                    'num_cursos'      => $numCursos,
-                ]);
+            $updateAssignment = $this->filterExistingCapacitacionColumns([
+                'id_adscripcion' => (int) $adscripcion->id_adscripcion,
+                'adscripcion' => $adscripcion->adscripcion,
+                'adscripcion_compl' => $adscripcion->adscripcion_compl,
+                'id_unidad' => $adscripcion->id_unidad,
+                'id_coordinacion' => $adscripcion->id_coordinacion,
+                'num_cursos' => $numCursos,
+            ]);
 
-            if (! $updated) {
+            if (! array_key_exists('id_adscripcion', $updateAssignment)) {
                 return response()->json([
-                    'status'  => false,
-                    'message' => 'No se actualizó (no se encontró coincidencia en capacitación por id_puesto/curp).',
+                    'status' => false,
+                    'message' => 'La columna id_adscripcion no existe en plantilla. Ejecuta las migraciones pendientes.',
                 ], 200);
             }
 
-            $unidadTxt = (string) DB::table('public.cat_unidades')
-                ->where('id_unidad', (int) $validated['id_unidad'])
-                ->value('nombre_unidad');
-
-            $coordTxt = (string) DB::table('public.cat_coordinaciones')
-                ->where('id_coordinacion', (int) $validated['id_coordinacion'])
-                ->value('nombre_coordinacion');
+            DB::table('public.a2_acciones_capacitacion')
+                ->where('id_puesto', (int) $emp->id_puesto)
+                ->whereRaw('UPPER(TRIM(curp)) = UPPER(TRIM(?))', [$emp->curp])
+                ->update($updateAssignment);
 
             $this->safeLogUserAction(
                 userId: (int) $user->id,
                 modulo: 'PAC',
-                accion: 'ASIGNAR_UNIDAD_COORDINACION',
-                descripcion: 'Se actualizó la unidad, coordinación y num_cursos del empleado',
+                accion: 'ASIGNAR_ADSCRIPCION',
+                descripcion: 'Se actualizo la adscripcion del empleado desde el catalogo oficial',
                 idReferencia: (string) $validated['id'],
                 payload: [
-                    'id_empl_accion'  => (int) $validated['id'],
-                    'id_unidad'       => (int) $validated['id_unidad'],
-                    'unidad'          => $unidadTxt,
-                    'id_coordinacion' => (int) $validated['id_coordinacion'],
-                    'coordinacion'    => $coordTxt,
-                    'num_cursos'      => $numCursos,
+                    'id_empl_accion' => (int) $validated['id'],
+                    'id_adscripcion' => (int) $adscripcion->id_adscripcion,
+                    'adscripcion' => $adscripcion->adscripcion,
+                    'adscripcion_compl' => $adscripcion->adscripcion_compl,
+                    'id_unidad' => $adscripcion->id_unidad,
+                    'unidad' => $adscripcion->nombre_unidad,
+                    'id_coordinacion' => $adscripcion->id_coordinacion,
+                    'coordinacion' => $adscripcion->nombre_coordinacion,
+                    'num_cursos' => $numCursos,
                 ],
                 oldValues: $oldAssignment !== null ? (array) $oldAssignment : null,
-                newValues: [
-                    'id_unidad' => (int) $validated['id_unidad'],
-                    'id_coordinacion' => (int) $validated['id_coordinacion'],
-                    'num_cursos' => $numCursos,
-                ]
+                newValues: $updateAssignment
             );
 
             return response()->json([
-                'status'       => true,
-                'message'      => 'Unidad y coordinación asignados correctamente.',
-                'unidad'       => $unidadTxt,
-                'coordinacion' => $coordTxt,
-                'num_cursos'   => $numCursos,
+                'status' => true,
+                'message' => 'Adscripcion asignada correctamente.',
+                'id_adscripcion' => (int) $adscripcion->id_adscripcion,
+                'adscripcion' => $adscripcion->adscripcion,
+                'adscripcion_compl' => $adscripcion->adscripcion_compl,
+                'id_unidad' => $adscripcion->id_unidad,
+                'nombre_unidad' => $adscripcion->nombre_unidad,
+                'unidad' => $adscripcion->nombre_unidad,
+                'id_coordinacion' => $adscripcion->id_coordinacion,
+                'nombre_coordinacion' => $adscripcion->nombre_coordinacion,
+                'coordinacion' => $adscripcion->nombre_coordinacion,
+                'num_cursos' => $numCursos,
             ], 200);
 
         } catch (\Throwable $th) {
             Log::error('PAC saveAsignacion ERROR: '.$th->getMessage(), [
-                'trace' => $th->getTraceAsString()
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
-                'status'  => false,
-                'message' => 'Ocurrió un error al guardar la asignación.',
+                'status' => false,
+                'message' => 'Ocurrio un error al guardar la asignacion.',
             ], 200);
         }
     }
@@ -366,9 +434,6 @@ class UnidadCoordinacionPacController extends Controller
         return $query->exists();
     }
 
-    /**
-     * ✅ ADMIN / REVISOR_EST
-     */
     private function assertCanManageAsignacionUnidad(): void
     {
         $user = auth()->user();
@@ -381,7 +446,7 @@ class UnidadCoordinacionPacController extends Controller
             return;
         }
 
-        abort(403, 'No tienes permisos para gestionar la asignación de unidad.');
+        abort(403, 'No tienes permisos para gestionar la asignacion de unidad.');
     }
 
     private function isAdminOrRevisorEst($user): bool
@@ -430,6 +495,29 @@ class UnidadCoordinacionPacController extends Controller
         return false;
     }
 
+    private function capacitacionSelectColumns(array $columns): array
+    {
+        $existing = array_flip($this->columnsFor('public', 'a2_acciones_capacitacion'));
+
+        return array_map(
+            fn (string $column) => isset($existing[$column])
+                ? $column
+                : DB::raw('NULL as ' . $column),
+            $columns
+        );
+    }
+
+    private function filterExistingCapacitacionColumns(array $values): array
+    {
+        $existing = array_flip($this->columnsFor('public', 'a2_acciones_capacitacion'));
+
+        return array_filter(
+            $values,
+            fn (string $column) => isset($existing[$column]),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
     private function splitQualified(string $qualified): array
     {
         $qualified = trim($qualified);
@@ -466,7 +554,7 @@ class UnidadCoordinacionPacController extends Controller
     private function firstExistingColumn(string $schema, string $table, array $candidates): ?string
     {
         $cols = $this->columnsFor($schema, $table);
-        $set  = array_flip($cols);
+        $set = array_flip($cols);
 
         foreach ($candidates as $c) {
             if (isset($set[$c])) {

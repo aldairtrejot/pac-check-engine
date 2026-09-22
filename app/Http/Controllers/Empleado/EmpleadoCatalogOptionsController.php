@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdscripcionCatalogs;
 use App\Support\EmpleadoCatalogs;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +45,40 @@ class EmpleadoCatalogOptionsController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'No se pudo consultar el catálogo de CLUES.',
+                'options' => [],
+            ], 500);
+        }
+    }
+
+    public function adscripciones(Request $request)
+    {
+        try {
+            $idAdscripcion = (int) $request->query('id_adscripcion', 0);
+
+            if ($idAdscripcion > 0) {
+                $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);
+
+                return response()->json([
+                    'status' => true,
+                    'options' => $adscripcion ? [$adscripcion] : [],
+                ]);
+            }
+
+            return response()->json([
+                'status' => true,
+                'options' => AdscripcionCatalogs::search($request->query('q', ''), 50),
+            ]);
+
+        } catch (\Throwable $th) {
+            Log::error('Error al consultar catalogo de adscripciones para empleado', [
+                'message' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudo consultar el catalogo de adscripciones.',
                 'options' => [],
             ], 500);
         }

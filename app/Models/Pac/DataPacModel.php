@@ -41,9 +41,12 @@ class DataPacModel extends Model
 
                 'c.id_unidad as id_unidad',
                 'c.id_coordinacion as id_coordinacion',
+                'c.id_adscripcion as id_adscripcion',
 
-                DB::raw("cu.nombre_unidad as unidad"),
-                DB::raw("cc.nombre_coordinacion as coordinacion"),
+                DB::raw("COALESCE(ca.nombre_unidad, cu.nombre_unidad) as unidad"),
+                DB::raw("COALESCE(ca.nombre_coordinacion, cc.nombre_coordinacion) as coordinacion"),
+                DB::raw("COALESCE(c.adscripcion, ca.adscripcion) as adscripcion"),
+                DB::raw("COALESCE(c.adscripcion_compl, ca.adscripcion_compl) as adscripcion_compl"),
 
                 'e.curp as curp',
                 'a.nombre_accion as accion',
@@ -85,6 +88,10 @@ class DataPacModel extends Model
                 );
             })
             ->join('public.a1_cat_acciones as a', 'e.id_accion', '=', 'a.id_accion')
+            ->leftJoin('public.cat_adscripcion as ca', function ($join) {
+                $join->on('ca.id_adscripcion', '=', 'c.id_adscripcion')
+                    ->orOn('ca.id_adscripcion', '=', 'c.num_cursos');
+            })
             ->leftJoin('public.cat_unidades as cu', 'cu.id_unidad', '=', 'c.id_unidad')
             ->leftJoin('public.cat_coordinaciones as cc', 'cc.id_coordinacion', '=', 'c.id_coordinacion')
             ->where('e.id_empl_accion', $id);

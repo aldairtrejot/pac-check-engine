@@ -29,8 +29,10 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:admin_oc,supervisor_oc'])->group(function () {
         Route::get('/empleado', [ViewEmpleadoController::class, 'view'])->name('empleado');
         Route::get('/empleado/catalogos/clues', [EmpleadoCatalogOptionsController::class, 'clues'])->name('empleado.catalogos.clues');
+        Route::get('/empleado/catalogos/adscripciones', [EmpleadoCatalogOptionsController::class, 'adscripciones'])->name('empleado.catalogos.adscripciones');
         Route::post('/empleado/save', [SaveEmpleadoController::class, 'save'])->name('empleado.save');
     });
+    Route::post('/pac/adscripciones', [UnidadCoordinacionPacController::class, 'listAdscripciones']);
     Route::post('/pac/unidades', [UnidadCoordinacionPacController::class, 'listUnidades']);
     Route::post('/pac/coordinaciones', [UnidadCoordinacionPacController::class, 'listCoordinaciones']);
     Route::post('/pac/asignacion-unidad/data', [UnidadCoordinacionPacController::class, 'dataAsignacion']);

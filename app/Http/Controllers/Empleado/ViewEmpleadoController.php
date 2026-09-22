@@ -58,6 +58,7 @@ class ViewEmpleadoController extends Controller
             'puestos' => $puestoOptions,
             'valPlantillaOptions' => $valPlantillaOptions,
             'cluesSearchUrl' => route('empleado.catalogos.clues'),
+            'adscripcionesSearchUrl' => route('empleado.catalogos.adscripciones'),
             'old' => [
                 'codigo_puesto' => $codigoPuestoOld,
                 'puesto_label' => (string) $request->old('puesto_label', $puestoOld->label ?? ''),
@@ -71,6 +72,13 @@ class ViewEmpleadoController extends Controller
                 'nomina' => (string) $request->old('nomina', ''),
                 'entidad' => (string) $request->old('entidad', ''),
                 'val_plantilla' => (string) $request->old('val_plantilla', ''),
+                'id_adscripcion' => (string) $request->old('id_adscripcion', ''),
+                'adscripcion' => (string) $request->old('adscripcion', ''),
+                'adscripcion_compl' => (string) $request->old('adscripcion_compl', ''),
+                'id_unidad' => (string) $request->old('id_unidad', ''),
+                'nombre_unidad' => (string) $request->old('nombre_unidad', ''),
+                'id_coordinacion' => (string) $request->old('id_coordinacion', ''),
+                'nombre_coordinacion' => (string) $request->old('nombre_coordinacion', ''),
             ],
         ];
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdscripcionCatalogs;
 use App\Support\EmpleadoCatalogs;
 use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
@@ -33,6 +34,10 @@ class SaveEmpleadoController extends Controller
             'descripcion_clues' => $request->filled('descripcion_clues') ? EmpleadoCatalogs::norm($request->input('descripcion_clues')) : null,
             'val_plantilla' => EmpleadoCatalogs::norm($request->input('val_plantilla')),
             'observaciones_plantilla' => EmpleadoCatalogs::norm($request->input('observaciones_plantilla')),
+            'adscripcion' => $request->filled('adscripcion') ? AdscripcionCatalogs::norm($request->input('adscripcion')) : null,
+            'adscripcion_compl' => $request->filled('adscripcion_compl') ? AdscripcionCatalogs::norm($request->input('adscripcion_compl')) : null,
+            'nombre_unidad' => $request->filled('nombre_unidad') ? AdscripcionCatalogs::norm($request->input('nombre_unidad')) : null,
+            'nombre_coordinacion' => $request->filled('nombre_coordinacion') ? AdscripcionCatalogs::norm($request->input('nombre_coordinacion')) : null,
         ]);
 
         // 1) Validación
@@ -57,6 +62,13 @@ class SaveEmpleadoController extends Controller
             'quincena'          => 'nullable|integer|min:1|max:24',
             'val_plantilla'     => 'required|string|max:100',
             'observaciones_plantilla' => 'required|string|max:1000',
+            'id_adscripcion'    => 'required|integer|min:1',
+            'adscripcion'       => 'nullable|string|max:1000',
+            'adscripcion_compl' => 'nullable|string|max:2000',
+            'id_unidad'         => 'nullable|integer',
+            'nombre_unidad'     => 'nullable|string|max:200',
+            'id_coordinacion'   => 'nullable|integer',
+            'nombre_coordinacion' => 'nullable|string|max:250',
         ], [
             'curp.required' => 'El campo CURP es obligatorio.',
             'curp.size'     => 'El CURP debe tener exactamente 18 caracteres.',
@@ -69,6 +81,7 @@ class SaveEmpleadoController extends Controller
             'clave_clues.required' => 'Selecciona una CLUES del catálogo.',
             'val_plantilla.required' => 'El campo Val Plantilla es obligatorio.',
             'observaciones_plantilla.required' => 'El campo Observaciones Plantilla es obligatorio.',
+            'id_adscripcion.required' => 'Selecciona una Adscripcion del catalogo.',
         ]);
 
         try {
@@ -103,6 +116,14 @@ class SaveEmpleadoController extends Controller
                 ]);
             }
 
+            $adscripcionCatalogo = AdscripcionCatalogs::findById($validated['id_adscripcion']);
+
+            if (! $adscripcionCatalogo) {
+                throw ValidationException::withMessages([
+                    'id_adscripcion' => 'La Adscripcion seleccionada no existe en el catalogo oficial.',
+                ]);
+            }
+
             if (! $this->capacitacionHasColumn('val_plantilla')) {
                 throw ValidationException::withMessages([
                     'val_plantilla' => 'La columna Val Plantilla no existe en la tabla de plantilla.',
@@ -113,6 +134,14 @@ class SaveEmpleadoController extends Controller
                 throw ValidationException::withMessages([
                     'observaciones_plantilla' => 'La columna Observaciones Plantilla no existe en la tabla de plantilla. Ejecuta las migraciones pendientes.',
                 ]);
+            }
+
+            foreach (['id_adscripcion', 'adscripcion', 'adscripcion_compl'] as $adscripcionColumn) {
+                if (! $this->capacitacionHasColumn($adscripcionColumn)) {
+                    throw ValidationException::withMessages([
+                        'id_adscripcion' => 'Las columnas de Adscripcion no existen en la tabla de plantilla. Ejecuta las migraciones pendientes.',
+                    ]);
+                }
             }
 
             DB::beginTransaction();
@@ -226,12 +255,13 @@ class SaveEmpleadoController extends Controller
                 'entidad'           => $entidad,
                 'val_plantilla'     => $validated['val_plantilla'],
                 'observaciones_plantilla' => $validated['observaciones_plantilla'],
-
-                // Se asignan posteriormente desde el flujo de Asignacion de unidad.
-                'num_cursos'        => null,
+                'id_adscripcion'    => (int) $adscripcionCatalogo->id_adscripcion,
+                'adscripcion'       => $adscripcionCatalogo->adscripcion,
+                'adscripcion_compl' => $adscripcionCatalogo->adscripcion_compl,
+                'num_cursos'        => (int) $adscripcionCatalogo->id_adscripcion,
                 'activo'            => 2,
-                'id_unidad'         => null,
-                'id_coordinacion'   => null,
+                'id_unidad'         => $adscripcionCatalogo->id_unidad,
+                'id_coordinacion'   => $adscripcionCatalogo->id_coordinacion,
             ];
 
             // Copiar campos de acciones/finalidades si hay base
@@ -446,6 +476,10 @@ class SaveEmpleadoController extends Controller
                         'codigo_puesto' => $puestoCatalogo->codigo_puesto,
                         'clave_clues' => $cluesCatalogo->clave_clues,
                         'id_clues' => $cluesCatalogo->id_clues ?? null,
+                        'id_adscripcion' => (int) $adscripcionCatalogo->id_adscripcion,
+                        'adscripcion' => $adscripcionCatalogo->adscripcion,
+                        'id_unidad' => $adscripcionCatalogo->id_unidad,
+                        'id_coordinacion' => $adscripcionCatalogo->id_coordinacion,
                     ],
                     'cursos_base' => array_map(
                         fn ($curso) => [
