@@ -38,6 +38,24 @@ class EmpleadoCatalogs
             ->values();
     }
 
+    public static function nominaDosOptions(): Collection
+    {
+        if (! self::capacitacionColumnExists('nomina_dos')) {
+            return collect();
+        }
+
+        return DB::table('public.a2_acciones_capacitacion')
+            ->whereNotNull('nomina_dos')
+            ->whereRaw("BTRIM(COALESCE(nomina_dos::text, '')) <> ''")
+            ->selectRaw("UPPER(BTRIM(nomina_dos::text)) as value")
+            ->groupByRaw("UPPER(BTRIM(nomina_dos::text))")
+            ->orderBy('value')
+            ->pluck('value')
+            ->map(fn ($value) => self::norm($value))
+            ->filter(fn ($value) => $value !== '')
+            ->values();
+    }
+
     public static function findPuestoByCodigo(?string $codigo): ?object
     {
         $codigo = self::norm($codigo);
@@ -207,6 +225,19 @@ class EmpleadoCatalogs
     public static function norm($value): string
     {
         return mb_strtoupper(trim((string) $value), 'UTF-8');
+    }
+
+    private static function capacitacionColumnExists(string $column): bool
+    {
+        try {
+            return DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', 'a2_acciones_capacitacion')
+                ->where('column_name', $column)
+                ->exists();
+        } catch (\Throwable $th) {
+            return false;
+        }
     }
 
     private static function cluesBaseQuery()

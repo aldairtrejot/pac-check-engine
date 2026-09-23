@@ -31,58 +31,18 @@ return new class extends Migration
             ON public.cat_adscripcion USING btree (id_unidad, id_coordinacion)
         ");
 
-        if (! $this->capacitacionTableExists()) {
-            return;
-        }
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            ADD COLUMN IF NOT EXISTS id_adscripcion integer
-        ");
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            ADD COLUMN IF NOT EXISTS adscripcion text
-        ");
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            ADD COLUMN IF NOT EXISTS adscripcion_compl text
-        ");
+        /*
+         * No se agregan columnas a public.a2_acciones_capacitacion.
+         * La adscripcion se resuelve desde public.cat_adscripcion usando
+         * num_cursos como referencia al id_adscripcion.
+         */
     }
 
     public function down(): void
     {
-        if (! $this->capacitacionTableExists()) {
-            return;
-        }
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            DROP COLUMN IF EXISTS adscripcion_compl
-        ");
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            DROP COLUMN IF EXISTS adscripcion
-        ");
-
-        DB::statement("
-            ALTER TABLE public.a2_acciones_capacitacion
-            DROP COLUMN IF EXISTS id_adscripcion
-        ");
-
         /*
          * No se elimina public.cat_adscripcion en rollback. Puede ser un catalogo
          * oficial ya existente y borrarlo implicaria perdida de datos maestros.
          */
-    }
-
-    private function capacitacionTableExists(): bool
-    {
-        return DB::table('information_schema.tables')
-            ->where('table_schema', 'public')
-            ->where('table_name', 'a2_acciones_capacitacion')
-            ->exists();
     }
 };

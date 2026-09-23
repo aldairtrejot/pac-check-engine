@@ -144,9 +144,6 @@ class UnidadCoordinacionPacController extends Controller
 
             $cap = DB::table('public.a2_acciones_capacitacion')
                 ->select($this->capacitacionSelectColumns([
-                    'id_adscripcion',
-                    'adscripcion',
-                    'adscripcion_compl',
                     'id_unidad',
                     'id_coordinacion',
                     'num_cursos',
@@ -158,15 +155,10 @@ class UnidadCoordinacionPacController extends Controller
             $idUnidad = $cap->id_unidad ?? null;
             $idCoordinacion = $cap->id_coordinacion ?? null;
             $numCursos = $cap->num_cursos ?? null;
-            $idAdscripcion = $cap->id_adscripcion ?? null;
 
             $adscripcion = null;
 
-            if ($idAdscripcion) {
-                $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);
-            }
-
-            if (! $adscripcion && $numCursos) {
+            if ($numCursos) {
                 $adscripcion = AdscripcionCatalogs::findById($numCursos);
             }
 
@@ -174,12 +166,12 @@ class UnidadCoordinacionPacController extends Controller
                 $adscripcion = AdscripcionCatalogs::findByUnidadCoordinacion($idUnidad, $idCoordinacion);
             }
 
-            $adscripcionTxt = $adscripcion->adscripcion ?? (string) ($cap->adscripcion ?? '');
-            $adscripcionCompl = $adscripcion->adscripcion_compl ?? (string) ($cap->adscripcion_compl ?? '');
+            $adscripcionTxt = $adscripcion->adscripcion ?? '';
+            $adscripcionCompl = $adscripcion->adscripcion_compl ?? '';
             $unidadTxt = $adscripcion->nombre_unidad ?? '';
             $coordinacionTxt = $adscripcion->nombre_coordinacion ?? '';
 
-            $idAdscripcion = $adscripcion->id_adscripcion ?? $idAdscripcion;
+            $idAdscripcion = $adscripcion->id_adscripcion ?? null;
             $idUnidad = $adscripcion->id_unidad ?? $idUnidad;
             $idCoordinacion = $adscripcion->id_coordinacion ?? $idCoordinacion;
 
@@ -278,9 +270,6 @@ class UnidadCoordinacionPacController extends Controller
 
             $oldAssignment = DB::table('public.a2_acciones_capacitacion')
                 ->select($this->capacitacionSelectColumns([
-                    'id_adscripcion',
-                    'adscripcion',
-                    'adscripcion_compl',
                     'id_unidad',
                     'id_coordinacion',
                     'num_cursos',
@@ -290,20 +279,10 @@ class UnidadCoordinacionPacController extends Controller
                 ->first();
 
             $updateAssignment = $this->filterExistingCapacitacionColumns([
-                'id_adscripcion' => (int) $adscripcion->id_adscripcion,
-                'adscripcion' => $adscripcion->adscripcion,
-                'adscripcion_compl' => $adscripcion->adscripcion_compl,
                 'id_unidad' => $adscripcion->id_unidad,
                 'id_coordinacion' => $adscripcion->id_coordinacion,
                 'num_cursos' => $numCursos,
             ]);
-
-            if (! array_key_exists('id_adscripcion', $updateAssignment)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'La columna id_adscripcion no existe en plantilla. Ejecuta las migraciones pendientes.',
-                ], 200);
-            }
 
             DB::table('public.a2_acciones_capacitacion')
                 ->where('id_puesto', (int) $emp->id_puesto)

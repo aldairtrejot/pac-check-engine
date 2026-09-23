@@ -269,6 +269,13 @@
                 </div>
 
                 <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
+                  <span class="text-xs text-secondary" style="min-width:120px;">Nomina Dos:</span>
+                  <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
+                    {{ m_nomina_dos || '—' }}
+                  </span>
+                </div>
+
+                <div class="d-flex align-items-start mb-1" style="line-height:1.28;">
                   <span class="text-xs text-secondary" style="min-width:120px;">Nivel:</span>
                   <span class="text-xs text-dark font-weight-bold flex-grow-1" style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">
                     {{ m_nivel_salarial }}
@@ -615,6 +622,7 @@ const m_clave_clues = ref('')
 const m_nombre = ref('')
 const m_entidad = ref('')
 const m_contratacion = ref('')
+const m_nomina_dos = ref('')
 const m_curp = ref('')
 const m_accion = ref('')
 const m_fecha_ini = ref('')
@@ -830,6 +838,7 @@ function resetEmployeeModalData() {
   m_nombre.value = ''
   m_entidad.value = ''
   m_contratacion.value = ''
+  m_nomina_dos.value = ''
   m_curp.value = ''
   m_accion.value = ''
   m_fecha_ini.value = ''
@@ -1318,6 +1327,7 @@ async function setOption(id) {
     m_puesto.value = data.puesto ?? ''
     m_entidad.value = data.entidad ?? ''
     m_contratacion.value = data.contratacion ?? ''
+    m_nomina_dos.value = data.nomina_dos ?? ''
     m_curp.value = data.curp ?? ''
     m_nombre.value = data.nombre ?? ''
     m_accion.value = data.accion ?? ''

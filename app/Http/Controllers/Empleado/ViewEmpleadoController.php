@@ -26,6 +26,7 @@ class ViewEmpleadoController extends Controller
         $puestos = collect();
         $puestoOptions = collect();
         $valPlantillaOptions = collect();
+        $nominaDosOptions = collect();
 
         try {
             $puestos = EmpleadoCatalogs::puestos();
@@ -36,6 +37,12 @@ class ViewEmpleadoController extends Controller
                 'nivel' => $puesto->nivel,
             ])->values();
             $valPlantillaOptions = EmpleadoCatalogs::valPlantillaOptions()
+                ->map(fn ($value) => [
+                    'label' => $value,
+                    'value' => $value,
+                ])
+                ->values();
+            $nominaDosOptions = EmpleadoCatalogs::nominaDosOptions()
                 ->map(fn ($value) => [
                     'label' => $value,
                     'value' => $value,
@@ -57,6 +64,7 @@ class ViewEmpleadoController extends Controller
         $catalogProps = [
             'puestos' => $puestoOptions,
             'valPlantillaOptions' => $valPlantillaOptions,
+            'nominaDosOptions' => $nominaDosOptions,
             'cluesSearchUrl' => route('empleado.catalogos.clues'),
             'adscripcionesSearchUrl' => route('empleado.catalogos.adscripciones'),
             'old' => [
@@ -70,6 +78,7 @@ class ViewEmpleadoController extends Controller
                 'clave_clues' => (string) $request->old('clave_clues', ''),
                 'descripcion_clues' => (string) $request->old('descripcion_clues', ''),
                 'nomina' => (string) $request->old('nomina', ''),
+                'nomina_dos' => (string) $request->old('nomina_dos', ''),
                 'entidad' => (string) $request->old('entidad', ''),
                 'val_plantilla' => (string) $request->old('val_plantilla', ''),
                 'id_adscripcion' => (string) $request->old('id_adscripcion', ''),
@@ -87,6 +96,7 @@ class ViewEmpleadoController extends Controller
             'puestos' => $puestos,
             'puestoOptions' => $puestoOptions,
             'valPlantillaOptions' => $valPlantillaOptions,
+            'nominaDosOptions' => $nominaDosOptions,
             'catalogProps' => $catalogProps,
         ]);
     }

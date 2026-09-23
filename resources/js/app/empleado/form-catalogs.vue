@@ -183,6 +183,28 @@
 
       <input type="hidden" id="val_plantilla" name="val_plantilla" :value="valPlantillaValue">
     </div>
+
+    <div class="row mb-3">
+      <inputSelect
+        grid="col-md-12"
+        label="Nomina Dos"
+        id="nomina_dos_select"
+        name="nomina_dos_select"
+        v-model="selectedNominaDos"
+        :options="nominaDosOptions"
+        :multiple="false"
+        labelKey="label"
+        trackBy="value"
+        :required="false"
+        :allow-empty="true"
+        :max-height="220"
+        :options-limit="50"
+        placeholder="Seleccione..."
+        :error-message="errors.nominaDos"
+      />
+
+      <input type="hidden" id="nomina_dos" name="nomina_dos" :value="nominaDosValue">
+    </div>
   </div>
 </template>
 
@@ -194,11 +216,13 @@ const props = readCatalogProps()
 const old = props.old || {}
 const puestoOptions = ref(Array.isArray(props.puestos) ? props.puestos : [])
 const valPlantillaOptions = ref(Array.isArray(props.valPlantillaOptions) ? props.valPlantillaOptions : [])
+const nominaDosOptions = ref(Array.isArray(props.nominaDosOptions) ? props.nominaDosOptions : [])
 const cluesOptions = ref([])
 const adscripcionOptions = ref([])
 const selectedPuesto = ref(null)
 const selectedClues = ref(null)
 const selectedValPlantilla = ref(null)
+const selectedNominaDos = ref(null)
 const selectedAdscripcion = ref(null)
 const isLoadingClues = ref(false)
 const isLoadingAdscripciones = ref(false)
@@ -206,6 +230,7 @@ const errors = reactive({
   puesto: '',
   clues: '',
   valPlantilla: '',
+  nominaDos: '',
   adscripcion: '',
 })
 
@@ -222,6 +247,7 @@ const cluesId = computed(() => selectedClues.value?.id_clues || '')
 const cluesClave = computed(() => selectedClues.value?.clave_clues || '')
 const cluesDescripcion = computed(() => selectedClues.value?.descripcion_clues || '')
 const valPlantillaValue = computed(() => selectedValPlantilla.value?.value || '')
+const nominaDosValue = computed(() => selectedNominaDos.value?.value || '')
 const adscripcionId = computed(() => selectedAdscripcion.value?.id_adscripcion || '')
 const adscripcionNombre = computed(() => selectedAdscripcion.value?.adscripcion || '')
 const adscripcionCompleta = computed(() => selectedAdscripcion.value?.adscripcion_compl || selectedAdscripcion.value?.label || '')
@@ -252,6 +278,10 @@ watch(selectedValPlantilla, (value) => {
   }
 })
 
+watch(selectedNominaDos, () => {
+  errors.nominaDos = ''
+})
+
 watch(selectedAdscripcion, (value) => {
   if (value?.id_adscripcion) {
     errors.adscripcion = ''
@@ -262,6 +292,7 @@ onMounted(() => {
   selectedPuesto.value = getInitialPuesto()
   selectedClues.value = getInitialClues()
   selectedValPlantilla.value = getInitialValPlantilla()
+  selectedNominaDos.value = getInitialNominaDos()
   selectedAdscripcion.value = getInitialAdscripcion()
 
   if (selectedClues.value) {
@@ -361,6 +392,25 @@ function getInitialValPlantilla() {
   valPlantillaOptions.value = [newOption, ...valPlantillaOptions.value]
 
   return newOption
+}
+
+function getInitialNominaDos() {
+  const value = asString(old.nomina_dos).toUpperCase()
+
+  if (value === '') {
+    return null
+  }
+
+  const option = nominaDosOptions.value.find((item) => asString(item.value) === value)
+
+  if (option) {
+    return option
+  }
+
+  return {
+    label: value,
+    value,
+  }
 }
 
 function getInitialAdscripcion() {

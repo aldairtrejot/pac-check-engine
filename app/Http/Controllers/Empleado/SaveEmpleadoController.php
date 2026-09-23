@@ -27,6 +27,7 @@ class SaveEmpleadoController extends Controller
             'apellido_materno' => $request->filled('apellido_materno') ? EmpleadoCatalogs::norm($request->input('apellido_materno')) : null,
             'tipo_contratacion' => $request->filled('tipo_contratacion') ? EmpleadoCatalogs::norm($request->input('tipo_contratacion')) : null,
             'nomina' => $request->filled('nomina') ? EmpleadoCatalogs::norm($request->input('nomina')) : null,
+            'nomina_dos' => $request->filled('nomina_dos') ? EmpleadoCatalogs::norm($request->input('nomina_dos')) : null,
             'nivel_atencion' => $request->filled('nivel_atencion') ? EmpleadoCatalogs::norm($request->input('nivel_atencion')) : null,
             'entidad' => $request->filled('entidad') ? EmpleadoCatalogs::norm($request->input('entidad')) : null,
             'codigo_puesto' => EmpleadoCatalogs::norm($request->input('codigo_puesto')),
@@ -34,8 +35,6 @@ class SaveEmpleadoController extends Controller
             'descripcion_clues' => $request->filled('descripcion_clues') ? EmpleadoCatalogs::norm($request->input('descripcion_clues')) : null,
             'val_plantilla' => EmpleadoCatalogs::norm($request->input('val_plantilla')),
             'observaciones_plantilla' => EmpleadoCatalogs::norm($request->input('observaciones_plantilla')),
-            'adscripcion' => $request->filled('adscripcion') ? AdscripcionCatalogs::norm($request->input('adscripcion')) : null,
-            'adscripcion_compl' => $request->filled('adscripcion_compl') ? AdscripcionCatalogs::norm($request->input('adscripcion_compl')) : null,
             'nombre_unidad' => $request->filled('nombre_unidad') ? AdscripcionCatalogs::norm($request->input('nombre_unidad')) : null,
             'nombre_coordinacion' => $request->filled('nombre_coordinacion') ? AdscripcionCatalogs::norm($request->input('nombre_coordinacion')) : null,
         ]);
@@ -53,6 +52,7 @@ class SaveEmpleadoController extends Controller
             'nivel_salarial'    => 'nullable|string|max:50',
             'tipo_contratacion' => 'nullable|string|max:50',
             'nomina'            => 'nullable|string|max:50',
+            'nomina_dos'        => 'nullable|string|max:100',
             'nivel_atencion'    => 'nullable|string|max:50',
             'entidad'           => 'nullable|string|max:100',
             'clues_catalog_key'  => 'required|string|max:2000',
@@ -63,8 +63,6 @@ class SaveEmpleadoController extends Controller
             'val_plantilla'     => 'required|string|max:100',
             'observaciones_plantilla' => 'required|string|max:1000',
             'id_adscripcion'    => 'required|integer|min:1',
-            'adscripcion'       => 'nullable|string|max:1000',
-            'adscripcion_compl' => 'nullable|string|max:2000',
             'id_unidad'         => 'nullable|integer',
             'nombre_unidad'     => 'nullable|string|max:200',
             'id_coordinacion'   => 'nullable|integer',
@@ -124,6 +122,20 @@ class SaveEmpleadoController extends Controller
                 ]);
             }
 
+            if (! empty($validated['nomina_dos'])) {
+                if (! $this->capacitacionHasColumn('nomina_dos')) {
+                    throw ValidationException::withMessages([
+                        'nomina_dos' => 'La columna Nomina Dos no existe en la tabla de plantilla.',
+                    ]);
+                }
+
+                if (! EmpleadoCatalogs::nominaDosOptions()->contains($validated['nomina_dos'])) {
+                    throw ValidationException::withMessages([
+                        'nomina_dos' => 'Selecciona un valor valido de Nomina Dos.',
+                    ]);
+                }
+            }
+
             if (! $this->capacitacionHasColumn('val_plantilla')) {
                 throw ValidationException::withMessages([
                     'val_plantilla' => 'La columna Val Plantilla no existe en la tabla de plantilla.',
@@ -134,14 +146,6 @@ class SaveEmpleadoController extends Controller
                 throw ValidationException::withMessages([
                     'observaciones_plantilla' => 'La columna Observaciones Plantilla no existe en la tabla de plantilla. Ejecuta las migraciones pendientes.',
                 ]);
-            }
-
-            foreach (['id_adscripcion', 'adscripcion', 'adscripcion_compl'] as $adscripcionColumn) {
-                if (! $this->capacitacionHasColumn($adscripcionColumn)) {
-                    throw ValidationException::withMessages([
-                        'id_adscripcion' => 'Las columnas de Adscripcion no existen en la tabla de plantilla. Ejecuta las migraciones pendientes.',
-                    ]);
-                }
             }
 
             DB::beginTransaction();
@@ -255,14 +259,17 @@ class SaveEmpleadoController extends Controller
                 'entidad'           => $entidad,
                 'val_plantilla'     => $validated['val_plantilla'],
                 'observaciones_plantilla' => $validated['observaciones_plantilla'],
-                'id_adscripcion'    => (int) $adscripcionCatalogo->id_adscripcion,
-                'adscripcion'       => $adscripcionCatalogo->adscripcion,
-                'adscripcion_compl' => $adscripcionCatalogo->adscripcion_compl,
                 'num_cursos'        => (int) $adscripcionCatalogo->id_adscripcion,
                 'activo'            => 2,
                 'id_unidad'         => $adscripcionCatalogo->id_unidad,
                 'id_coordinacion'   => $adscripcionCatalogo->id_coordinacion,
             ];
+
+            if ($this->capacitacionHasColumn('nomina_dos')) {
+                $insertCap['nomina_dos'] = !empty($validated['nomina_dos'])
+                    ? $validated['nomina_dos']
+                    : ($datosBase->nomina_dos ?? null);
+            }
 
             // Copiar campos de acciones/finalidades si hay base
             if ($datosBase) {
@@ -480,6 +487,7 @@ class SaveEmpleadoController extends Controller
                         'adscripcion' => $adscripcionCatalogo->adscripcion,
                         'id_unidad' => $adscripcionCatalogo->id_unidad,
                         'id_coordinacion' => $adscripcionCatalogo->id_coordinacion,
+                        'nomina_dos' => $insertCap['nomina_dos'] ?? null,
                     ],
                     'cursos_base' => array_map(
                         fn ($curso) => [

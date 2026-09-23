@@ -23,6 +23,9 @@ class DataPacModel extends Model
         }
 
         $id = (int) $id;
+        $nominaDosSelect = $this->capColumnExists('nomina_dos')
+            ? 'c.nomina_dos as nomina_dos'
+            : DB::raw('NULL as nomina_dos');
 
         $query = DB::table('public.a2_acciones_empleados as e')
             ->select([
@@ -38,15 +41,16 @@ class DataPacModel extends Model
 
                 'c.entidad as entidad',
                 'c.tipo_contratacion as contratacion',
+                $nominaDosSelect,
 
                 'c.id_unidad as id_unidad',
                 'c.id_coordinacion as id_coordinacion',
-                'c.id_adscripcion as id_adscripcion',
+                DB::raw('ca.id_adscripcion as id_adscripcion'),
 
                 DB::raw("COALESCE(ca.nombre_unidad, cu.nombre_unidad) as unidad"),
                 DB::raw("COALESCE(ca.nombre_coordinacion, cc.nombre_coordinacion) as coordinacion"),
-                DB::raw("COALESCE(c.adscripcion, ca.adscripcion) as adscripcion"),
-                DB::raw("COALESCE(c.adscripcion_compl, ca.adscripcion_compl) as adscripcion_compl"),
+                DB::raw('ca.adscripcion as adscripcion'),
+                DB::raw('ca.adscripcion_compl as adscripcion_compl'),
 
                 'e.curp as curp',
                 'a.nombre_accion as accion',
@@ -88,10 +92,7 @@ class DataPacModel extends Model
                 );
             })
             ->join('public.a1_cat_acciones as a', 'e.id_accion', '=', 'a.id_accion')
-            ->leftJoin('public.cat_adscripcion as ca', function ($join) {
-                $join->on('ca.id_adscripcion', '=', 'c.id_adscripcion')
-                    ->orOn('ca.id_adscripcion', '=', 'c.num_cursos');
-            })
+            ->leftJoin('public.cat_adscripcion as ca', 'ca.id_adscripcion', '=', 'c.num_cursos')
             ->leftJoin('public.cat_unidades as cu', 'cu.id_unidad', '=', 'c.id_unidad')
             ->leftJoin('public.cat_coordinaciones as cc', 'cc.id_coordinacion', '=', 'c.id_coordinacion')
             ->where('e.id_empl_accion', $id);
@@ -179,5 +180,18 @@ class DataPacModel extends Model
         );
 
         return $query->first();
+    }
+
+    private function capColumnExists(string $column): bool
+    {
+        try {
+            return DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', 'a2_acciones_capacitacion')
+                ->where('column_name', $column)
+                ->exists();
+        } catch (\Throwable $th) {
+            return false;
+        }
     }
 }
