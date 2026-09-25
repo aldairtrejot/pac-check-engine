@@ -33,6 +33,7 @@ class SaveEmpleadoController extends Controller
             'codigo_puesto' => EmpleadoCatalogs::norm($request->input('codigo_puesto')),
             'clave_clues' => EmpleadoCatalogs::norm($request->input('clave_clues')),
             'descripcion_clues' => $request->filled('descripcion_clues') ? EmpleadoCatalogs::norm($request->input('descripcion_clues')) : null,
+            'clues_manual' => $request->filled('clues_manual') ? (string) $request->input('clues_manual') : '0',
             'val_plantilla' => EmpleadoCatalogs::norm($request->input('val_plantilla')),
             'observaciones_plantilla' => EmpleadoCatalogs::norm($request->input('observaciones_plantilla')),
             'nombre_unidad' => $request->filled('nombre_unidad') ? AdscripcionCatalogs::norm($request->input('nombre_unidad')) : null,
@@ -57,8 +58,9 @@ class SaveEmpleadoController extends Controller
             'entidad'           => 'nullable|string|max:100',
             'clues_catalog_key'  => 'required|string|max:2000',
             'id_clues'          => 'nullable|integer',
+            'clues_manual'      => 'nullable|in:0,1',
             'clave_clues'       => 'required|string|max:50',
-            'descripcion_clues' => 'nullable|string|max:255',
+            'descripcion_clues' => 'required|string|max:255',
             'quincena'          => 'nullable|integer|min:1|max:24',
             'val_plantilla'     => 'required|string|max:100',
             'observaciones_plantilla' => 'required|string|max:1000',
@@ -77,6 +79,7 @@ class SaveEmpleadoController extends Controller
             'codigo_puesto.required' => 'Selecciona un puesto del catálogo.',
             'clues_catalog_key.required' => 'Selecciona una CLUES del catálogo.',
             'clave_clues.required' => 'Selecciona una CLUES del catálogo.',
+            'descripcion_clues.required' => 'Captura la descripcion de la CLUES.',
             'val_plantilla.required' => 'El campo Val Plantilla es obligatorio.',
             'observaciones_plantilla.required' => 'El campo Observaciones Plantilla es obligatorio.',
             'id_adscripcion.required' => 'Selecciona una Adscripcion del catalogo.',
@@ -107,6 +110,18 @@ class SaveEmpleadoController extends Controller
             }
 
             $cluesCatalogo = EmpleadoCatalogs::findCluesByCatalogKey($validated['clues_catalog_key']);
+            $cluesManual = false;
+
+            if (! $cluesCatalogo) {
+                $cluesCatalogo = EmpleadoCatalogs::manualCluesFromValues(
+                    $validated['clave_clues'],
+                    $validated['descripcion_clues'],
+                    $validated['nomina'] ?? null,
+                    $validated['entidad'] ?? null,
+                    $validated['nivel_atencion'] ?? null
+                );
+                $cluesManual = (bool) $cluesCatalogo;
+            }
 
             if (! $cluesCatalogo) {
                 throw ValidationException::withMessages([
@@ -165,6 +180,22 @@ class SaveEmpleadoController extends Controller
             DB::statement('SELECT pg_advisory_xact_lock(2026071401)');
             DB::statement('LOCK TABLE public.a2_acciones_capacitacion IN ACCESS EXCLUSIVE MODE');
             DB::statement('LOCK TABLE public.a2_acciones_empleados IN ACCESS EXCLUSIVE MODE');
+
+            if ($cluesManual) {
+                $cluesCatalogo = EmpleadoCatalogs::ensureManualClues(
+                    $validated['clave_clues'],
+                    $validated['descripcion_clues'],
+                    $validated['nomina'] ?? null,
+                    $validated['entidad'] ?? null,
+                    $validated['nivel_atencion'] ?? null
+                );
+
+                if (! $cluesCatalogo) {
+                    throw ValidationException::withMessages([
+                        'clave_clues' => 'No se pudo agregar la CLUES al catalogo.',
+                    ]);
+                }
+            }
 
             // 2) Checar duplicado en plantilla
             $existeNuevo = DB::table('public.a2_acciones_capacitacion')

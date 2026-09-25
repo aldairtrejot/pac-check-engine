@@ -66,15 +66,19 @@
         :allow-empty="false"
         :internal-search="false"
         :loading="isLoadingClues"
+        :taggable="true"
+        tag-placeholder="Capturar manualmente"
         :max-height="220"
         :options-limit="50"
         placeholder="Buscar CLUES..."
         :error-message="errors.clues"
         @search-change="handleCluesSearch"
+        @tag="addManualCluesOption"
       />
 
       <input type="hidden" id="clues_catalog_key" name="clues_catalog_key" :value="cluesCatalogKey">
       <input type="hidden" id="id_clues" name="id_clues" :value="cluesId">
+      <input type="hidden" id="clues_manual" name="clues_manual" :value="isManualClues ? '1' : '0'">
 
       <div class="col-md-3">
         <label class="form-label">Clave CLUES</label>
@@ -84,8 +88,10 @@
           name="clave_clues"
           class="form-control"
           :value="cluesClave"
-          readonly
+          :readonly="!isManualClues"
           required
+          style="text-transform: uppercase;"
+          @input="updateManualCluesClave"
         >
       </div>
 
@@ -97,9 +103,17 @@
           name="descripcion_clues"
           class="form-control"
           :value="cluesDescripcion"
-          readonly
+          :readonly="!isManualClues"
           required
+          style="text-transform: uppercase;"
+          @input="updateManualCluesDescription"
         >
+      </div>
+
+      <div v-if="isManualClues" class="col-12 mt-2">
+        <div class="alert alert-warning py-2 mb-0">
+          No se encontro esta CLUES en el catalogo. Al guardar, se agregara a cat_clues_bi si todavia no existe.
+        </div>
       </div>
     </div>
 
@@ -226,6 +240,8 @@ const selectedNominaDos = ref(null)
 const selectedAdscripcion = ref(null)
 const isLoadingClues = ref(false)
 const isLoadingAdscripciones = ref(false)
+const manualCluesClave = ref('')
+const manualCluesDescription = ref('')
 const errors = reactive({
   puesto: '',
   clues: '',
@@ -242,10 +258,11 @@ const valPlantillaSearch = ref('')
 const puestoCodigo = computed(() => selectedPuesto.value?.codigo || '')
 const puestoNombre = computed(() => selectedPuesto.value?.puesto || '')
 const puestoNivel = computed(() => selectedPuesto.value?.nivel || '')
-const cluesCatalogKey = computed(() => selectedClues.value?.catalog_key || '')
+const isManualClues = computed(() => !!selectedClues.value?.manual)
+const cluesCatalogKey = computed(() => isManualClues.value ? makeManualCluesCatalogKey() : (selectedClues.value?.catalog_key || ''))
 const cluesId = computed(() => selectedClues.value?.id_clues || '')
-const cluesClave = computed(() => selectedClues.value?.clave_clues || '')
-const cluesDescripcion = computed(() => selectedClues.value?.descripcion_clues || '')
+const cluesClave = computed(() => isManualClues.value ? manualCluesClave.value : (selectedClues.value?.clave_clues || ''))
+const cluesDescripcion = computed(() => isManualClues.value ? manualCluesDescription.value : (selectedClues.value?.descripcion_clues || ''))
 const valPlantillaValue = computed(() => selectedValPlantilla.value?.value || '')
 const nominaDosValue = computed(() => selectedNominaDos.value?.value || '')
 const adscripcionId = computed(() => selectedAdscripcion.value?.id_adscripcion || '')
@@ -264,10 +281,19 @@ watch(selectedPuesto, (value) => {
 
 watch(selectedClues, (value) => {
   if (!value) {
+    manualCluesClave.value = ''
+    manualCluesDescription.value = ''
     return
   }
 
   errors.clues = ''
+
+  if (value.manual) {
+    manualCluesClave.value = asString(value.clave_clues).toUpperCase()
+    manualCluesDescription.value = asString(value.descripcion_clues).toUpperCase()
+    return
+  }
+
   setExternalField('nomina', value.nomina)
   setExternalField('entidad', value.entidad)
   setExternalField('nivel_atencion', value.nivel_atencion)
@@ -369,6 +395,8 @@ function getInitialClues() {
     descripcion_clues: descripcion,
     nomina: asString(old.nomina),
     entidad: asString(old.entidad),
+    nivel_atencion: asString(old.nivel_atencion),
+    manual: asString(old.clues_manual) === '1',
   }
 }
 
@@ -541,7 +569,7 @@ async function fetchCluesOptions(term) {
       ? data.options
       : []
 
-    cluesOptions.value = withSelectedClues(options)
+    cluesOptions.value = withSelectedClues(withManualCluesOption(options, term))
   } catch (error) {
     cluesOptions.value = selectedClues.value ? [selectedClues.value] : []
   } finally {
@@ -587,6 +615,16 @@ function withSelectedClues(options) {
 
   const exists = options.some((option) => option.catalog_key === selectedClues.value.catalog_key)
   return exists ? options : [selectedClues.value, ...options]
+}
+
+function withManualCluesOption(options, term) {
+  const clave = normalizeCluesClave(term)
+
+  if (clave.length < 4 || options.length > 0) {
+    return options
+  }
+
+  return [makeManualCluesOption(clave)]
 }
 
 function withSelectedAdscripcion(options) {
@@ -645,6 +683,94 @@ function addValPlantillaOption(tag) {
   errors.valPlantilla = ''
 }
 
+function addManualCluesOption(tag) {
+  const option = makeManualCluesOption(tag)
+
+  if (!option) {
+    return
+  }
+
+  cluesOptions.value = [option, ...cluesOptions.value.filter((item) => item.catalog_key !== option.catalog_key)]
+  selectedClues.value = option
+  errors.clues = ''
+}
+
+function makeManualCluesOption(value) {
+  const clave = normalizeCluesClave(value)
+
+  if (clave === '') {
+    return null
+  }
+
+  return {
+    label: `CAPTURAR MANUALMENTE: ${clave}`,
+    catalog_key: '',
+    id_clues: '',
+    clave_clues: clave,
+    descripcion_clues: '',
+    nomina: '',
+    entidad: '',
+    nivel_atencion: '',
+    manual: true,
+  }
+}
+
+function makeManualCluesCatalogKey() {
+  const payload = {
+    idcat: '',
+    clave_clues: cluesClave.value,
+    descripcion_clues: cluesDescripcion.value,
+    nomina: asString(document.getElementById('nomina')?.value).toUpperCase(),
+    entidad: asString(document.getElementById('entidad')?.value).toUpperCase(),
+    nivel_atencion: asString(document.getElementById('nivel_atencion')?.value).toUpperCase(),
+    manual: true,
+  }
+
+  if (payload.clave_clues === '' || payload.descripcion_clues === '') {
+    return ''
+  }
+
+  try {
+    return window.btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+  } catch (error) {
+    return ''
+  }
+}
+
+function updateManualCluesClave(event) {
+  if (!isManualClues.value) {
+    return
+  }
+
+  manualCluesClave.value = normalizeCluesClave(event.target.value)
+  event.target.value = manualCluesClave.value
+  updateManualCluesLabel()
+}
+
+function updateManualCluesDescription(event) {
+  if (!isManualClues.value) {
+    return
+  }
+
+  manualCluesDescription.value = asString(event.target.value).toUpperCase()
+  event.target.value = manualCluesDescription.value
+  updateManualCluesLabel()
+}
+
+function updateManualCluesLabel() {
+  if (!selectedClues.value?.manual) {
+    return
+  }
+
+  selectedClues.value = {
+    ...selectedClues.value,
+    label: [manualCluesDescription.value, manualCluesClave.value].filter(Boolean).join(' - ') || `CAPTURAR MANUALMENTE: ${manualCluesClave.value}`,
+    clave_clues: manualCluesClave.value,
+    descripcion_clues: manualCluesDescription.value,
+    catalog_key: makeManualCluesCatalogKey(),
+  }
+}
+
 function handleValPlantillaSearch(search) {
   valPlantillaSearch.value = asString(search).toUpperCase()
 }
@@ -660,8 +786,10 @@ function validateCatalogs(event) {
 
   const hasValPlantilla = valPlantillaValue.value !== ''
 
-  errors.puesto = hasPuesto ? '' : 'Selecciona un puesto del catálogo.'
-  errors.clues = hasClues ? '' : 'Selecciona una CLUES del catálogo.'
+  errors.puesto = hasPuesto ? '' : 'Selecciona un puesto del catalogo.'
+  errors.clues = hasClues
+    ? ''
+    : (isManualClues.value ? 'Captura clave y descripcion de la CLUES.' : 'Selecciona una CLUES del catalogo o capturala manualmente si no existe.')
 
   errors.adscripcion = hasAdscripcion ? '' : 'Selecciona una Adscripcion del catalogo.'
   errors.valPlantilla = hasValPlantilla ? '' : 'Selecciona o captura Val Plantilla.'
@@ -690,5 +818,9 @@ function setExternalField(id, value) {
 
 function asString(value) {
   return String(value ?? '').trim()
+}
+
+function normalizeCluesClave(value) {
+  return asString(value).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 50)
 }
 </script>

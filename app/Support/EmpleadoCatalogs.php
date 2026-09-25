@@ -199,6 +199,91 @@ class EmpleadoCatalogs
         return $row ? self::formatClues($row) : null;
     }
 
+    public static function manualCluesFromValues(
+        ?string $claveClues,
+        ?string $descripcionClues,
+        ?string $nomina = null,
+        ?string $entidad = null,
+        ?string $nivelAtencion = null
+    ): ?object {
+        $claveClues = self::norm($claveClues);
+        $descripcionClues = self::norm($descripcionClues);
+
+        if ($claveClues === '' || $descripcionClues === '') {
+            return null;
+        }
+
+        return self::formatClues((object) [
+            'idcat' => '',
+            'clave_clues' => $claveClues,
+            'descripcion_clues' => $descripcionClues,
+            'nomina' => self::norm($nomina),
+            'entidad' => self::norm($entidad),
+            'id_clues' => null,
+            'nivel_atencion' => self::norm($nivelAtencion),
+            'nuevas_clues' => '',
+            'clues_completa' => "{$claveClues}-{$descripcionClues}",
+        ]);
+    }
+
+    public static function ensureManualClues(
+        ?string $claveClues,
+        ?string $descripcionClues,
+        ?string $nomina = null,
+        ?string $entidad = null,
+        ?string $nivelAtencion = null
+    ): ?object {
+        $manual = self::manualCluesFromValues($claveClues, $descripcionClues, $nomina, $entidad, $nivelAtencion);
+
+        if (! $manual) {
+            return null;
+        }
+
+        $existing = self::findCluesByClave($manual->clave_clues);
+
+        if ($existing) {
+            return $existing;
+        }
+
+        if (! self::tableExists('public', 'cat_clues_bi')) {
+            return $manual;
+        }
+
+        DB::statement('SELECT pg_advisory_xact_lock(2026092402)');
+
+        $existing = self::findCluesByClave($manual->clave_clues);
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $maxIdCat = DB::table('public.cat_clues_bi')
+            ->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+            ->selectRaw('MAX(BTRIM(idcat)::BIGINT) as max_id')
+            ->value('max_id');
+
+        $idcat = (string) (((int) ($maxIdCat ?? 0)) + 1);
+
+        DB::table('public.cat_clues_bi')->insert([
+            'idcat' => $idcat,
+            'clave_clues' => $manual->clave_clues,
+            'nombre_comercial' => $manual->descripcion_clues,
+            'pais' => 'MEXICO',
+            'zona_pago' => $manual->entidad !== '' ? $manual->entidad : null,
+            'nivel_atencion' => $manual->nivel_atencion !== '' ? $manual->nivel_atencion : null,
+            'clues_completa' => "{$manual->clave_clues}-{$manual->descripcion_clues}",
+            'estatus' => 'NORMAL',
+        ]);
+
+        return self::findCluesByClave($manual->clave_clues) ?: self::manualCluesFromValues(
+            $manual->clave_clues,
+            $manual->descripcion_clues,
+            $manual->nomina,
+            $manual->entidad,
+            $manual->nivel_atencion
+        );
+    }
+
     public static function makeCluesCatalogKey(object $row): string
     {
         return base64_encode(json_encode([
