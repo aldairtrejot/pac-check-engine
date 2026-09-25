@@ -193,6 +193,10 @@ class PacVisibility
             );
 
             if (empty($cluesLabels)) {
+                $cluesLabels = self::lookupCluesLabelsFromBi((int) $user->id_clues);
+            }
+
+            if (empty($cluesLabels)) {
                 $query->whereRaw('1 = 0');
                 return;
             }
@@ -305,6 +309,25 @@ class PacVisibility
         }
 
         return false;
+    }
+
+    public static function isHraesTipoNomina(int $idTipoNomina): bool
+    {
+        if ($idTipoNomina <= 0 || ! self::tableExists('administracion', 'cat_tipo_nomina')) {
+            return false;
+        }
+
+        try {
+            return DB::table('administracion.cat_tipo_nomina')
+                ->where('id_tipo_nomina', $idTipoNomina)
+                ->where(function ($q) {
+                    $q->whereRaw("UPPER(TRIM(COALESCE(codigo, ''))) LIKE '%HRAES%'")
+                        ->orWhereRaw("UPPER(TRIM(COALESCE(nombre, ''))) LIKE '%HRAES%'");
+                })
+                ->exists();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private static function hasAnyRole($user, array $roles): bool
@@ -435,6 +458,51 @@ class PacVisibility
         }
 
         return self::uniqueNormalizedLabels($labels);
+    }
+
+    private static function lookupCluesLabelsFromBi(int $idClues): array
+    {
+        if ($idClues <= 0 || ! self::tableExists('public', 'cat_clues_bi')) {
+            return [];
+        }
+
+        try {
+            $row = DB::table('public.cat_clues_bi')
+                ->select([
+                    'clave_clues',
+                    'nuevas_clues',
+                    'clues_completa',
+                    'nombre_comercial',
+                ])
+                ->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+                ->whereRaw('BTRIM(idcat)::BIGINT = ?', [$idClues])
+                ->first();
+
+            if (! $row) {
+                return [];
+            }
+
+            return self::uniqueNormalizedLabels([
+                $row->clave_clues ?? null,
+                $row->nuevas_clues ?? null,
+                $row->clues_completa ?? null,
+                $row->nombre_comercial ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    private static function tableExists(string $schema, string $table): bool
+    {
+        try {
+            return DB::table('information_schema.tables')
+                ->where('table_schema', $schema)
+                ->where('table_name', $table)
+                ->exists();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private static function uniqueNormalizedLabels(array $labels): array

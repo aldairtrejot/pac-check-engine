@@ -22,11 +22,28 @@ class MiSesionController extends Controller
         | Solo se consulta el usuario autenticado. No se recibe ID por URL para evitar
         | que alguien intente consultar información de otro usuario.
         */
-        $usuario = DB::table('administracion.users as u')
+        $usuarioQuery = DB::table('administracion.users as u')
             ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
             ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
-            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
-            ->where('u.id', $user->id)
+            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues');
+
+        if ($this->tableExists('public', 'cat_clues_bi')) {
+            $usuarioQuery->leftJoin('public.cat_clues_bi as cbi', function ($join) {
+                $join->on(
+                    'u.id_clues',
+                    '=',
+                    DB::raw("
+                        CASE
+                            WHEN BTRIM(COALESCE(cbi.idcat, '')) ~ '^[0-9]+$'
+                            THEN BTRIM(cbi.idcat)::BIGINT
+                            ELSE NULL
+                        END
+                    ")
+                );
+            });
+        }
+
+        $usuarioQuery->where('u.id', $user->id)
             ->select([
                 'u.id',
                 'u.name',
@@ -38,9 +55,21 @@ class MiSesionController extends Controller
 
                 DB::raw("COALESCE(ce.nombre, 'No asignado') as entidad_nombre"),
                 DB::raw("COALESCE(ctn.codigo, 'No asignado') as tipo_nomina_codigo"),
-                DB::raw("COALESCE(cc.clues, 'No asignado') as clues_codigo"),
-            ])
-            ->first();
+            ]);
+
+        if ($this->tableExists('public', 'cat_clues_bi')) {
+            $usuarioQuery->addSelect(DB::raw("
+                COALESCE(
+                    NULLIF(BTRIM(cbi.clave_clues), ''),
+                    NULLIF(BTRIM(cc.clues), ''),
+                    'No asignado'
+                ) as clues_codigo
+            "));
+        } else {
+            $usuarioQuery->addSelect(DB::raw("COALESCE(cc.clues, 'No asignado') as clues_codigo"));
+        }
+
+        $usuario = $usuarioQuery->first();
 
         if (! $usuario) {
             abort(404, 'Usuario no encontrado.');
@@ -67,5 +96,17 @@ class MiSesionController extends Controller
             'usuario' => $usuario,
             'roles'   => $roles,
         ]);
+    }
+
+    private function tableExists(string $schema, string $table): bool
+    {
+        try {
+            return DB::table('information_schema.tables')
+                ->where('table_schema', $schema)
+                ->where('table_name', $table)
+                ->exists();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

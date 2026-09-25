@@ -168,6 +168,7 @@
                     <label class="form-label">Nivel de atención</label>
                     <input
                         type="text"
+                        id="nivel_atencion"
                         name="nivel_atencion"
                         class="form-control @error('nivel_atencion') is-invalid @enderror"
                         value="{{ old('nivel_atencion') }}"

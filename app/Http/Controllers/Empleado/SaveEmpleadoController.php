@@ -211,6 +211,12 @@ class SaveEmpleadoController extends Controller
                     ? EmpleadoCatalogs::norm($validated['entidad'])
                     : ($datosBase->entidad ?? null));
 
+            $nivelAtencion = !empty($validated['nivel_atencion'])
+                ? $validated['nivel_atencion']
+                : (($cluesCatalogo->nivel_atencion ?? '') !== ''
+                    ? $cluesCatalogo->nivel_atencion
+                    : ($datosBase->nivel_atencion ?? null));
+
             // 5) Datos para plantilla: public.a2_acciones_capacitacion
             $insertCap = [
                 'id_cat'            => (int) $nextIdCat,
@@ -252,9 +258,7 @@ class SaveEmpleadoController extends Controller
                                         ? strtoupper(trim($validated['apellido_materno']))
                                         : null,
 
-                'nivel_atencion'    => !empty($validated['nivel_atencion'])
-                                        ? $validated['nivel_atencion']
-                                        : ($datosBase->nivel_atencion ?? null),
+                'nivel_atencion'    => $nivelAtencion,
 
                 'entidad'           => $entidad,
                 'val_plantilla'     => $validated['val_plantilla'],

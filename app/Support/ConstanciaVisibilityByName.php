@@ -109,17 +109,46 @@ class ConstanciaVisibilityByName
             return $empty;
         }
 
-        $userRow = DB::table('administracion.users as u')
+        $userQuery = DB::table('administracion.users as u')
             ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
             ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
-            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
-            ->where('u.id', $userId)
+            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues');
+
+        if (self::tableExists('public', 'cat_clues_bi')) {
+            $userQuery->leftJoin('public.cat_clues_bi as cbi', function ($join) {
+                $join->on(
+                    'u.id_clues',
+                    '=',
+                    DB::raw("
+                        CASE
+                            WHEN BTRIM(COALESCE(cbi.idcat, '')) ~ '^[0-9]+$'
+                            THEN BTRIM(cbi.idcat)::BIGINT
+                            ELSE NULL
+                        END
+                    ")
+                );
+            });
+        }
+
+        $userQuery->where('u.id', $userId)
             ->select([
                 DB::raw("COALESCE(ce.nombre, '') as entidad_nombre"),
                 DB::raw("COALESCE(ctn.codigo, '') as tipo_nomina_codigo"),
-                DB::raw("COALESCE(cc.clues, '') as clues_codigo"),
-            ])
-            ->first();
+            ]);
+
+        if (self::tableExists('public', 'cat_clues_bi')) {
+            $userQuery->addSelect(DB::raw("
+                COALESCE(
+                    NULLIF(BTRIM(cbi.clave_clues), ''),
+                    NULLIF(BTRIM(cc.clues), ''),
+                    ''
+                ) as clues_codigo
+            "));
+        } else {
+            $userQuery->addSelect(DB::raw("COALESCE(cc.clues, '') as clues_codigo"));
+        }
+
+        $userRow = $userQuery->first();
 
         if (! $userRow) {
             return $empty;
@@ -165,5 +194,17 @@ class ConstanciaVisibilityByName
     private static function norm($value): string
     {
         return mb_strtoupper(trim((string) $value), 'UTF-8');
+    }
+
+    private static function tableExists(string $schema, string $table): bool
+    {
+        try {
+            return DB::table('information_schema.tables')
+                ->where('table_schema', $schema)
+                ->where('table_name', $table)
+                ->exists();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

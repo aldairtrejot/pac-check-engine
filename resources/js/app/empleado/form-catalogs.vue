@@ -270,6 +270,7 @@ watch(selectedClues, (value) => {
   errors.clues = ''
   setExternalField('nomina', value.nomina)
   setExternalField('entidad', value.entidad)
+  setExternalField('nivel_atencion', value.nivel_atencion)
 })
 
 watch(selectedValPlantilla, (value) => {
@@ -682,8 +683,8 @@ function validateCatalogs(event) {
 function setExternalField(id, value) {
   const element = document.getElementById(id)
 
-  if (element && asString(value) !== '') {
-    element.value = value
+  if (element) {
+    element.value = asString(value).toUpperCase()
   }
 }
 

@@ -8,11 +8,14 @@ use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AdminUsersController extends Controller
 {
     private const MAX_LIMIT = 50;
+    private static ?bool $catCluesBiAvailable = null;
+    private static array $tableExistsCache = [];
 
     public function index()
     {
@@ -21,13 +24,30 @@ class AdminUsersController extends Controller
 
     public function options()
     {
-        return response()->json([
-            'status' => true,
-            'roles' => $this->rolesOptions(),
-            'entidades' => $this->entidadesOptions(),
-            'tipos_nomina' => $this->tiposNominaOptions(),
-            'clues' => $this->cluesOptions(),
-        ]);
+        try {
+            return response()->json([
+                'status' => true,
+                'roles' => $this->rolesOptions(),
+                'entidades' => $this->entidadesOptions(),
+                'tipos_nomina' => $this->tiposNominaOptions(),
+                'clues' => $this->cluesOptions(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Error al cargar opciones de usuarios', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudieron cargar los catalogos de usuarios.',
+                'roles' => [],
+                'entidades' => [],
+                'tipos_nomina' => [],
+                'clues' => [],
+            ], 500);
+        }
     }
 
     public function table(Request $request)
@@ -63,8 +83,25 @@ class AdminUsersController extends Controller
         $q = DB::table('administracion.users as u')
             ->leftJoin($roleAgg, 'rr.user_id', '=', 'u.id')
             ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
-            ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
-            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
+            ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina');
+
+        if ($this->catCluesBiAvailable()) {
+            $q->leftJoin('public.cat_clues_bi as cbi', function ($join) {
+                $join->on(
+                    'u.id_clues',
+                    '=',
+                    DB::raw("
+                        CASE
+                            WHEN BTRIM(COALESCE(cbi.idcat, '')) ~ '^[0-9]+$'
+                            THEN BTRIM(cbi.idcat)::BIGINT
+                            ELSE NULL
+                        END
+                    ")
+                );
+            });
+        }
+
+        $q->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
             ->select([
                 'u.id',
                 'u.name',
@@ -80,8 +117,19 @@ class AdminUsersController extends Controller
                 DB::raw("COALESCE(ce.nombre, '') AS entidad_nombre"),
                 DB::raw("COALESCE(ctn.codigo, '') AS tipo_nomina_codigo"),
                 DB::raw("COALESCE(ctn.nombre, '') AS tipo_nomina_nombre"),
-                DB::raw("COALESCE(cc.clues, '') AS clues_codigo"),
             ]);
+
+        if ($this->catCluesBiAvailable()) {
+            $q->addSelect(DB::raw("
+                COALESCE(
+                    NULLIF(BTRIM(cbi.clave_clues), ''),
+                    NULLIF(BTRIM(cc.clues), ''),
+                    ''
+                ) AS clues_codigo
+            "));
+        } else {
+            $q->addSelect(DB::raw("COALESCE(cc.clues, '') AS clues_codigo"));
+        }
 
         if ($search !== '') {
             $q->where(function ($w) use ($search) {
@@ -92,6 +140,12 @@ class AdminUsersController extends Controller
                     ->orWhere('ctn.codigo', 'ILIKE', "%{$search}%")
                     ->orWhere('ctn.nombre', 'ILIKE', "%{$search}%")
                     ->orWhere('cc.clues', 'ILIKE', "%{$search}%");
+
+                if ($this->catCluesBiAvailable()) {
+                    $w->orWhere('cbi.clave_clues', 'ILIKE', "%{$search}%")
+                        ->orWhere('cbi.nombre_comercial', 'ILIKE', "%{$search}%")
+                        ->orWhere('cbi.zona_pago', 'ILIKE', "%{$search}%");
+                }
             });
         }
 
@@ -122,6 +176,7 @@ class AdminUsersController extends Controller
             });
         }
 
+        try {
         $allRow = (clone $q)->count();
 
         $list = $q->orderByDesc('u.id')
@@ -157,12 +212,29 @@ class AdminUsersController extends Controller
             'allRow' => $allRow,
             'row' => $list->count(),
         ]);
+        } catch (\Throwable $e) {
+            Log::error('Error al cargar tabla de usuarios', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudo cargar la tabla de usuarios.',
+                'list' => [],
+                'allRow' => 0,
+                'row' => 0,
+            ], 500);
+        }
     }
 
     public function save(Request $request)
     {
-        $data = $this->validateUserPayload($request, null, passwordRequired: true);
-        $roleIds = $this->normalizeRoleIds($data['role_ids'] ?? []);
+        try {
+            $data = $this->validateUserPayload($request, null, passwordRequired: true);
+            $roleIds = $this->normalizeRoleIds($data['role_ids'] ?? []);
+            $this->assertRoleIdsExist($roleIds);
 
         $user = DB::transaction(function () use ($data, $roleIds) {
             $user = User::create([
@@ -175,7 +247,7 @@ class AdminUsersController extends Controller
                 'id_clues' => $data['id_clues'] ?? null,
             ]);
 
-            $user->roles()->sync($roleIds);
+            $this->syncUserRoles((int) $user->id, $roleIds);
 
             return $user->fresh(['roles']);
         });
@@ -194,16 +266,32 @@ class AdminUsersController extends Controller
             'status' => true,
             'message' => 'Usuario creado correctamente.',
         ]);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Error al crear usuario', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudo crear el usuario. Revisa los datos e intenta nuevamente.',
+            ], 500);
+        }
     }
 
     public function update(Request $request)
     {
+        try {
         $id = (int) $request->input('id');
         $user = User::with('roles')->findOrFail($id);
         $old = $this->userSnapshot($user);
 
-        $data = $this->validateUserPayload($request, $user->id, passwordRequired: false);
-        $roleIds = $this->normalizeRoleIds($data['role_ids'] ?? []);
+            $data = $this->validateUserPayload($request, $user->id, passwordRequired: false);
+            $roleIds = $this->normalizeRoleIds($data['role_ids'] ?? []);
+            $this->assertRoleIdsExist($roleIds);
 
         if ((int) auth()->id() === $user->id && isset($data['status']) && (int) $data['status'] === 0) {
             return response()->json([
@@ -227,7 +315,7 @@ class AdminUsersController extends Controller
             }
 
             $user->update($update);
-            $user->roles()->sync($roleIds);
+            $this->syncUserRoles((int) $user->id, $roleIds);
         });
 
         $user = $user->fresh(['roles']);
@@ -246,12 +334,26 @@ class AdminUsersController extends Controller
             'status' => true,
             'message' => 'Usuario actualizado correctamente.',
         ]);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Error al actualizar usuario', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'No se pudo actualizar el usuario. Revisa los datos e intenta nuevamente.',
+            ], 500);
+        }
     }
 
     public function toggleStatus(Request $request)
     {
         $data = $request->validate([
-            'id' => ['required', 'integer', Rule::exists('administracion.users', 'id')],
+            'id' => ['required', 'integer', $this->existingUserRule()],
             'status' => ['required', 'in:0,1'],
         ]);
 
@@ -290,7 +392,7 @@ class AdminUsersController extends Controller
     public function delete(Request $request)
     {
         $data = $request->validate([
-            'id' => ['required', 'integer', Rule::exists('administracion.users', 'id')],
+            'id' => ['required', 'integer', $this->existingUserRule()],
         ]);
 
         if ((int) auth()->id() === (int) $data['id']) {
@@ -318,15 +420,15 @@ class AdminUsersController extends Controller
                 'required',
                 'email',
                 'max:190',
-                Rule::unique('administracion.users', 'email')->ignore($userId),
+                $this->uniqueEmailRule($userId),
             ],
             'password' => $passwordRules,
             'status' => ['required', 'in:0,1'],
             'role_ids' => ['required', 'array', 'min:1'],
-            'role_ids.*' => ['required', 'integer', Rule::exists('administracion.roles', 'id')],
-            'id_entidad' => ['nullable', 'integer'],
-            'id_tipo_nomina' => ['nullable', 'integer'],
-            'id_clues' => ['nullable', 'integer'],
+            'role_ids.*' => ['required', 'integer', 'min:1', 'max:32767', $this->existingRoleRule()],
+            'id_entidad' => ['nullable', 'integer', $this->existingCatalogIdRule('administracion.cat_entidad', 'id_entidad', 'La entidad seleccionada no existe.')],
+            'id_tipo_nomina' => ['nullable', 'integer', $this->existingCatalogIdRule('administracion.cat_tipo_nomina', 'id_tipo_nomina', 'El tipo de nomina seleccionado no existe.')],
+            'id_clues' => ['nullable', 'integer', $this->existingCluesRule()],
         ]);
     }
 
@@ -406,6 +508,69 @@ class AdminUsersController extends Controller
     private function cluesOptions(): array
     {
         try {
+            if ($this->catCluesBiAvailable()) {
+                $hasCatClues = $this->tableExists('administracion', 'cat_clues');
+                $query = DB::table('public.cat_clues_bi as cbi');
+
+                if ($hasCatClues) {
+                    $query->leftJoin('administracion.cat_clues as cc', function ($join) {
+                        $join->on(
+                            DB::raw('UPPER(BTRIM(cc.clues))'),
+                            '=',
+                            DB::raw('UPPER(BTRIM(cbi.clave_clues))')
+                        )->where('cc.activo', true);
+                    });
+                }
+
+                $idExpr = $hasCatClues
+                    ? 'COALESCE(MAX(cc.id_clues), BTRIM(cbi.idcat)::BIGINT)'
+                    : 'BTRIM(cbi.idcat)::BIGINT';
+
+                $source = $query
+                    ->whereNotNull('idcat')
+                    ->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+                    ->whereNotNull('clave_clues')
+                    ->whereRaw("BTRIM(COALESCE(clave_clues, '')) <> ''")
+                    ->selectRaw("{$idExpr} as id")
+                    ->selectRaw("UPPER(BTRIM(cbi.clave_clues)) as clues")
+                    ->selectRaw("
+                        TRIM(CONCAT_WS(
+                            ' - ',
+                            NULLIF(UPPER(BTRIM(cbi.clave_clues)), ''),
+                            NULLIF(UPPER(BTRIM(COALESCE(cbi.nombre_comercial, cbi.nombre_comercial_equivalencia, cbi.clues_completa, ''))), '')
+                        )) as descripcion
+                    ")
+                    ->selectRaw("UPPER(BTRIM(COALESCE(cbi.zona_pago, ''))) as entidad")
+                    ->groupByRaw("
+                        BTRIM(cbi.idcat)::BIGINT,
+                        UPPER(BTRIM(cbi.clave_clues)),
+                        TRIM(CONCAT_WS(
+                            ' - ',
+                            NULLIF(UPPER(BTRIM(cbi.clave_clues)), ''),
+                            NULLIF(UPPER(BTRIM(COALESCE(cbi.nombre_comercial, cbi.nombre_comercial_equivalencia, cbi.clues_completa, ''))), '')
+                        )),
+                        UPPER(BTRIM(COALESCE(cbi.zona_pago, '')))
+                    ");
+
+                return DB::query()
+                    ->fromSub($source, 'clues_bi')
+                    ->selectRaw('id')
+                    ->selectRaw('MIN(clues) as clues')
+                    ->selectRaw('MIN(descripcion) as descripcion')
+                    ->selectRaw('MIN(entidad) as entidad')
+                    ->groupBy('id')
+                    ->orderBy('clues')
+                    ->limit(5000)
+                    ->get()
+                    ->map(fn ($row) => [
+                        'id' => (int) $row->id,
+                        'clues' => (string) $row->clues,
+                        'descripcion' => trim((string) $row->descripcion) ?: (string) $row->clues,
+                        'entidad' => (string) $row->entidad,
+                    ])
+                    ->all();
+            }
+
             return DB::table('administracion.cat_clues')
                 ->select([
                     'id_clues as id',
@@ -485,5 +650,198 @@ class AdminUsersController extends Controller
             ->all();
 
         return in_array('ADMIN_OC', $codes, true) || in_array('ADMIN', $codes, true);
+    }
+
+    private function syncUserRoles(int $userId, array $roleIds): void
+    {
+        DB::table('administracion.user_roles')
+            ->where('user_id', $userId)
+            ->delete();
+
+        $rows = collect($roleIds)
+            ->unique()
+            ->map(fn ($roleId) => [
+                'user_id' => $userId,
+                'role_id' => (int) $roleId,
+            ])
+            ->values()
+            ->all();
+
+        if (! empty($rows)) {
+            DB::table('administracion.user_roles')->insert($rows);
+        }
+    }
+
+    private function assertRoleIdsExist(array $roleIds): void
+    {
+        $roleIds = collect($roleIds)
+            ->filter(fn ($roleId) => is_numeric($roleId))
+            ->map(fn ($roleId) => (int) $roleId)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($roleIds) || collect($roleIds)->contains(fn ($roleId) => $roleId < 1 || $roleId > 32767)) {
+            throw ValidationException::withMessages([
+                'role_ids' => 'Selecciona roles validos.',
+            ]);
+        }
+
+        $existing = DB::table('administracion.roles')
+            ->whereIn('id', $roleIds)
+            ->where('is_active', true)
+            ->pluck('id')
+            ->map(fn ($roleId) => (int) $roleId)
+            ->all();
+
+        if (count($existing) !== count($roleIds)) {
+            throw ValidationException::withMessages([
+                'role_ids' => 'Uno o mas roles seleccionados no existen o no estan activos.',
+            ]);
+        }
+    }
+
+    private function uniqueEmailRule(?int $ignoreUserId): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) use ($ignoreUserId): void {
+            $email = mb_strtolower(trim((string) $value), 'UTF-8');
+
+            if ($email === '') {
+                return;
+            }
+
+            $exists = DB::table('administracion.users')
+                ->whereRaw('LOWER(BTRIM(email)) = ?', [$email])
+                ->when($ignoreUserId, fn ($q) => $q->where('id', '<>', $ignoreUserId))
+                ->exists();
+
+            if ($exists) {
+                $fail('El correo ya se encuentra registrado.');
+            }
+        };
+    }
+
+    private function existingRoleRule(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail): void {
+            if ($value === null || $value === '' || ! is_numeric($value)) {
+                return;
+            }
+
+            $roleId = (int) $value;
+
+            if ($roleId < 1 || $roleId > 32767) {
+                $fail('El rol seleccionado no existe o no esta activo.');
+                return;
+            }
+
+            $exists = DB::table('administracion.roles')
+                ->where('id', $roleId)
+                ->where('is_active', true)
+                ->exists();
+
+            if (! $exists) {
+                $fail('El rol seleccionado no existe o no esta activo.');
+            }
+        };
+    }
+
+    private function existingUserRule(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail): void {
+            if ($value === null || $value === '' || ! is_numeric($value)) {
+                return;
+            }
+
+            if (! DB::table('administracion.users')->where('id', (int) $value)->exists()) {
+                $fail('El usuario seleccionado no existe.');
+            }
+        };
+    }
+
+    private function existingCatalogIdRule(string $table, string $column, string $message): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) use ($table, $column, $message): void {
+            if ($value === null || $value === '' || ! is_numeric($value)) {
+                return;
+            }
+
+            if (! DB::table($table)->where($column, (int) $value)->exists()) {
+                $fail($message);
+            }
+        };
+    }
+
+    private function existingCluesRule(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail): void {
+            if ($value === null || $value === '' || ! is_numeric($value)) {
+                return;
+            }
+
+            if (! $this->cluesIdExists((int) $value)) {
+                $fail('La CLUES seleccionada no existe en el catalogo.');
+            }
+        };
+    }
+
+    private function cluesIdExists(int $idClues): bool
+    {
+        if ($idClues <= 0) {
+            return false;
+        }
+
+        if ($this->tableExists('administracion', 'cat_clues')
+            && DB::table('administracion.cat_clues')->where('id_clues', $idClues)->exists()) {
+            return true;
+        }
+
+        if ($this->catCluesBiAvailable()) {
+            return DB::table('public.cat_clues_bi')
+                ->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+                ->whereRaw('BTRIM(idcat)::BIGINT = ?', [$idClues])
+                ->exists();
+        }
+
+        return false;
+    }
+
+    private function catCluesBiAvailable(): bool
+    {
+        if (self::$catCluesBiAvailable !== null) {
+            return self::$catCluesBiAvailable;
+        }
+
+        try {
+            self::$catCluesBiAvailable = $this->tableExists('public', 'cat_clues_bi')
+                && DB::table('public.cat_clues_bi')
+                    ->whereNotNull('idcat')
+                    ->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+                    ->whereNotNull('clave_clues')
+                    ->whereRaw("BTRIM(COALESCE(clave_clues, '')) <> ''")
+                    ->exists();
+        } catch (\Throwable $e) {
+            self::$catCluesBiAvailable = false;
+        }
+
+        return self::$catCluesBiAvailable;
+    }
+
+    private function tableExists(string $schema, string $table): bool
+    {
+        $key = "{$schema}.{$table}";
+
+        if (! array_key_exists($key, self::$tableExistsCache)) {
+            try {
+                self::$tableExistsCache[$key] = DB::table('information_schema.tables')
+                    ->where('table_schema', $schema)
+                    ->where('table_name', $table)
+                    ->exists();
+            } catch (\Throwable $e) {
+                self::$tableExistsCache[$key] = false;
+            }
+        }
+
+        return self::$tableExistsCache[$key];
     }
 }

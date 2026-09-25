@@ -2,11 +2,13 @@
 export function handleErrors(errors) {
     // Loop through each error in the 'errors' object
     for (let field in errors) {
+        const baseField = field.includes('.') ? field.split('.')[0] : field;
+
         // Get the error element by its ID, matching the field name (e.g., #error-fieldName)
-        const errorElement = document.querySelector(`#error-${field}`);
+        const errorElement = document.querySelector(`#error-${field}`) || document.querySelector(`#error-${baseField}`);
 
         // Get the corresponding input field by its 'name' attribute
-        const inputElement = document.querySelector(`[name="${field}"]`);
+        const inputElement = document.querySelector(`[name="${field}"]`) || document.querySelector(`[name="${baseField}"]`);
 
         // If an error element exists for this field, display the error message
         if (errorElement) {

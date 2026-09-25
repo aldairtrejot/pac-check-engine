@@ -353,6 +353,58 @@ class ConstanciaVisibility
             }
         }
 
+        if (self::tableExists('public', 'cat_clues_bi')) {
+            $cluesIds   = self::uniqueInts($cluesIds);
+            $cluesCodes = self::uniqueUpperStrings($cluesCodes);
+
+            try {
+                $biQuery = DB::table('public.cat_clues_bi')
+                    ->select('idcat', 'clave_clues', 'nuevas_clues');
+
+                $hasAnyBiCriteria = false;
+
+                $biQuery->where(function ($q) use ($cluesIds, $cluesCodes, &$hasAnyBiCriteria) {
+                    if (! empty($cluesIds)) {
+                        $q->orWhere(function ($byId) use ($cluesIds) {
+                            $placeholders = implode(',', array_fill(0, count($cluesIds), '?'));
+
+                            $byId->whereRaw("BTRIM(COALESCE(idcat, '')) ~ '^[0-9]+$'")
+                                ->whereRaw("BTRIM(idcat)::BIGINT IN ({$placeholders})", $cluesIds);
+                        });
+
+                        $hasAnyBiCriteria = true;
+                    }
+
+                    if (! empty($cluesCodes)) {
+                        foreach ($cluesCodes as $code) {
+                            $q->orWhereRaw('UPPER(TRIM(clave_clues)) = ?', [$code])
+                                ->orWhereRaw("UPPER(TRIM(COALESCE(nuevas_clues, ''))) = ?", [$code]);
+                        }
+
+                        $hasAnyBiCriteria = true;
+                    }
+                });
+
+                if ($hasAnyBiCriteria) {
+                    foreach ($biQuery->get() as $row) {
+                        if (! empty($row->idcat) && is_numeric($row->idcat)) {
+                            $cluesIds[] = (int) $row->idcat;
+                        }
+
+                        if (! empty($row->clave_clues)) {
+                            $cluesCodes[] = mb_strtoupper(trim((string) $row->clave_clues), 'UTF-8');
+                        }
+
+                        if (! empty($row->nuevas_clues)) {
+                            $cluesCodes[] = mb_strtoupper(trim((string) $row->nuevas_clues), 'UTF-8');
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Si el catalogo BI no responde, conservamos el alcance resuelto por los catalogos existentes.
+            }
+        }
+
         $entidadIds = self::uniqueInts($entidadIds);
         $nominaIds  = self::uniqueInts($nominaIds);
         $cluesIds   = self::uniqueInts($cluesIds);
