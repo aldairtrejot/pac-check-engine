@@ -31,6 +31,7 @@ class User extends Authenticatable
         'id_entidad',
         'id_tipo_nomina',
         'id_clues',
+        'id_adscripcion_scope',
     ];
 
     protected $hidden = [
@@ -45,6 +46,7 @@ class User extends Authenticatable
         'id_entidad' => 'integer',
         'id_tipo_nomina' => 'integer',
         'id_clues' => 'integer',
+        'id_adscripcion_scope' => 'integer',
     ];
 
     public function roles(): BelongsToMany

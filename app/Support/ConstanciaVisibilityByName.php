@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 class ConstanciaVisibilityByName
 {
+    private static array $columnsCache = [];
+
     /**
      * CLUES que solo puede ver ADMIN_OC.
      */
@@ -34,6 +36,12 @@ class ConstanciaVisibilityByName
 
         // ✅ ADMINISTRADOR VE TODO
         if ($scope['is_admin_global']) {
+            $idAdscripcionScope = (int) ($scope['id_adscripcion_scope'] ?? 0);
+
+            if ($idAdscripcionScope > 0) {
+                self::applyAdminAdscripcionScope($query, $idAdscripcionScope, $constAlias);
+            }
+
             return;
         }
 
@@ -93,6 +101,50 @@ class ConstanciaVisibilityByName
         );
     }
 
+    private static function applyAdminAdscripcionScope(
+        Builder $query,
+        int $idAdscripcionScope,
+        string $constAlias = 'c'
+    ): void {
+        if ($idAdscripcionScope <= 0) {
+            return;
+        }
+
+        if (self::columnExists('public', 'tbl_constancias', 'id_adscripcion')) {
+            $query->where("{$constAlias}.id_adscripcion", '=', $idAdscripcionScope);
+            return;
+        }
+
+        if (
+            ! self::columnExists('public', 'tbl_constancias', 'id_puesto')
+            || ! self::columnExists('public', 'tbl_constancias', 'curp')
+            || ! self::columnExists('public', 'a2_acciones_capacitacion', 'id_puesto')
+            || ! self::columnExists('public', 'a2_acciones_capacitacion', 'curp')
+            || ! self::columnExists('public', 'a2_acciones_capacitacion', 'num_cursos')
+        ) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->whereExists(function ($exists) use ($idAdscripcionScope, $constAlias) {
+            $exists->select(DB::raw(1))
+                ->from('public.a2_acciones_capacitacion as cap_scope')
+                ->whereRaw("
+                    cap_scope.id_puesto =
+                    CASE
+                        WHEN BTRIM(COALESCE({$constAlias}.id_puesto::text, '')) ~ '^[0-9]+$'
+                        THEN BTRIM({$constAlias}.id_puesto::text)::INTEGER
+                        ELSE NULL
+                    END
+                ")
+                ->whereRaw("
+                    UPPER(BTRIM(COALESCE(cap_scope.curp::text, ''))) =
+                    UPPER(BTRIM(COALESCE({$constAlias}.curp::text, '')))
+                ")
+                ->where('cap_scope.num_cursos', $idAdscripcionScope);
+        });
+    }
+
     public static function resolveScope(int $userId): array
     {
         $empty = [
@@ -102,6 +154,7 @@ class ConstanciaVisibilityByName
             'entidad'         => '',
             'tipo_nomina'     => '',
             'clues'           => '',
+            'id_adscripcion_scope' => null,
             'requires_clues'  => false,
         ];
 
@@ -136,6 +189,12 @@ class ConstanciaVisibilityByName
                 DB::raw("COALESCE(ctn.codigo, '') as tipo_nomina_codigo"),
             ]);
 
+        if (self::columnExists('administracion', 'users', 'id_adscripcion_scope')) {
+            $userQuery->addSelect('u.id_adscripcion_scope');
+        } else {
+            $userQuery->addSelect(DB::raw('NULL::INTEGER as id_adscripcion_scope'));
+        }
+
         if (self::tableExists('public', 'cat_clues_bi')) {
             $userQuery->addSelect(DB::raw("
                 COALESCE(
@@ -166,13 +225,14 @@ class ConstanciaVisibilityByName
 
         $allowedRoles = [
             'ADMIN_OC',
+            'ADMIN',
             'SUPERVISOR_OC',
             'REVISOR_EST',
             'SUPERVISOR_EST',
         ];
 
         $isAllowedRole = count(array_intersect($roles, $allowedRoles)) > 0;
-        $isAdminGlobal = in_array('ADMIN_OC', $roles, true);
+        $isAdminGlobal = in_array('ADMIN_OC', $roles, true) || in_array('ADMIN', $roles, true);
 
         $entidad = self::norm($userRow->entidad_nombre ?? '');
         $tipoNomina = self::norm($userRow->tipo_nomina_codigo ?? '');
@@ -187,6 +247,9 @@ class ConstanciaVisibilityByName
             'entidad'         => $entidad,
             'tipo_nomina'     => $tipoNomina,
             'clues'           => $clues,
+            'id_adscripcion_scope' => ! empty($userRow->id_adscripcion_scope)
+                ? (int) $userRow->id_adscripcion_scope
+                : null,
             'requires_clues'  => $requiresClues,
         ];
     }
@@ -206,5 +269,31 @@ class ConstanciaVisibilityByName
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    private static function columnExists(string $schema, string $table, string $column): bool
+    {
+        return in_array($column, self::columnsFor($schema, $table), true);
+    }
+
+    private static function columnsFor(string $schema, string $table): array
+    {
+        $key = $schema . '.' . $table;
+
+        if (! isset(self::$columnsCache[$key])) {
+            try {
+                self::$columnsCache[$key] = DB::table('information_schema.columns')
+                    ->where('table_schema', $schema)
+                    ->where('table_name', $table)
+                    ->orderBy('ordinal_position')
+                    ->pluck('column_name')
+                    ->map(fn ($column) => (string) $column)
+                    ->all();
+            } catch (\Throwable $e) {
+                self::$columnsCache[$key] = [];
+            }
+        }
+
+        return self::$columnsCache[$key];
     }
 }

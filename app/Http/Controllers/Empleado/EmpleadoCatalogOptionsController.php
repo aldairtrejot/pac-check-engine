@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Empleado;
 use App\Http\Controllers\Controller;
 use App\Support\AdscripcionCatalogs;
 use App\Support\EmpleadoCatalogs;
+use App\Support\PacVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -53,7 +54,24 @@ class EmpleadoCatalogOptionsController extends Controller
     public function adscripciones(Request $request)
     {
         try {
+            $idAdscripcionScope = PacVisibility::adminAdscripcionScope(auth()->user());
             $idAdscripcion = (int) $request->query('id_adscripcion', 0);
+
+            if ($idAdscripcionScope !== null) {
+                if ($idAdscripcion > 0 && $idAdscripcion !== $idAdscripcionScope) {
+                    return response()->json([
+                        'status' => true,
+                        'options' => [],
+                    ]);
+                }
+
+                $adscripcion = AdscripcionCatalogs::findById($idAdscripcionScope);
+
+                return response()->json([
+                    'status' => true,
+                    'options' => $adscripcion ? [$adscripcion] : [],
+                ]);
+            }
 
             if ($idAdscripcion > 0) {
                 $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);

@@ -37,9 +37,9 @@ class ConstanciasFilterOptionsController extends Controller
         return response()->json([
             'status'       => true,
             'is_admin'     => $isAdmin,
-            'entidades'    => $isAdmin ? $this->entidadOptions() : [],
-            'tipos_nomina' => $isAdmin ? $this->tipoNominaOptions() : [],
-            'clues'        => $isAdmin ? $this->cluesOptions($entidad) : [],
+            'entidades'    => $isAdmin ? $this->entidadOptions($user) : [],
+            'tipos_nomina' => $isAdmin ? $this->tipoNominaOptions($user) : [],
+            'clues'        => $isAdmin ? $this->cluesOptions($entidad, $user) : [],
             'validaciones' => $this->validacionOptions($user),
         ]);
     }
@@ -73,14 +73,11 @@ class ConstanciasFilterOptionsController extends Controller
             ->all();
     }
 
-    private function entidadOptions(): array
+    private function entidadOptions($user): array
     {
-        return DB::table('public.tbl_constancias as c')
+        return $this->baseVisibleConstanciasQuery($user)
             ->whereNotNull('c.entidad')
             ->whereRaw("BTRIM(COALESCE(c.entidad::text, '')) <> ''")
-            ->whereNotNull('c.id_puesto')
-            ->whereRaw("BTRIM(COALESCE(c.id_puesto::text, '')) <> ''")
-            ->whereNotNull('c.estatus')
             ->selectRaw("UPPER(BTRIM(c.entidad::text)) AS value")
             ->selectRaw("UPPER(BTRIM(c.entidad::text)) AS label")
             ->groupByRaw("UPPER(BTRIM(c.entidad::text))")
@@ -93,9 +90,9 @@ class ConstanciasFilterOptionsController extends Controller
             ->all();
     }
 
-    private function tipoNominaOptions(): array
+    private function tipoNominaOptions($user): array
     {
-        return DB::table('public.tbl_constancias as c')
+        return $this->baseVisibleConstanciasQuery($user)
             ->leftJoin(
                 'administracion.cat_tipo_nomina as ctn',
                 DB::raw("UPPER(BTRIM(c.tipo_nomina::text))"),
@@ -104,9 +101,6 @@ class ConstanciasFilterOptionsController extends Controller
             )
             ->whereNotNull('c.tipo_nomina')
             ->whereRaw("BTRIM(COALESCE(c.tipo_nomina::text, '')) <> ''")
-            ->whereNotNull('c.id_puesto')
-            ->whereRaw("BTRIM(COALESCE(c.id_puesto::text, '')) <> ''")
-            ->whereNotNull('c.estatus')
             ->selectRaw("UPPER(BTRIM(c.tipo_nomina::text)) AS value")
             ->selectRaw("
                 COALESCE(
@@ -124,9 +118,9 @@ class ConstanciasFilterOptionsController extends Controller
             ->all();
     }
 
-    private function cluesOptions(string $entidad = ''): array
+    private function cluesOptions(string $entidad = '', $user = null): array
     {
-        $query = DB::table('public.tbl_constancias as c')
+        $query = $this->baseVisibleConstanciasQuery($user)
             ->leftJoin(
                 'administracion.cat_clues as cc',
                 DB::raw("UPPER(BTRIM(c.clues::text))"),
@@ -134,10 +128,7 @@ class ConstanciasFilterOptionsController extends Controller
                 DB::raw("UPPER(BTRIM(cc.clues::text))")
             )
             ->whereNotNull('c.clues')
-            ->whereRaw("BTRIM(COALESCE(c.clues::text, '')) <> ''")
-            ->whereNotNull('c.id_puesto')
-            ->whereRaw("BTRIM(COALESCE(c.id_puesto::text, '')) <> ''")
-            ->whereNotNull('c.estatus');
+            ->whereRaw("BTRIM(COALESCE(c.clues::text, '')) <> ''");
 
         if ($entidad !== '') {
             $query->whereRaw(

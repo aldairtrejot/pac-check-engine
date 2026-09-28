@@ -67,6 +67,18 @@
         </option>
       </select>
 
+      <select
+        v-if="supportsAdscripcionScope"
+        v-model="filters.id_adscripcion_scope"
+        class="form-select users-filter-select"
+        @change="applyFilters"
+      >
+        <option value="">Adscripción admin</option>
+        <option v-for="adscripcion in adscripciones" :key="adscripcion.id" :value="adscripcion.id">
+          {{ adscripcion.descripcion }}
+        </option>
+      </select>
+
       <button
         type="button"
         class="btn btn-sm users-icon-action"
@@ -151,6 +163,10 @@
               <div class="users-scope-line">
                 <i class="fa fa-hospital"></i>
                 <span>{{ row.clues_codigo || 'Sin CLUES' }}</span>
+              </div>
+              <div v-if="supportsAdscripcionScope" class="users-scope-line">
+                <i class="fa fa-sitemap"></i>
+                <span>{{ row.adscripcion_scope_label || 'Sin restricción admin' }}</span>
               </div>
             </td>
 
@@ -325,6 +341,24 @@
                   </select>
                   <div id="error-id_clues" class="text-danger text-error mt-1"></div>
                 </div>
+
+                <div v-if="supportsAdscripcionScope" class="col-12">
+                  <div class="users-section-title">
+                    <i class="fa fa-sitemap"></i>
+                    <span>Alcance administrador</span>
+                  </div>
+                </div>
+
+                <div v-if="supportsAdscripcionScope" class="col-12">
+                  <label class="form-label">Adscripción admin</label>
+                  <select v-model="form.id_adscripcion_scope" name="id_adscripcion_scope" class="form-select">
+                    <option value="">Sin restricción</option>
+                    <option v-for="adscripcion in adscripciones" :key="adscripcion.id" :value="adscripcion.id">
+                      {{ adscripcion.descripcion }}
+                    </option>
+                  </select>
+                  <div id="error-id_adscripcion_scope" class="text-danger text-error mt-1"></div>
+                </div>
               </div>
             </form>
           </div>
@@ -373,6 +407,8 @@ const roles = ref([])
 const entidades = ref([])
 const tiposNomina = ref([])
 const clues = ref([])
+const adscripciones = ref([])
+const supportsAdscripcionScope = ref(false)
 
 const filters = reactive({
   status: '',
@@ -380,6 +416,7 @@ const filters = reactive({
   id_entidad: '',
   id_tipo_nomina: '',
   id_clues: '',
+  id_adscripcion_scope: '',
 })
 
 const blankForm = () => ({
@@ -393,6 +430,7 @@ const blankForm = () => ({
   id_entidad: '',
   id_tipo_nomina: '',
   id_clues: '',
+  id_adscripcion_scope: '',
 })
 
 const form = reactive(blankForm())
@@ -422,6 +460,8 @@ async function fetchOptions() {
     entidades.value = data.entidades || []
     tiposNomina.value = data.tipos_nomina || []
     clues.value = data.clues || []
+    adscripciones.value = data.adscripciones || []
+    supportsAdscripcionScope.value = !!data.supports_adscripcion_scope
   } catch (error) {
     notyf.error('No se pudieron cargar las opciones del módulo.')
   }
@@ -444,6 +484,7 @@ async function fetchTableData() {
       id_entidad: filters.id_entidad,
       id_tipo_nomina: filters.id_tipo_nomina,
       id_clues: filters.id_clues,
+      id_adscripcion_scope: supportsAdscripcionScope.value ? filters.id_adscripcion_scope : '',
       select: parseInt(document.getElementById('footer-filter')?.value || 5),
     })
 
@@ -470,6 +511,7 @@ function clearFilters() {
   filters.id_entidad = ''
   filters.id_tipo_nomina = ''
   filters.id_clues = ''
+  filters.id_adscripcion_scope = ''
   searchTerm.value = ''
 
   const searchInput = document.getElementById('table-search')
@@ -510,6 +552,7 @@ function openEditModal(row) {
     id_entidad: row.id_entidad || '',
     id_tipo_nomina: row.id_tipo_nomina || '',
     id_clues: row.id_clues || '',
+    id_adscripcion_scope: row.id_adscripcion_scope || '',
   })
 
   $('#modal_admin_user').modal('show')
@@ -558,6 +601,10 @@ function normalizePayload() {
     id_entidad: normalizeNullableNumber(form.id_entidad),
     id_tipo_nomina: normalizeNullableNumber(form.id_tipo_nomina),
     id_clues: normalizeNullableNumber(form.id_clues),
+  }
+
+  if (supportsAdscripcionScope.value) {
+    payload.id_adscripcion_scope = normalizeNullableNumber(form.id_adscripcion_scope)
   }
 
   if (formMode.value === 'create') {
@@ -685,7 +732,7 @@ function roleIcon(role) {
 
 .users-filter-bar {
   display: grid;
-  grid-template-columns: minmax(16rem, 1.5fr) repeat(5, minmax(9rem, 1fr)) 2.4rem;
+  grid-template-columns: minmax(16rem, 1.5fr) repeat(6, minmax(9rem, 1fr)) 2.4rem;
   gap: 0.55rem;
   align-items: center;
   margin-bottom: 1rem;

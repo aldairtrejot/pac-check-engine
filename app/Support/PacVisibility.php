@@ -35,6 +35,19 @@ class PacVisibility
         | SUPERVISOR_OC, REVISOR_EST y SUPERVISOR_EST deben filtrarse.
         */
         if (self::isAdminGlobal($user)) {
+            $idAdscripcionScope = self::adminAdscripcionScope($user);
+
+            if ($idAdscripcionScope !== null) {
+                [$schemaCap, $tableCap] = self::splitQualified($capTableQualified);
+
+                if (! self::columnExists($schemaCap, $tableCap, 'num_cursos')) {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                $query->where(trim($capAlias) . '.num_cursos', '=', $idAdscripcionScope);
+            }
+
             return;
         }
 
@@ -311,6 +324,25 @@ class PacVisibility
         return false;
     }
 
+    public static function adminAdscripcionScope($user): ?int
+    {
+        if (! self::isAdminGlobal($user)) {
+            return null;
+        }
+
+        $scope = self::firstFilledProperty($user, [
+            'id_adscripcion_scope',
+        ]);
+
+        if ($scope === null || $scope === '' || ! is_numeric($scope)) {
+            return null;
+        }
+
+        $scope = (int) $scope;
+
+        return $scope > 0 ? $scope : null;
+    }
+
     public static function isHraesTipoNomina(int $idTipoNomina): bool
     {
         if ($idTipoNomina <= 0 || ! self::tableExists('administracion', 'cat_tipo_nomina')) {
@@ -404,6 +436,34 @@ class PacVisibility
         foreach ($candidates as $candidate) {
             if (isset($set[$candidate])) {
                 return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static function columnExists(string $schema, string $table, string $column): bool
+    {
+        return in_array($column, self::columnsFor($schema, $table), true);
+    }
+
+    private static function firstFilledProperty($user, array $candidates)
+    {
+        if (! $user) {
+            return null;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (is_array($user) && array_key_exists($candidate, $user)) {
+                $value = $user[$candidate];
+            } elseif (is_object($user) && isset($user->{$candidate})) {
+                $value = $user->{$candidate};
+            } else {
+                continue;
+            }
+
+            if ($value !== null && $value !== '') {
+                return $value;
             }
         }
 

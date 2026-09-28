@@ -20,7 +20,24 @@ class UnidadCoordinacionPacController extends Controller
         try {
             $this->assertCanManageAsignacionUnidad();
 
+            $idAdscripcionScope = PacVisibility::adminAdscripcionScope(auth()->user());
             $idAdscripcion = (int) $request->input('id_adscripcion', 0);
+
+            if ($idAdscripcionScope !== null) {
+                if ($idAdscripcion > 0 && $idAdscripcion !== $idAdscripcionScope) {
+                    return response()->json([
+                        'status' => true,
+                        'listAdscripciones' => [],
+                    ], 200);
+                }
+
+                $adscripcion = AdscripcionCatalogs::findById($idAdscripcionScope);
+
+                return response()->json([
+                    'status' => true,
+                    'listAdscripciones' => $adscripcion ? [$adscripcion] : [],
+                ], 200);
+            }
 
             if ($idAdscripcion > 0) {
                 $adscripcion = AdscripcionCatalogs::findById($idAdscripcion);
@@ -239,6 +256,15 @@ class UnidadCoordinacionPacController extends Controller
                 return response()->json([
                     'status' => false,
                     'message' => 'La adscripcion seleccionada no existe en el catalogo oficial.',
+                ], 200);
+            }
+
+            $idAdscripcionScope = PacVisibility::adminAdscripcionScope($user);
+
+            if ($idAdscripcionScope !== null && (int) $adscripcion->id_adscripcion !== $idAdscripcionScope) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No tienes permiso para asignar una adscripcion fuera de tu alcance.',
                 ], 200);
             }
 

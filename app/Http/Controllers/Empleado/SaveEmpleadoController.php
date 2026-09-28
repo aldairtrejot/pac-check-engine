@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Empleado;
 use App\Http\Controllers\Controller;
 use App\Support\AdscripcionCatalogs;
 use App\Support\EmpleadoCatalogs;
+use App\Support\PacVisibility;
 use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -134,6 +135,14 @@ class SaveEmpleadoController extends Controller
             if (! $adscripcionCatalogo) {
                 throw ValidationException::withMessages([
                     'id_adscripcion' => 'La Adscripcion seleccionada no existe en el catalogo oficial.',
+                ]);
+            }
+
+            $idAdscripcionScope = PacVisibility::adminAdscripcionScope(auth()->user());
+
+            if ($idAdscripcionScope !== null && (int) $adscripcionCatalogo->id_adscripcion !== $idAdscripcionScope) {
+                throw ValidationException::withMessages([
+                    'id_adscripcion' => 'No tienes permiso para usar una adscripcion fuera de tu alcance.',
                 ]);
             }
 

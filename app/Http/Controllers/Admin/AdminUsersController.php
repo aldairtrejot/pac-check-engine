@@ -16,6 +16,7 @@ class AdminUsersController extends Controller
     private const MAX_LIMIT = 50;
     private static ?bool $catCluesBiAvailable = null;
     private static array $tableExistsCache = [];
+    private static array $columnExistsCache = [];
 
     public function index()
     {
@@ -25,12 +26,16 @@ class AdminUsersController extends Controller
     public function options()
     {
         try {
+            $supportsAdscripcionScope = $this->usersHasAdscripcionScope();
+
             return response()->json([
                 'status' => true,
                 'roles' => $this->rolesOptions(),
                 'entidades' => $this->entidadesOptions(),
                 'tipos_nomina' => $this->tiposNominaOptions(),
                 'clues' => $this->cluesOptions(),
+                'adscripciones' => $supportsAdscripcionScope ? $this->adscripcionesOptions() : [],
+                'supports_adscripcion_scope' => $supportsAdscripcionScope,
             ]);
         } catch (\Throwable $e) {
             Log::error('Error al cargar opciones de usuarios', [
@@ -46,6 +51,8 @@ class AdminUsersController extends Controller
                 'entidades' => [],
                 'tipos_nomina' => [],
                 'clues' => [],
+                'adscripciones' => [],
+                'supports_adscripcion_scope' => false,
             ], 500);
         }
     }
@@ -61,11 +68,14 @@ class AdminUsersController extends Controller
             'id_entidad' => ['nullable', 'integer'],
             'id_tipo_nomina' => ['nullable', 'integer'],
             'id_clues' => ['nullable', 'integer'],
+            'id_adscripcion_scope' => ['nullable', 'integer'],
         ]);
 
         $limit = max(1, min((int) $request->input('limit', 5), self::MAX_LIMIT));
         $offset = max(0, (int) $request->input('offset', 0));
         $search = trim((string) $request->input('search', ''));
+        $supportsAdscripcionScope = $this->usersHasAdscripcionScope();
+        $supportsAdscripcionCatalog = $this->tableExists('public', 'cat_adscripcion');
 
         $roleAgg = DB::raw("
             (
@@ -119,6 +129,32 @@ class AdminUsersController extends Controller
                 DB::raw("COALESCE(ctn.nombre, '') AS tipo_nomina_nombre"),
             ]);
 
+        if ($supportsAdscripcionScope) {
+            $q->addSelect('u.id_adscripcion_scope');
+        } else {
+            $q->addSelect(DB::raw('NULL::INTEGER AS id_adscripcion_scope'));
+        }
+
+        if ($supportsAdscripcionScope && $supportsAdscripcionCatalog) {
+            $q->addSelect(DB::raw("
+                COALESCE((
+                    SELECT TRIM(CONCAT_WS(
+                        ' - ',
+                        ca_scope.id_adscripcion::text,
+                        NULLIF(MAX(BTRIM(COALESCE(ca_scope.adscripcion_compl::text, ca_scope.adscripcion::text, ''))), ''),
+                        NULLIF(MAX(BTRIM(COALESCE(ca_scope.nombre_unidad::text, ''))), ''),
+                        NULLIF(MAX(BTRIM(COALESCE(ca_scope.nombre_coordinacion::text, ''))), '')
+                    ))
+                    FROM public.cat_adscripcion ca_scope
+                    WHERE ca_scope.id_adscripcion = u.id_adscripcion_scope
+                    GROUP BY ca_scope.id_adscripcion
+                    LIMIT 1
+                ), '') AS adscripcion_scope_label
+            "));
+        } else {
+            $q->addSelect(DB::raw("'' AS adscripcion_scope_label"));
+        }
+
         if ($this->catCluesBiAvailable()) {
             $q->addSelect(DB::raw("
                 COALESCE(
@@ -140,6 +176,23 @@ class AdminUsersController extends Controller
                     ->orWhere('ctn.codigo', 'ILIKE', "%{$search}%")
                     ->orWhere('ctn.nombre', 'ILIKE', "%{$search}%")
                     ->orWhere('cc.clues', 'ILIKE', "%{$search}%");
+
+                if ($this->usersHasAdscripcionScope() && $this->tableExists('public', 'cat_adscripcion')) {
+                    $w->orWhereRaw("
+                        EXISTS (
+                            SELECT 1
+                            FROM public.cat_adscripcion ca_search
+                            WHERE ca_search.id_adscripcion = u.id_adscripcion_scope
+                              AND (
+                                  ca_search.id_adscripcion::text ILIKE ?
+                                  OR ca_search.adscripcion::text ILIKE ?
+                                  OR ca_search.adscripcion_compl::text ILIKE ?
+                                  OR ca_search.nombre_unidad::text ILIKE ?
+                                  OR ca_search.nombre_coordinacion::text ILIKE ?
+                              )
+                        )
+                    ", array_fill(0, 5, "%{$search}%"));
+                }
 
                 if ($this->catCluesBiAvailable()) {
                     $w->orWhere('cbi_id.clave_clues', 'ILIKE', "%{$search}%")
@@ -163,6 +216,10 @@ class AdminUsersController extends Controller
 
         if ($request->filled('id_clues')) {
             $q->where('u.id_clues', (int) $request->input('id_clues'));
+        }
+
+        if ($supportsAdscripcionScope && $request->filled('id_adscripcion_scope')) {
+            $q->where('u.id_adscripcion_scope', (int) $request->input('id_adscripcion_scope'));
         }
 
         if ($request->filled('role_id')) {
@@ -195,12 +252,14 @@ class AdminUsersController extends Controller
                     'id_entidad' => $u->id_entidad !== null ? (int) $u->id_entidad : null,
                     'id_tipo_nomina' => $u->id_tipo_nomina !== null ? (int) $u->id_tipo_nomina : null,
                     'id_clues' => $u->id_clues !== null ? (int) $u->id_clues : null,
+                    'id_adscripcion_scope' => $u->id_adscripcion_scope !== null ? (int) $u->id_adscripcion_scope : null,
                     'roles' => (string) $u->roles,
                     'role_codes' => $roleCodes,
                     'entidad_nombre' => (string) $u->entidad_nombre,
                     'tipo_nomina_codigo' => (string) $u->tipo_nomina_codigo,
                     'tipo_nomina_nombre' => (string) $u->tipo_nomina_nombre,
                     'clues_codigo' => (string) $u->clues_codigo,
+                    'adscripcion_scope_label' => (string) $u->adscripcion_scope_label,
                     'created_at' => $u->created_at ? date('Y-m-d H:i', strtotime((string) $u->created_at)) : '',
                     'updated_at' => $u->updated_at ? date('Y-m-d H:i', strtotime((string) $u->updated_at)) : '',
                 ];
@@ -237,7 +296,7 @@ class AdminUsersController extends Controller
             $this->assertRoleIdsExist($roleIds);
 
         $user = DB::transaction(function () use ($data, $roleIds) {
-            $user = User::create([
+            $payload = [
                 'name' => mb_strtoupper(trim($data['name']), 'UTF-8'),
                 'email' => mb_strtolower(trim($data['email']), 'UTF-8'),
                 'password' => Hash::make($data['password']),
@@ -245,7 +304,13 @@ class AdminUsersController extends Controller
                 'id_entidad' => $data['id_entidad'] ?? null,
                 'id_tipo_nomina' => $data['id_tipo_nomina'] ?? null,
                 'id_clues' => $data['id_clues'] ?? null,
-            ]);
+            ];
+
+            if ($this->usersHasAdscripcionScope()) {
+                $payload['id_adscripcion_scope'] = $data['id_adscripcion_scope'] ?? null;
+            }
+
+            $user = User::create($payload);
 
             $this->syncUserRoles((int) $user->id, $roleIds);
 
@@ -273,11 +338,13 @@ class AdminUsersController extends Controller
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'email' => $request->input('email'),
+                'role_ids' => $request->input('role_ids'),
             ]);
 
             return response()->json([
                 'status' => false,
-                'message' => 'No se pudo crear el usuario. Revisa los datos e intenta nuevamente.',
+                'message' => $this->userPersistenceErrorMessage($e, 'crear'),
             ], 500);
         }
     }
@@ -310,6 +377,10 @@ class AdminUsersController extends Controller
                 'id_clues' => $data['id_clues'] ?? null,
             ];
 
+            if ($this->usersHasAdscripcionScope()) {
+                $update['id_adscripcion_scope'] = $data['id_adscripcion_scope'] ?? null;
+            }
+
             if (! empty($data['password'])) {
                 $update['password'] = Hash::make($data['password']);
             }
@@ -341,11 +412,14 @@ class AdminUsersController extends Controller
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'id' => $request->input('id'),
+                'email' => $request->input('email'),
+                'role_ids' => $request->input('role_ids'),
             ]);
 
             return response()->json([
                 'status' => false,
-                'message' => 'No se pudo actualizar el usuario. Revisa los datos e intenta nuevamente.',
+                'message' => $this->userPersistenceErrorMessage($e, 'actualizar'),
             ], 500);
         }
     }
@@ -429,6 +503,7 @@ class AdminUsersController extends Controller
             'id_entidad' => ['nullable', 'integer', $this->existingCatalogIdRule('administracion.cat_entidad', 'id_entidad', 'La entidad seleccionada no existe.')],
             'id_tipo_nomina' => ['nullable', 'integer', $this->existingCatalogIdRule('administracion.cat_tipo_nomina', 'id_tipo_nomina', 'El tipo de nomina seleccionado no existe.')],
             'id_clues' => ['nullable', 'integer', $this->existingCluesRule()],
+            'id_adscripcion_scope' => ['nullable', 'integer', 'min:1', $this->existingAdscripcionScopeRule()],
         ]);
     }
 
@@ -590,6 +665,48 @@ class AdminUsersController extends Controller
         }
     }
 
+    private function adscripcionesOptions(): array
+    {
+        if (! $this->tableExists('public', 'cat_adscripcion')) {
+            return [];
+        }
+
+        try {
+            return DB::table('public.cat_adscripcion as ca')
+                ->whereNotNull('ca.id_adscripcion')
+                ->selectRaw('ca.id_adscripcion as id')
+                ->selectRaw("MAX(NULLIF(BTRIM(COALESCE(ca.adscripcion::text, '')), '')) as adscripcion")
+                ->selectRaw("MAX(NULLIF(BTRIM(COALESCE(ca.adscripcion_compl::text, '')), '')) as adscripcion_compl")
+                ->selectRaw("MAX(NULLIF(BTRIM(COALESCE(ca.nombre_unidad::text, '')), '')) as nombre_unidad")
+                ->selectRaw("MAX(NULLIF(BTRIM(COALESCE(ca.nombre_coordinacion::text, '')), '')) as nombre_coordinacion")
+                ->groupBy('ca.id_adscripcion')
+                ->orderByRaw("MAX(NULLIF(BTRIM(COALESCE(ca.adscripcion_compl::text, ca.adscripcion::text, '')), '')) ASC NULLS LAST")
+                ->limit(5000)
+                ->get()
+                ->map(function ($row) {
+                    $label = trim((string) ($row->adscripcion_compl ?: $row->adscripcion));
+                    $descripcion = trim(implode(' - ', array_filter([
+                        (string) $row->id,
+                        $label,
+                        (string) ($row->nombre_unidad ?? ''),
+                        (string) ($row->nombre_coordinacion ?? ''),
+                    ], fn ($value) => trim((string) $value) !== '')));
+
+                    return [
+                        'id' => (int) $row->id,
+                        'descripcion' => $descripcion ?: (string) $row->id,
+                        'adscripcion' => (string) ($row->adscripcion ?? ''),
+                        'adscripcion_compl' => (string) ($row->adscripcion_compl ?? ''),
+                        'nombre_unidad' => (string) ($row->nombre_unidad ?? ''),
+                        'nombre_coordinacion' => (string) ($row->nombre_coordinacion ?? ''),
+                    ];
+                })
+                ->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
     private function normalizeRoleIds(array $roleIds): array
     {
         return collect($roleIds)
@@ -626,6 +743,7 @@ class AdminUsersController extends Controller
             'id_entidad' => $user->id_entidad,
             'id_tipo_nomina' => $user->id_tipo_nomina,
             'id_clues' => $user->id_clues,
+            'id_adscripcion_scope' => $user->id_adscripcion_scope ?? null,
             'roles' => $roleCodes,
         ];
     }
@@ -785,6 +903,67 @@ class AdminUsersController extends Controller
         };
     }
 
+    private function existingAdscripcionScopeRule(): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail): void {
+            if ($value === null || $value === '' || ! is_numeric($value)) {
+                return;
+            }
+
+            if (! $this->usersHasAdscripcionScope()) {
+                $fail('Ejecuta primero la actualizacion de base de datos para habilitar el alcance por adscripcion.');
+                return;
+            }
+
+            if (! $this->tableExists('public', 'cat_adscripcion')) {
+                $fail('El catalogo de adscripciones no esta disponible.');
+                return;
+            }
+
+            $idAdscripcion = (int) $value;
+
+            if ($idAdscripcion <= 0) {
+                $fail('La adscripcion seleccionada no existe.');
+                return;
+            }
+
+            $exists = DB::table('public.cat_adscripcion')
+                ->where('id_adscripcion', $idAdscripcion)
+                ->exists();
+
+            if (! $exists) {
+                $fail('La adscripcion seleccionada no existe.');
+            }
+        };
+    }
+
+    private function userPersistenceErrorMessage(\Throwable $e, string $action): string
+    {
+        $message = mb_strtolower($e->getMessage(), 'UTF-8');
+        $verb = $action === 'actualizar' ? 'actualizar' : 'crear';
+
+        if (str_contains($message, 'permission denied')
+            || str_contains($message, 'permiso denegado')
+            || str_contains($message, 'must be owner')
+            || str_contains($message, 'users_id_seq')
+            || str_contains($message, 'user_roles')) {
+            return "No se pudo {$verb} el usuario por permisos de base de datos. Ejecuta la migracion pendiente y vuelve a intentar.";
+        }
+
+        if (str_contains($message, 'users_email_unique')
+            || str_contains($message, 'duplicate key')
+            || str_contains($message, 'llave duplicada')) {
+            return 'El correo ya se encuentra registrado.';
+        }
+
+        if (str_contains($message, 'out of range')
+            || str_contains($message, 'fuera de rango')) {
+            return 'Selecciona roles validos.';
+        }
+
+        return "No se pudo {$verb} el usuario. Revisa los datos e intenta nuevamente.";
+    }
+
     private function cluesIdExists(int $idClues): bool
     {
         if ($idClues <= 0) {
@@ -843,5 +1022,29 @@ class AdminUsersController extends Controller
         }
 
         return self::$tableExistsCache[$key];
+    }
+
+    private function usersHasAdscripcionScope(): bool
+    {
+        return $this->columnExists('administracion', 'users', 'id_adscripcion_scope');
+    }
+
+    private function columnExists(string $schema, string $table, string $column): bool
+    {
+        $key = "{$schema}.{$table}.{$column}";
+
+        if (! array_key_exists($key, self::$columnExistsCache)) {
+            try {
+                self::$columnExistsCache[$key] = DB::table('information_schema.columns')
+                    ->where('table_schema', $schema)
+                    ->where('table_name', $table)
+                    ->where('column_name', $column)
+                    ->exists();
+            } catch (\Throwable $e) {
+                self::$columnExistsCache[$key] = false;
+            }
+        }
+
+        return self::$columnExistsCache[$key];
     }
 }
