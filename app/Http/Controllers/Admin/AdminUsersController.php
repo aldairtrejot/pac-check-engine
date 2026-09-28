@@ -83,17 +83,18 @@ class AdminUsersController extends Controller
         $q = DB::table('administracion.users as u')
             ->leftJoin($roleAgg, 'rr.user_id', '=', 'u.id')
             ->leftJoin('administracion.cat_entidad as ce', 'ce.id_entidad', '=', 'u.id_entidad')
-            ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina');
+            ->leftJoin('administracion.cat_tipo_nomina as ctn', 'ctn.id_tipo_nomina', '=', 'u.id_tipo_nomina')
+            ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues');
 
         if ($this->catCluesBiAvailable()) {
-            $q->leftJoin('public.cat_clues_bi as cbi', function ($join) {
+            $q->leftJoin('public.cat_clues_bi as cbi_id', function ($join) {
                 $join->on(
                     'u.id_clues',
                     '=',
                     DB::raw("
                         CASE
-                            WHEN BTRIM(COALESCE(cbi.idcat, '')) ~ '^[0-9]+$'
-                            THEN BTRIM(cbi.idcat)::BIGINT
+                            WHEN BTRIM(COALESCE(cbi_id.idcat, '')) ~ '^[0-9]+$'
+                            THEN BTRIM(cbi_id.idcat)::BIGINT
                             ELSE NULL
                         END
                     ")
@@ -101,8 +102,7 @@ class AdminUsersController extends Controller
             });
         }
 
-        $q->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues')
-            ->select([
+        $q->select([
                 'u.id',
                 'u.name',
                 'u.email',
@@ -122,8 +122,8 @@ class AdminUsersController extends Controller
         if ($this->catCluesBiAvailable()) {
             $q->addSelect(DB::raw("
                 COALESCE(
-                    NULLIF(BTRIM(cbi.clave_clues), ''),
                     NULLIF(BTRIM(cc.clues), ''),
+                    NULLIF(BTRIM(cbi_id.clave_clues), ''),
                     ''
                 ) AS clues_codigo
             "));
@@ -142,9 +142,9 @@ class AdminUsersController extends Controller
                     ->orWhere('cc.clues', 'ILIKE', "%{$search}%");
 
                 if ($this->catCluesBiAvailable()) {
-                    $w->orWhere('cbi.clave_clues', 'ILIKE', "%{$search}%")
-                        ->orWhere('cbi.nombre_comercial', 'ILIKE', "%{$search}%")
-                        ->orWhere('cbi.zona_pago', 'ILIKE', "%{$search}%");
+                    $w->orWhere('cbi_id.clave_clues', 'ILIKE', "%{$search}%")
+                        ->orWhere('cbi_id.nombre_comercial', 'ILIKE', "%{$search}%")
+                        ->orWhere('cbi_id.zona_pago', 'ILIKE', "%{$search}%");
                 }
             });
         }

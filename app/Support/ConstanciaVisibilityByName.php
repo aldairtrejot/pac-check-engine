@@ -115,14 +115,14 @@ class ConstanciaVisibilityByName
             ->leftJoin('administracion.cat_clues as cc', 'cc.id_clues', '=', 'u.id_clues');
 
         if (self::tableExists('public', 'cat_clues_bi')) {
-            $userQuery->leftJoin('public.cat_clues_bi as cbi', function ($join) {
+            $userQuery->leftJoin('public.cat_clues_bi as cbi_id', function ($join) {
                 $join->on(
                     'u.id_clues',
                     '=',
                     DB::raw("
                         CASE
-                            WHEN BTRIM(COALESCE(cbi.idcat, '')) ~ '^[0-9]+$'
-                            THEN BTRIM(cbi.idcat)::BIGINT
+                            WHEN BTRIM(COALESCE(cbi_id.idcat, '')) ~ '^[0-9]+$'
+                            THEN BTRIM(cbi_id.idcat)::BIGINT
                             ELSE NULL
                         END
                     ")
@@ -139,8 +139,8 @@ class ConstanciaVisibilityByName
         if (self::tableExists('public', 'cat_clues_bi')) {
             $userQuery->addSelect(DB::raw("
                 COALESCE(
-                    NULLIF(BTRIM(cbi.clave_clues), ''),
                     NULLIF(BTRIM(cc.clues), ''),
+                    NULLIF(BTRIM(cbi_id.clave_clues), ''),
                     ''
                 ) as clues_codigo
             "));
