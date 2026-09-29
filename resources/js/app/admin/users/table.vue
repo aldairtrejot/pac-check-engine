@@ -164,9 +164,11 @@
                 <i class="fa fa-hospital"></i>
                 <span>{{ row.clues_codigo || 'Sin CLUES' }}</span>
               </div>
-              <div v-if="supportsAdscripcionScope" class="users-scope-line">
+              <div v-if="supportsAdscripcionScope" class="users-scope-line users-scope-line-long">
                 <i class="fa fa-sitemap"></i>
-                <span>{{ row.adscripcion_scope_label || 'Sin restricción admin' }}</span>
+                <span :title="row.adscripcion_scope_label || 'Sin restricción admin'">
+                  {{ row.adscripcion_scope_label || 'Sin restricción admin' }}
+                </span>
               </div>
             </td>
 
@@ -367,9 +369,9 @@
             <button type="button" class="btn btn-sm cap-btn-outline" data-bs-dismiss="modal">
               Cancelar
             </button>
-            <button type="button" class="btn btn-sm cap-btn-primary" @click="submitUser">
+            <button type="button" class="btn btn-sm cap-btn-primary" :disabled="isSubmitting" @click="submitUser">
               <i class="fa fa-save"></i>
-              <span>Guardar</span>
+              <span>{{ isSubmitting ? 'Guardando' : 'Guardar' }}</span>
             </button>
           </div>
         </div>
@@ -402,6 +404,7 @@ const limit = ref(5)
 const searchTerm = ref('')
 const spinnerRef = ref(null)
 const formMode = ref('create')
+const isSubmitting = ref(false)
 
 const roles = ref([])
 const entidades = ref([])
@@ -559,7 +562,12 @@ function openEditModal(row) {
 }
 
 async function submitUser() {
+  if (isSubmitting.value) {
+    return
+  }
+
   try {
+    isSubmitting.value = true
     showSpinner()
     clearErrors()
 
@@ -585,6 +593,7 @@ async function submitUser() {
 
     notyf.error(error.response?.data?.message || 'No se pudo completar la acción.')
   } finally {
+    isSubmitting.value = false
     hideSpinner()
   }
 }
@@ -859,7 +868,9 @@ function roleIcon(role) {
 }
 
 .users-scope-cell {
-  min-width: 14rem;
+  width: clamp(18rem, 42vw, 36rem);
+  min-width: 18rem;
+  max-width: 36rem;
 }
 
 .users-scope-line {
@@ -879,6 +890,23 @@ function roleIcon(role) {
 }
 
 .users-scope-line span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.users-scope-line-long {
+  align-items: start;
+}
+
+.users-scope-line-long span {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
   overflow-wrap: anywhere;
 }
 

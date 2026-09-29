@@ -342,6 +342,15 @@ class AdminUsersController extends Controller
                 'role_ids' => $request->input('role_ids'),
             ]);
 
+            if ($this->isDuplicateUserEmailException($e)) {
+                return response()->json([
+                    'message' => 'El correo ya se encuentra registrado.',
+                    'errors' => [
+                        'email' => ['El correo ya se encuentra registrado.'],
+                    ],
+                ], 422);
+            }
+
             return response()->json([
                 'status' => false,
                 'message' => $this->userPersistenceErrorMessage($e, 'crear'),
@@ -416,6 +425,15 @@ class AdminUsersController extends Controller
                 'email' => $request->input('email'),
                 'role_ids' => $request->input('role_ids'),
             ]);
+
+            if ($this->isDuplicateUserEmailException($e)) {
+                return response()->json([
+                    'message' => 'El correo ya se encuentra registrado.',
+                    'errors' => [
+                        'email' => ['El correo ya se encuentra registrado.'],
+                    ],
+                ], 422);
+            }
 
             return response()->json([
                 'status' => false,
@@ -950,10 +968,16 @@ class AdminUsersController extends Controller
             return "No se pudo {$verb} el usuario por permisos de base de datos. Ejecuta la migracion pendiente y vuelve a intentar.";
         }
 
-        if (str_contains($message, 'users_email_unique')
-            || str_contains($message, 'duplicate key')
-            || str_contains($message, 'llave duplicada')) {
+        if ($this->isDuplicateUserEmailException($e)) {
             return 'El correo ya se encuentra registrado.';
+        }
+
+        if ($this->isDuplicateUserIdException($e)) {
+            return "No se pudo {$verb} el usuario porque la secuencia de IDs de usuarios esta desfasada. Revisa administracion.users_id_seq.";
+        }
+
+        if ($this->isDuplicateKeyException($e)) {
+            return "No se pudo {$verb} el usuario por una clave duplicada en base de datos. Revisa el log para identificar la restriccion.";
         }
 
         if (str_contains($message, 'out of range')
@@ -962,6 +986,34 @@ class AdminUsersController extends Controller
         }
 
         return "No se pudo {$verb} el usuario. Revisa los datos e intenta nuevamente.";
+    }
+
+    private function isDuplicateUserEmailException(\Throwable $e): bool
+    {
+        $message = mb_strtolower($e->getMessage(), 'UTF-8');
+
+        return str_contains($message, 'users_email_unique')
+            || (
+                (str_contains($message, 'duplicate key') || str_contains($message, 'llave duplicada'))
+                && str_contains($message, 'email')
+            );
+    }
+
+    private function isDuplicateUserIdException(\Throwable $e): bool
+    {
+        $message = mb_strtolower($e->getMessage(), 'UTF-8');
+
+        return $this->isDuplicateKeyException($e)
+            && (str_contains($message, 'users_pkey') || str_contains($message, '(id)='));
+    }
+
+    private function isDuplicateKeyException(\Throwable $e): bool
+    {
+        $message = mb_strtolower($e->getMessage(), 'UTF-8');
+
+        return str_contains($message, 'duplicate key')
+            || str_contains($message, 'llave duplicada')
+            || str_contains($message, 'sqlstate[23505]');
     }
 
     private function cluesIdExists(int $idClues): bool

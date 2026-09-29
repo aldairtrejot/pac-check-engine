@@ -91,7 +91,7 @@ return new class extends Migration
 
             if ($this->sequenceExists('administracion', 'users_id_seq')) {
                 DB::statement("
-                    GRANT USAGE, SELECT
+                    GRANT USAGE, SELECT, UPDATE
                     ON SEQUENCE administracion.users_id_seq
                     TO {$grantee}
                 ");
