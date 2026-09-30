@@ -433,6 +433,8 @@ class SaveEmpleadoController extends Controller
             // Insertar empleado en plantilla
             DB::table('public.a2_acciones_capacitacion')->insert($insertCap);
 
+            $vinculosEmpleado = $this->vincularRegistrosEmpleado($curpNuevo, (int) $nextIdCat);
+
             // =========================================================================
             // 6) Insertar cursos base en public.a2_acciones_empleados
             //    Cursos obligatorios: 1000001 y 1000002
@@ -541,10 +543,12 @@ class SaveEmpleadoController extends Controller
                         ],
                         $cursosInsertados
                     ),
+                    'vinculos_empleado' => $vinculosEmpleado,
                 ],
                 newValues: [
                     'plantilla' => $insertCap,
                     'cursos_base' => $cursosInsertados,
+                    'vinculos_empleado' => $vinculosEmpleado,
                 ]
             );
 
@@ -588,6 +592,97 @@ class SaveEmpleadoController extends Controller
                 ->exists();
         } catch (\Throwable $th) {
             Log::error('Error al validar columna de a2_acciones_capacitacion', [
+                'column' => $column,
+                'error' => $th->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    private function vincularRegistrosEmpleado(string $curp, int $idCat): array
+    {
+        if ($idCat <= 0) {
+            throw ValidationException::withMessages([
+                'general' => 'No se obtuvo un id_cat valido para vincular constancias y tokens.',
+            ]);
+        }
+
+        $resumen = [];
+
+        foreach ([
+            'tbl_constancias' => 'constancias',
+            'tbl_registros_token' => 'registros_token',
+        ] as $table => $label) {
+            $this->assertEmployeeLinkTableReady($table);
+
+            $registros = DB::table("public.{$table}")
+                ->select('id_empleado')
+                ->whereRaw('UPPER(BTRIM(curp::text)) = UPPER(BTRIM(?))', [$curp])
+                ->lockForUpdate()
+                ->get();
+
+            $actualizados = DB::table("public.{$table}")
+                ->whereRaw('UPPER(BTRIM(curp::text)) = UPPER(BTRIM(?))', [$curp])
+                ->update([
+                    'id_empleado' => $idCat,
+                ]);
+
+            $resumen[$label] = [
+                'tabla' => "public.{$table}",
+                'coincidencias' => $registros->count(),
+                'actualizados' => (int) $actualizados,
+            ];
+        }
+
+        return $resumen;
+    }
+
+    private function assertEmployeeLinkTableReady(string $table): void
+    {
+        if (! $this->publicTableExists($table)) {
+            throw ValidationException::withMessages([
+                'general' => "La tabla public.{$table} no existe para vincular el empleado.",
+            ]);
+        }
+
+        foreach (['curp', 'id_empleado'] as $column) {
+            if (! $this->publicColumnExists($table, $column)) {
+                throw ValidationException::withMessages([
+                    'general' => "La columna {$column} no existe en public.{$table}.",
+                ]);
+            }
+        }
+    }
+
+    private function publicTableExists(string $table): bool
+    {
+        try {
+            return DB::table('information_schema.tables')
+                ->where('table_schema', 'public')
+                ->where('table_name', $table)
+                ->exists();
+        } catch (\Throwable $th) {
+            Log::error('Error al validar tabla publica para alta de empleado', [
+                'table' => $table,
+                'error' => $th->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    private function publicColumnExists(string $table, string $column): bool
+    {
+        try {
+            return DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', $table)
+                ->where('column_name', $column)
+                ->exists();
+        } catch (\Throwable $th) {
+            Log::error('Error al validar columna publica para alta de empleado', [
+                'table' => $table,
                 'column' => $column,
                 'error' => $th->getMessage(),
             ]);
