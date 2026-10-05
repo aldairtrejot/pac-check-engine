@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 class GetTrimestreModel extends Model
 {
     /**
-     * Obtiene el id_trimestre usando solo mes y día.
+     * Obtiene el id_trimestre usando solo mes y día de la fecha de conclusión.
      *
      * Esto permite que cat_trimestres tenga rangos base como:
      * 2025-01-01 a 2025-03-31
@@ -16,9 +16,14 @@ class GetTrimestreModel extends Model
      * 2025-07-01 a 2025-09-30
      * 2025-10-01 a 2025-12-31
      *
-     * Y que funcione también para fechas de constancias 2026, 2027, etc.
+     * Y que funcione también para fechas de conclusión 2026, 2027, etc.
      */
     public function getTrimestre($date)
+    {
+        return $this->getTrimestrePorFechaFin($date);
+    }
+
+    public function getTrimestrePorFechaFin($date): ?int
     {
         if (empty($date)) {
             return null;
@@ -36,7 +41,7 @@ class GetTrimestreModel extends Model
             | Comparación por mes-día
             |--------------------------------------------------------------------------
             | Ejemplo:
-            | - fecha de constancia: 2026-04-14
+            | - fecha de fin: 2026-04-14
             | - se compara como: 04-14
             | - contra cat_trimestres: 04-01 a 06-30
             */

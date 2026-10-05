@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pac\EntityPacModel;
+use App\Models\Pac\Helpers\GetTrimestreModel;
 use App\Support\PacVisibility;
 use App\Support\UserActionLogger;
 use Illuminate\Http\Request;
@@ -148,11 +149,22 @@ class SavePacController extends Controller
 
             $horasRealInput = $validated['m_horas_real'] ?? null;
 
-            $idTrimestre = $row->id_trimestre;
+            $idTrimestre = null;
 
-            if (! empty($fechaIni)) {
-                $m = (int) date('n', strtotime($fechaIni));
-                $idTrimestre = ($m <= 3) ? 1 : (($m <= 6) ? 2 : (($m <= 9) ? 3 : 4));
+            if (! empty($fechaFin)) {
+                if (empty($fechaIni)) {
+                    throw ValidationException::withMessages([
+                        'm_fecha_ini' => 'La fecha de inicio es obligatoria para determinar el trimestre.',
+                    ]);
+                }
+
+                $idTrimestre = (new GetTrimestreModel())->getTrimestrePorFechaFin((string) $fechaFin);
+
+                if (empty($idTrimestre)) {
+                    throw ValidationException::withMessages([
+                        'm_fecha_fin' => 'No se pudo determinar el trimestre con la fecha de fin capturada.',
+                    ]);
+                }
             }
 
             $horasReal = $horasRealInput;

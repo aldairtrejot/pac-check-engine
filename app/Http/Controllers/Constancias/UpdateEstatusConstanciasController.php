@@ -401,17 +401,46 @@ class UpdateEstatusConstanciasController extends Controller
                 ];
             }
 
-            $idTrimestre = null;
-            if (! empty($c->fecha_inicio)) {
-                $idTrimestre = (new GetTrimestreModel())->getTrimestre((string) $c->fecha_inicio);
-                $idTrimestre = ! empty($idTrimestre) ? (int) $idTrimestre : null;
-            }
+            $fechaInicio = trim((string) ($c->fecha_inicio ?? ''));
+            $fechaFinal = trim((string) ($c->fecha_final ?? ''));
 
-            if (empty($c->fecha_inicio) || empty($c->fecha_final) || empty($idTrimestre)) {
+            if ($fechaInicio === '' || $fechaFinal === '') {
                 return [
                     'status'  => false,
                     'code'    => 422,
                     'message' => 'La constancia no trae fechas suficientes (fecha_inicio/fecha_final).',
+                ];
+            }
+
+            try {
+                $fechaInicioDate = Carbon::parse($fechaInicio)->startOfDay();
+                $fechaFinalDate = Carbon::parse($fechaFinal)->startOfDay();
+            } catch (\Throwable $e) {
+                return [
+                    'status'  => false,
+                    'code'    => 422,
+                    'message' => 'La constancia trae un formato de fechas inválido.',
+                ];
+            }
+
+            if ($fechaFinalDate->lt($fechaInicioDate)) {
+                return [
+                    'status'  => false,
+                    'code'    => 422,
+                    'message' => 'El rango de fechas no es válido: la fecha final no puede ser anterior a la fecha inicial.',
+                ];
+            }
+
+            $anioConclusion = (int) $fechaFinalDate->year;
+
+            $idTrimestre = (new GetTrimestreModel())->getTrimestrePorFechaFin($fechaFinal);
+            $idTrimestre = ! empty($idTrimestre) ? (int) $idTrimestre : null;
+
+            if (empty($idTrimestre)) {
+                return [
+                    'status'  => false,
+                    'code'    => 422,
+                    'message' => 'No se pudo determinar el trimestre con la fecha final de la constancia.',
                 ];
             }
 
@@ -590,6 +619,7 @@ class UpdateEstatusConstanciasController extends Controller
 
             $updateConstanciaData = [
                 'estatus'             => self::CONST_CONCLUIDO,
+                'anio'                => $anioConclusion,
                 'fecha_ini_accion'    => DB::raw("COALESCE(fecha_ini_accion, CURRENT_TIMESTAMP)"),
                 'fecha_ultima_accion' => DB::raw("CURRENT_TIMESTAMP"),
             ];
@@ -628,6 +658,7 @@ class UpdateEstatusConstanciasController extends Controller
                 'nombre_curso'       => (string) ($notify['nombre_curso'] ?? ''),
                 'folio'              => (string) ($notify['folio'] ?? $idRespuesta),
                 'fecha_hora_envio'   => $fechaHoraEnvio ? (string) $fechaHoraEnvio : null,
+                'anio_conclusion'    => $anioConclusion,
                 'curso_base_anulado' => $cursoBaseAnulado,
             ];
         });
@@ -726,11 +757,13 @@ class UpdateEstatusConstanciasController extends Controller
                 'correo_electronico' => (string) ($resultado['correo_electronico'] ?? ''),
                 'correo_enviado' => $emailEnviado,
                 'fecha_hora_envio' => $resultado['fecha_hora_envio'] ?? null,
+                'anio_conclusion' => $resultado['anio_conclusion'] ?? null,
                 'curso_base_anulado' => $resultado['curso_base_anulado'] ?? null,
             ],
             oldValues: ['estatus' => self::CONST_PENDIENTE],
             newValues: [
                 'estatus' => self::CONST_CONCLUIDO,
+                'anio' => $resultado['anio_conclusion'] ?? null,
                 'fecha_hora_envio' => $resultado['fecha_hora_envio'] ?? null,
             ]
         );
