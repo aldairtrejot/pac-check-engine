@@ -27,7 +27,14 @@ class ConstanciasInstanciaOtroConfirmationTest extends TestCase
         $this->assertFalse($data['status']);
         $this->assertTrue($data['requires_confirmation']);
         $this->assertTrue($data['requires_instancia_otro_confirmation']);
-        $this->assertSame('Revisar la institución capturada.', $data['instancia_otro']);
+        $this->assertSame([
+            'nombre' => 'María Elena',
+            'apellido_paterno' => 'López',
+            'apellido_materno' => 'Pérez',
+            'curp' => 'CURP-DE-PRUEBA',
+        ], $data['persona']);
+        $this->assertArrayNotHasKey('instancia_otro', $data);
+        $this->assertSame('Favor de validar que la constancia pertenezca a:', $data['message']);
         Mail::assertNothingSent();
     }
 
@@ -38,7 +45,8 @@ class ConstanciasInstanciaOtroConfirmationTest extends TestCase
         $data = $this->update(['accion' => 'ACEPTAR'])->getData(true);
 
         $this->assertTrue($data['requires_instancia_otro_confirmation']);
-        $this->assertSame('0', $data['instancia_otro']);
+        $this->assertSame('CURP-DE-PRUEBA', $data['persona']['curp']);
+        $this->assertArrayNotHasKey('instancia_otro', $data);
     }
 
     #[DataProvider('emptyObservations')]
@@ -113,16 +121,20 @@ class ConstanciasInstanciaOtroConfirmationTest extends TestCase
         DB::shouldNotReceive('select');
 
         $record = Mockery::mock(Builder::class);
-        DB::shouldReceive('table')->with('public.tbl_constancias as c')->once()->andReturn($record);
-        $record->shouldReceive('whereNotNull', 'whereRaw', 'select', 'where', 'lockForUpdate')->andReturnSelf();
+        DB::shouldReceive('table')->with('public.tbl_constancias as c')->andReturn($record);
+        $record->shouldReceive('whereNotNull', 'whereRaw', 'select', 'where', 'lockForUpdate', 'leftJoin')->andReturnSelf();
         $record->shouldNotReceive('update', 'insert', 'delete');
-        $record->shouldReceive('first')->once()->andReturn((object) [
+        $record->shouldReceive('first')->andReturn((object) [
             'id_respuesta' => 'CONSTANCIA-PRUEBA',
             'estatus' => $status,
             'instancia_otro' => $observation,
             'curp' => 'CURP-DE-PRUEBA',
             'nombre_curso' => 'CURSO DE PRUEBA',
             'id_puesto' => '1',
+        ], (object) [
+            'nombre' => ' María Elena ',
+            'apellido_paterno' => ' López ',
+            'apellido_materno' => ' Pérez ',
         ]);
 
         $userQuery = Mockery::mock(Builder::class);

@@ -295,13 +295,27 @@ class UpdateEstatusConstanciasController extends Controller
             $instanciaOtro = trim((string) ($c->instancia_otro ?? ''));
 
             if ($instanciaOtro !== '' && ! $confirmarInstanciaOtro) {
+                $persona = $this->baseConstanciaQuery($user)
+                    ->select([
+                        'cap.nombre',
+                        'cap.apellido_paterno',
+                        'cap.apellido_materno',
+                    ])
+                    ->where('c.id_respuesta', $idRespuesta)
+                    ->first();
+
                 return [
                     'status' => false,
                     'code' => 200,
                     'requires_confirmation' => true,
                     'requires_instancia_otro_confirmation' => true,
-                    'instancia_otro' => $instanciaOtro,
-                    'message' => 'Revisa la observación de instancia antes de aceptar la constancia.',
+                    'persona' => [
+                        'nombre' => trim((string) ($persona->nombre ?? '')),
+                        'apellido_paterno' => trim((string) ($persona->apellido_paterno ?? '')),
+                        'apellido_materno' => trim((string) ($persona->apellido_materno ?? '')),
+                        'curp' => trim((string) ($c->curp ?? '')),
+                    ],
+                    'message' => 'Favor de validar que la constancia pertenezca a:',
                 ];
             }
 
@@ -693,7 +707,7 @@ class UpdateEstatusConstanciasController extends Controller
 
             if (! empty($resultado['requires_instancia_otro_confirmation'])) {
                 $response['requires_instancia_otro_confirmation'] = true;
-                $response['instancia_otro'] = $resultado['instancia_otro'];
+                $response['persona'] = $resultado['persona'];
             }
 
             if (! empty($resultado['duplicate_concluido'])) {

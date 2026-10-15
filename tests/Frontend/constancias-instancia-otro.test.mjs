@@ -7,10 +7,18 @@ const source = readFileSync(new URL('../../resources/js/app/constancias/table.vu
 const script = source.match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import[^\r\n]*$/gm, '')
 
 const observation = '<b>Revisar la instancia</b>\nObservación del registro.'
+const person = {
+  nombre: 'María Elena',
+  apellido_paterno: 'López',
+  apellido_materno: 'Pérez',
+  curp: 'CURP-DE-PRUEBA',
+}
 const confirmation = {
   status: false,
   requires_confirmation: true,
   requires_instancia_otro_confirmation: true,
+  persona: person,
+  // El contenido anterior no debe aparecer aunque lo envíe un cliente o servidor anterior.
   instancia_otro: observation,
 }
 const duplicate = { status: false, requires_confirmation: true, duplicate_concluido: true }
@@ -59,7 +67,7 @@ function workflow(responses, decisions = []) {
   return { ...sandbox.subject, requests, alerts, errors }
 }
 
-test('Cancelar la observación termina sin enviar una aceptación confirmada ni un rechazo', async () => {
+test('Cancelar la validación de identidad termina sin enviar una aceptación confirmada ni un rechazo', async () => {
   const flow = workflow([confirmation], [{ isConfirmed: false, isDismissed: true }])
 
   await flow.updateStatus('ACEPTAR')
@@ -69,7 +77,7 @@ test('Cancelar la observación termina sin enviar una aceptación confirmada ni 
   assert.deepEqual(flow.errors, [])
 })
 
-test('Aceptar y continuar reenvía la decisión confirmada y muestra la observación como texto', async () => {
+test('Aceptar y continuar confirma la identidad mostrando el nombre, la CURP y las instrucciones', async () => {
   const flow = workflow([confirmation, success], [{ isConfirmed: true }])
 
   await flow.updateStatus('ACEPTAR')
@@ -77,10 +85,42 @@ test('Aceptar y continuar reenvía la decisión confirmada y muestra la observac
   assert.equal(flow.requests.length, 2)
   assert.equal(flow.requests[1].confirmar_instancia_otro, true)
   assert.equal(flow.requests[1].id_respuesta, 'CONSTANCIA-PRUEBA')
-  assert.equal(flow.alerts[0].text, observation)
-  assert.equal(flow.alerts[0].html, undefined)
+  assert.equal(flow.alerts[0].title, 'Favor de validar que la constancia pertenezca a:')
+  assert.match(flow.alerts[0].html, /<strong>Nombre:<\/strong> María Elena López Pérez/)
+  assert.match(flow.alerts[0].html, /<strong>CURP:<\/strong> CURP-DE-PRUEBA/)
+  assert.ok(!flow.alerts[0].html.includes(observation))
+  assert.equal(flow.alerts[0].text, undefined)
+  const instructions = flow.alerts[0].html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ')
+  assert.ok(instructions.includes('Si el nombre y la CURP coinciden tanto en la constancia como en la tarjeta de información, selecciona “Aceptar y continuar”. En caso contrario, selecciona “Cancelar” para detener la acción y revisar la información.'))
   assert.equal(flow.alerts[0].cancelButtonText, 'Cancelar')
   assert.equal(flow.alerts[0].confirmButtonText, 'Aceptar y continuar')
+  assert.deepEqual(flow.errors, [])
+})
+
+test('La alerta muestra valores de identidad como texto y escapa etiquetas HTML', async () => {
+  const flow = workflow([{
+    ...confirmation,
+    persona: { ...person, nombre: '<img src=x onerror=alert(1)>', curp: '<script>alert(1)</script>' },
+  }], [{ isConfirmed: false }])
+
+  await flow.updateStatus('ACEPTAR')
+
+  assert.ok(!flow.alerts[0].html.includes('<img'))
+  assert.ok(!flow.alerts[0].html.includes('<script>'))
+  assert.ok(flow.alerts[0].html.includes('&lt;img src=x onerror=alert(1)&gt;'))
+  assert.ok(flow.alerts[0].html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'))
+  assert.deepEqual(flow.errors, [])
+})
+
+test('El nombre completo omite apellidos ausentes y espacios en los extremos', async () => {
+  const flow = workflow([{
+    ...confirmation,
+    persona: { ...person, nombre: ' María ', apellido_paterno: null, apellido_materno: ' Pérez ' },
+  }], [{ isConfirmed: false }])
+
+  await flow.updateStatus('ACEPTAR')
+
+  assert.match(flow.alerts[0].html, /<strong>Nombre:<\/strong> María Pérez<br>/)
   assert.deepEqual(flow.errors, [])
 })
 

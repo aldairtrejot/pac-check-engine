@@ -1009,18 +1009,41 @@ function isInstanciaOtroConfirmationResponse(data) {
   )
 }
 
+function escapeHtml(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+  return String(value).replace(/[&<>"']/g, character => entities[character])
+}
+
 async function handleInstanciaOtroConfirmation(data, extraPayload = {}) {
   if (instanciaOtroPromptOpen.value) return
 
   instanciaOtroPromptOpen.value = true
   hideSpinner()
 
+  const persona = data.persona || {}
+  const nombreCompleto = [persona.nombre, persona.apellido_paterno, persona.apellido_materno]
+    .map(value => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+
   let result
   try {
     result = await Swal.fire({
       icon: 'warning',
-      title: 'Observación de instancia',
-      text: String(data.instancia_otro ?? ''),
+      title: 'Favor de validar que la constancia pertenezca a:',
+      html: `
+        <div class="text-start">
+          <p>
+            <strong>Nombre:</strong> ${escapeHtml(nombreCompleto || '—')}<br>
+            <strong>CURP:</strong> ${escapeHtml(String(persona.curp ?? '').trim() || '—')}
+          </p>
+          <p class="mb-0">
+            Si el nombre y la CURP coinciden tanto en la constancia como en la tarjeta de información,
+            selecciona <strong>“Aceptar y continuar”</strong>. En caso contrario, selecciona
+            <strong>“Cancelar”</strong> para detener la acción y revisar la información.
+          </p>
+        </div>
+      `,
       showCancelButton: true,
       confirmButtonText: 'Aceptar y continuar',
       cancelButtonText: 'Cancelar',
@@ -1028,10 +1051,6 @@ async function handleInstanciaOtroConfirmation(data, extraPayload = {}) {
       allowOutsideClick: false,
       confirmButtonColor: '#235B4E',
       cancelButtonColor: '#8B0000',
-      didOpen: () => {
-        const container = Swal.getHtmlContainer()
-        if (container) container.style.whiteSpace = 'pre-wrap'
-      },
     })
   } finally {
     instanciaOtroPromptOpen.value = false
