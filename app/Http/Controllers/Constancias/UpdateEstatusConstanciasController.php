@@ -52,6 +52,7 @@ class UpdateEstatusConstanciasController extends Controller
                 'motivo'              => 'nullable|string|max:2000',
                 'confirmar_duplicado' => 'nullable|boolean',
                 'rechazar_duplicado'  => 'nullable|boolean',
+                'confirmar_instancia_otro' => 'nullable|boolean',
             ]);
 
             $idRespuesta = trim((string) $request->input('id_respuesta'));
@@ -67,6 +68,8 @@ class UpdateEstatusConstanciasController extends Controller
                 $request->input('rechazar_duplicado', false),
                 FILTER_VALIDATE_BOOLEAN
             );
+
+            $confirmarInstanciaOtro = $request->boolean('confirmar_instancia_otro');
 
             if ($idRespuesta === '') {
                 return response()->json([
@@ -97,7 +100,8 @@ class UpdateEstatusConstanciasController extends Controller
                 idRespuesta: $idRespuesta,
                 user: $user,
                 confirmarDuplicado: $confirmarDuplicado,
-                rechazarDuplicado: $rechazarDuplicado
+                rechazarDuplicado: $rechazarDuplicado,
+                confirmarInstanciaOtro: $confirmarInstanciaOtro
             );
 
         } catch (\Throwable $th) {
@@ -249,9 +253,10 @@ class UpdateEstatusConstanciasController extends Controller
         string $idRespuesta,
         $user,
         bool $confirmarDuplicado = false,
-        bool $rechazarDuplicado = false
+        bool $rechazarDuplicado = false,
+        bool $confirmarInstanciaOtro = false
     ) {
-        $resultado = DB::transaction(function () use ($idRespuesta, $user, $confirmarDuplicado, $rechazarDuplicado) {
+        $resultado = DB::transaction(function () use ($idRespuesta, $user, $confirmarDuplicado, $rechazarDuplicado, $confirmarInstanciaOtro) {
             $c = $this->baseConstanciaOnlyQuery($user)
                 ->select([
                     'c.id_respuesta',
@@ -284,6 +289,19 @@ class UpdateEstatusConstanciasController extends Controller
                     'status'  => false,
                     'code'    => 409,
                     'message' => 'La constancia ya fue procesada previamente con estatus: ' . $this->statusLabel((int) $c->estatus) . '.',
+                ];
+            }
+
+            $instanciaOtro = trim((string) ($c->instancia_otro ?? ''));
+
+            if ($instanciaOtro !== '' && ! $confirmarInstanciaOtro) {
+                return [
+                    'status' => false,
+                    'code' => 200,
+                    'requires_confirmation' => true,
+                    'requires_instancia_otro_confirmation' => true,
+                    'instancia_otro' => $instanciaOtro,
+                    'message' => 'Revisa la observación de instancia antes de aceptar la constancia.',
                 ];
             }
 
@@ -671,6 +689,11 @@ class UpdateEstatusConstanciasController extends Controller
 
             if (! empty($resultado['requires_confirmation'])) {
                 $response['requires_confirmation'] = true;
+            }
+
+            if (! empty($resultado['requires_instancia_otro_confirmation'])) {
+                $response['requires_instancia_otro_confirmation'] = true;
+                $response['instancia_otro'] = $resultado['instancia_otro'];
             }
 
             if (! empty($resultado['duplicate_concluido'])) {

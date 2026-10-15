@@ -676,6 +676,7 @@ const extraPretty = ref('Pendiente de definición por el equipo.')
 const rejectReason = ref('')
 const rejectReasonTouched = ref(false)
 const duplicatePromptOpen = ref(false)
+const instanciaOtroPromptOpen = ref(false)
 
 const rejectReasonValid = computed(() => rejectReason.value.trim().length > 0)
 
@@ -1000,7 +1001,51 @@ function isDuplicateConfirmationResponse(data) {
   )
 }
 
-async function handleDuplicateConstanciaConfirmation() {
+function isInstanciaOtroConfirmationResponse(data) {
+  return !!(
+    data &&
+    isTruthy(data.requires_confirmation) &&
+    isTruthy(data.requires_instancia_otro_confirmation)
+  )
+}
+
+async function handleInstanciaOtroConfirmation(data, extraPayload = {}) {
+  if (instanciaOtroPromptOpen.value) return
+
+  instanciaOtroPromptOpen.value = true
+  hideSpinner()
+
+  let result
+  try {
+    result = await Swal.fire({
+      icon: 'warning',
+      title: 'Observación de instancia',
+      text: String(data.instancia_otro ?? ''),
+      showCancelButton: true,
+      confirmButtonText: 'Aceptar y continuar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      allowOutsideClick: false,
+      confirmButtonColor: '#235B4E',
+      cancelButtonColor: '#8B0000',
+      didOpen: () => {
+        const container = Swal.getHtmlContainer()
+        if (container) container.style.whiteSpace = 'pre-wrap'
+      },
+    })
+  } finally {
+    instanciaOtroPromptOpen.value = false
+  }
+
+  if (!result.isConfirmed) return
+
+  await updateStatus('ACEPTAR', '', {
+    ...extraPayload,
+    confirmar_instancia_otro: true,
+  })
+}
+
+async function handleDuplicateConstanciaConfirmation(extraPayload = {}) {
   if (duplicatePromptOpen.value) return
 
   duplicatePromptOpen.value = true
@@ -1051,6 +1096,7 @@ async function handleDuplicateConstanciaConfirmation() {
 
   if (result.isConfirmed) {
     await updateStatus('ACEPTAR', '', {
+      ...extraPayload,
       confirmar_duplicado: true,
     })
 
@@ -1058,15 +1104,21 @@ async function handleDuplicateConstanciaConfirmation() {
   }
 
   await updateStatus('ACEPTAR', '', {
+    ...extraPayload,
     rechazar_duplicado: true,
   })
 }
 
-async function processSuccessfulStatusResponse(data, accion) {
+async function processSuccessfulStatusResponse(data, accion, extraPayload = {}) {
   if (!data.status) {
+    if (accion === 'ACEPTAR' && isInstanciaOtroConfirmationResponse(data)) {
+      await handleInstanciaOtroConfirmation(data, extraPayload)
+      return
+    }
+
     if (isDuplicateConfirmationResponse(data)) {
       hideSpinner()
-      await handleDuplicateConstanciaConfirmation()
+      await handleDuplicateConstanciaConfirmation(extraPayload)
       return
     }
 
@@ -1108,14 +1160,19 @@ async function updateStatus(accion, motivo = '', extraPayload = {}) {
 
     const { data } = await axios.post('/constancias/estatus', payload)
 
-    await processSuccessfulStatusResponse(data, accion)
+    await processSuccessfulStatusResponse(data, accion, extraPayload)
 
   } catch (e) {
     const data = e.response?.data || {}
 
+    if (accion === 'ACEPTAR' && isInstanciaOtroConfirmationResponse(data)) {
+      await handleInstanciaOtroConfirmation(data, extraPayload)
+      return
+    }
+
     if (isDuplicateConfirmationResponse(data)) {
       hideSpinner()
-      await handleDuplicateConstanciaConfirmation()
+      await handleDuplicateConstanciaConfirmation(extraPayload)
       return
     }
 
