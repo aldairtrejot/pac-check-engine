@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 class ConstanciaVisibilityByName
 {
+    private const ESTATUS_OCULTO = 99;
+
     private static array $columnsCache = [];
 
     /**
@@ -18,7 +20,8 @@ class ConstanciaVisibilityByName
 
     /**
      * Reglas:
-     * - ADMIN_OC: ve absolutamente todo.
+     * - El estatus 99 queda excluido para todos los usuarios.
+     * - ADMIN_OC: ve todos los registros restantes dentro de su alcance.
      * - SUPERVISOR_OC / REVISOR_EST / SUPERVISOR_EST:
      *   filtrados por entidad + tipo_nomina.
      * - Si el tipo de nómina contiene HRAES, además exige CLUES.
@@ -26,6 +29,8 @@ class ConstanciaVisibilityByName
      */
     public static function apply(Builder $query, $user, string $constAlias = 'c'): void
     {
+        $query->where("{$constAlias}.estatus", '<>', self::ESTATUS_OCULTO);
+
         $userId = $user ? (int) $user->id : 0;
         $scope = self::resolveScope($userId);
 
@@ -34,7 +39,7 @@ class ConstanciaVisibilityByName
             return;
         }
 
-        // ✅ ADMINISTRADOR VE TODO
+        // El administrador también conserva la exclusión del estatus oculto.
         if ($scope['is_admin_global']) {
             $idAdscripcionScope = (int) ($scope['id_adscripcion_scope'] ?? 0);
 
